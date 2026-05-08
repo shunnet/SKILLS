@@ -1,4 +1,4 @@
-<h1 align="center">📦 SKILL</h1>
+<h1 align="center">📦 SKILLS</h1>
 
 <p align="center">
   <img width="120" height="120" src="https://api.shunnet.top/pic/nuget.png" alt="Snet Logo"/>
