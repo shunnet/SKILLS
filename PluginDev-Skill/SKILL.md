@@ -1,7 +1,7 @@
----
+﻿---
 name: plugindev-skill
 description: Snet.Iot.Daq 插件开发技能。严格定义插件开发契约：必须实现的抽象方法、必须遵循的返回类型、必须使用的数据标注、必须调用的框架方法。AI 自行决定采集方式（TCP/HTTP/文件/串口），但必须遵守契约。
-version: 1.0.0.0
+version: 1.0.0.1
 metadata:
   openclaw:
     requires:
@@ -186,6 +186,7 @@ public override OperateResult GetStatus()
 |------|-----|
 | 返回类型 | `OperateResult` |
 | ResultData | 底层连接对象（TcpClient、HttpClient 等） |
+| 说明 | 返回插件内部使用的通信类实例，如 `TcpClientOperate`、`SerialOperate` 等。供外部诊断/调试用 |
 
 ### 2.5 ⭐ Read(Address address) — 读取数据（核心）
 
@@ -466,9 +467,9 @@ if (VAM.IsVirtualAddress(addressName))
 
 ---
 
-## 6. CoreUnify 自动提供的方法
+## 6. 可选内置组件（按需使用）
 
-继承 `DaqAbstract` 后，自动获得以下能力（无需重写）：
+以下组件需手动实例化，不是自动提供的。根据插件需求按需使用：
 
 | 方法 | 用途 |
 |------|------|
@@ -478,7 +479,7 @@ if (VAM.IsVirtualAddress(addressName))
 | `Instance(basics)` | 单例模式获取实例 |
 | `CreateInstance(basics)` | 创建新实例 |
 | `GetParam()` | 获取配置参数（自动反射读取所有属性） |
-| `GetRData<T>()` | 从 OperateResult 获取泛型结果数据 |
+| `GetSource<T>()` | 从 OperateResult 获取泛型结果数据 |
 | `WAOn(WAModel)` | 启动内置 WebApi |
 | `WAOff()` | 停止内置 WebApi |
 | `LogOperateGet()` | 获取日志配置 |
@@ -507,7 +508,7 @@ var setResult = cache.SetCache("lastTemperature", 25.6f);
 var getResult = cache.GetCache<float>("lastTemperature");
 if (getResult.Status)
 {
-    float temp = getResult.GetRData<float>();
+    float temp = getResult.GetSource<float>();
 }
 
 // 删除
@@ -525,7 +526,7 @@ cache.Dispose();
 | 方法 | 说明 | 返回 |
 |------|------|------|
 | `SetCache<T>(key, value)` | 写入/覆盖缓存 | `OperateResult` |
-| `GetCache<T>(key)` | 读取缓存，`GetRData<T>()` 取值 | `OperateResult` |
+| `GetCache<T>(key)` | 读取缓存，`GetSource<T>()` 取值 | `OperateResult` |
 | `RemoveCache(key)` | 删除指定缓存 | `OperateResult` |
 | `ClearCache()` | 清空所有缓存 | `OperateResult` |
 | `Dispose()` | 清空并释放 | `void` |
@@ -557,7 +558,7 @@ share.SetCache("sharedKey", data);
 var getResult = share.GetCache("sharedKey");
 if (getResult.Status)
 {
-    byte[]? bytes = getResult.GetRData<byte[]>();
+    byte[]? bytes = getResult.GetSource<byte[]>();
 }
 
 // 删除 / 清空
@@ -653,7 +654,7 @@ if (!initResult.Status)
 var methodResult = reflect.Invoke<object>("parse-temp", new object[] { "25.6" });
 if (methodResult.Status)
 {
-    object? parsed = methodResult.GetRData<object>();
+    object? parsed = methodResult.GetSource<object>();
 }
 
 // ④ 注册事件
@@ -707,7 +708,7 @@ if (reflect.GetStatus())
 {
     var result = reflect.Invoke<object>("parse-temp", new object[] { rawValue });
     if (result.Status)
-        rawValue = result.GetRData<object>();  // 用解析后的值替换原始值
+        rawValue = result.GetSource<object>();  // 用解析后的值替换原始值
 }
 // 然后交给框架
 var av = AddressHandler.ExecuteDispose(item, rawValue, "成功");

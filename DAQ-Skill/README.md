@@ -1,6 +1,6 @@
 # DAQ-Skill — 工业物联网数据采集技能
 
-**版本:** 1.0.0.0  
+**版本:** 1.0.0.1  
 **作者:** Shun  
 **许可证:** MIT  
 **框架:** .NET 8.0 / 9.0 / 10.0
@@ -17,20 +17,20 @@
 
 ## 简介
 
-基于 [Snet](https://www.nuget.org/profiles/Shun) 框架的工业物联网全栈式数据采集通信库。支持 20+ 种工业协议（PLC/工控/电力/机器人），消息中间件（Kafka/MQTT/RabbitMQ/NetMQ/Netty）数据转发，内置 WebAPI 远程控制。
+基于 [Snet](https://www.nuget.org/profiles/Shun) 框架的工业物联网全栈式数据采集通信库。支持 30+ 种工业协议（PLC/工控/电力/机器人），消息中间件（Kafka/MQTT/RabbitMQ/NetMQ/Netty）数据转发，内置 WebAPI 远程控制。
 
 ## 交互流程
 
-> AI 先用大白话问用户，确认后再生成代码。用户说一句“帮我连PLC读点数据”，AI 一步步问清楚：
+> AI 先用大白话问用户，确认后再生成代码。用户说一句"帮我连PLC读点数据"，AI 一步步问清楚：
 
 | # | 问用户什么 | 用户会怎么回答 | AI 翻译成什么 |
 |---|-----------|---------------|--------------|
-| 1 | 设备是什么牌子什么型号？ | “西门子S7-1500” | → ProtocolType |
-| 2 | 网线连的还是串口线连的？ | “网线” | → TCP / Serial |
-| 3 | IP和端口/COM口和波特率？ | “192.168.0.1” | → 连接参数 |
-| 4 | 要读哪些数据？地址和类型？ | “DB1.0是整数” | → AddressDetails |
-| 5 | 数据发到哪里？ | “MQTT 127.0.0.1:1883” | → MQ 配置 |
-| 6 | 多久读一次？ | “实时，变了就发” | → HandleInterval |
+| 1 | 设备是什么牌子什么型号？ | "西门子S7-1500" | → ProtocolType |
+| 2 | 网线连的还是串口线连的？ | "网线" | → TCP / Serial |
+| 3 | IP和端口/COM口和波特率？ | "192.168.0.1" | → 连接参数 |
+| 4 | 要读哪些数据？地址和类型？ | "DB1.0是整数" | → AddressDetails |
+| 5 | 数据发到哪里？ | "MQTT 127.0.0.1:1883" | → MQ 配置 |
+| 6 | 多久读一次？ | "实时，变了就发" | → HandleInterval |
 
 ## 核心组件
 
@@ -42,27 +42,42 @@
 | `Snet.Utility` | 工具集（字节 · 枚举 · 文件 · 字符串 · JSON · XML · Protobuf · FTP） |
 | `Snet.Driver` | 底层硬件通信驱动 |
 
-## 采集协议一览
+## 采集协议一览（30+ 种协议，150+ ProtocolType）
 
 | 包名 | 协议 | Operate 类 | ProtocolType 数量 |
 |------|------|-----------|-------------------|
-| `Snet.Siemens` | 西门子 S7/PPI/S7Plus | `SiemensOperate` | 10 种 |
-| `Snet.Modbus` | Modbus TCP/UDP/RTU/ASCII | `ModbusOperate` | 6 种 |
-| `Snet.Mitsubishi` | 三菱 MC/FX/A1E/A3C/CIP | `MitsubishiOperate` | 14 种 |
-| `Snet.Omron` | 欧姆龙 Fins/CIP/HostLink | `OmronOperate` | 8 种 |
-| `Snet.Inovance` | 汇川 TCP/Serial/CIP/Easy | `InovanceOperate` | 6 种 |
+| `Snet.Siemens` | 西门子 S7/PPI/S7Plus/FetchWrite | `SiemensOperate` | 10 种 |
+| `Snet.Modbus` | Modbus TCP/UDP/RTU/ASCII/RTUoTCP/ASCIIoTCP | `ModbusOperate` | 6 种 |
+| `Snet.Mitsubishi` | 三菱 MC/FX/A1E/A3C/CIP/Links | `MitsubishiOperate` | 14 种 |
+| `Snet.Omron` | 欧姆龙 Fins/CIP/HostLink/CMode | `OmronOperate` | 8 种 |
+| `Snet.Inovance` | 汇川 TCP/Serial/CIP/Easy/ComputerLink | `InovanceOperate` | 6 种 |
 | `Snet.Opc` | OPC UA/DA/DAHttp | `OpcUaClientOperate` | 3 种 |
-| `Snet.Delta` | 台达 | `DeltaOperate` | 5 种 |
+| `Snet.AllenBradley` | 罗克韦尔 CIP/PCCC/SLC/DF1 | `AllenBradleyOperate` | 6 种 |
+| `Snet.Delta` | 台达 TCP/Serial/ASCII | `DeltaOperate` | 5 种 |
 | `Snet.Keyence` | 基恩士 MC/Nano/KvOld | `KeyenceOperate` | 5 种 |
-| `Snet.AllenBradley` | 罗克韦尔 CIP/PCCC/DF1 | `AllenBradleyOperate` | 6 种 |
 | `Snet.Panasonic` | 松下 MC/Mewtocol | `PanasonicOperate` | 3 种 |
-| `Snet.Invt` | 英威腾 | `InvtOperate` | 2 种 |
-| `Snet.MegMeet` | 麦格米特 | `MegMeetOperate` | 3 种 |
-| `Snet.DB` | 数据库采集（SqlServer/MySQL/Oracle/SQLite） | `DBOperate` | 4 种 DB + Daq/Default 模式 |
-| `Snet.TEP` | TCP 扩展插件（非标设备采集） | `TepMasterOperate` / `TepSlaveOperate` | 自定义 TCP 协议 |
-| `Snet.Freedom` | 自由协议（自定义报文） | `FreedomOperate` | TCP/UDP/串口 |
+| `Snet.Invt` | 英威腾（Modbus） | `InvtOperate` | 2 种 |
+| `Snet.MegMeet` | 麦格米特 TCP/Serial | `MegMeetOperate` | 3 种 |
+| `Snet.Beckhoff` | 倍福 ADS | `BeckhoffOperate` | 1 种 |
+| `Snet.GE` | 通用电气 SRTP | `GEOperate` | 1 种 |
+| `Snet.Yaskawa` | 安川 Memobus TCP/UDP | `YaskawaOperate` | 2 种 |
+| `Snet.Cimon` | 西蒙 PLC | `CimonOperate` | 1 种 |
+| `Snet.Fanuc` | 发那科 CNC/机器人 | `FanucOperate` | 1 种 |
+| `Snet.Fatek` | 永宏 PLC | `FatekOperate` | 2 种 |
+| `Snet.Fuji` | 富士 SPH/SPB | `FujiOperate` | 4 种 |
+| `Snet.LSis` | LS产电 PLC | `LSisOperate` | 4 种 |
+| `Snet.RKC` | 理化温控器 | `RKCOperate` | 2 种 |
+| `Snet.Toyota` | 丰田机器人 | `ToyotaOperate` | 1 种 |
+| `Snet.Turck` | 图尔克 IO-Link | `TurckOperate` | 1 种 |
+| `Snet.Vigor` | 丰炜 PLC | `VigorOperate` | 2 种 |
+| `Snet.WeCon` | 维控 PLC | `WeConOperate` | 2 种 |
+| `Snet.XinJE` | 信捷（另一系列） | `XinJEOperate` | 4 种 |
+| `Snet.Yamatake` | 山武（AZBIL） | `YamatakeOperate` | 2 种 |
+| `Snet.Yokogawa` | 横河 PLC | `YokogawaOperate` | 1 种 |
+| `Snet.DB` | 数据库采集（SqlServer/MySQL/Oracle/SQLite） | `DBOperate` | 4 种 DB |
+| `Snet.TEP` | TCP 扩展插件（非标设备采集） | `TepMasterOperate` / `TepSlaveOperate` | 自定义 |
+| `Snet.Freedom` | 自由协议（自定义报文） | `FreedomOperate` | 3 种 |
 | `Snet.Sim` | 模拟库（无硬件测试） | `SimOperate` | 5 种虚拟地址 |
-| 更多... | Beckhoff, GE, Yaskawa, Yokogawa, Fanuc, Fatek, Fuji, Vigor, WeCon, XinJE, LSis, Cimon, RKC, Turck, Yamatake | | |
 
 ## 消息中间件
 
@@ -95,9 +110,10 @@
 | 状态检查 | `result.Status`（不是 `IsSuccess`！） |
 | Write 签名 | `(object value, EncodingType? encodingType)` 元组 |
 | 端口默认 | 所有库默认 6688，务必显式设置标准端口 |
-| MQTT 属性 | `IpAddress`（不是 `Ip`） |
+| MQTT 属性 | `IpAddress`（不是 `Ip`！） |
 | ISns 格式 | `完整命名空间.Operate类名.Basics.SN` |
 | 数据质量 | `QualityType`: None(-1) / Exception(0) / **Normal(1)** / DataTypeError(2) / ParseUnknown(3) / ParseError(4) |
+| GetSource | `result.GetSource<T>()` 获取泛型结果数据（不是 `GetRData`！） |
 
 ## 快速开始
 

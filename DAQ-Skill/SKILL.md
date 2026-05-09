@@ -1,7 +1,7 @@
----
+﻿---
 name: daq-skill
-description: 工业物联网数据采集通信库，基于 Snet 框架，支持 PLC/工控/电力/机器人 等 20+ 种工业协议的数据读取、写入、订阅、状态获取，以及 Kafka/MQTT/RabbitMQ/NetMQ/Netty 消息中间件转发。所有采集库通过 ProtocolType 枚举自动选择底层驱动。支持"一句话"完成采集+转发。
-version: 1.0.0.0
+description: 工业物联网数据采集通信库，基于 Snet 框架，支持 PLC/工控/电力/机器人 等 30+ 种工业协议的数据读取、写入、订阅、状态获取，以及 Kafka/MQTT/RabbitMQ/NetMQ/Netty 消息中间件转发。所有采集库通过 ProtocolType 枚举自动选择底层驱动。支持"一句话"完成采集+转发。
+version: 1.0.0.1
 metadata:
   openclaw:
     requires:
@@ -395,7 +395,7 @@ string msg = result.Message;     // 状态描述
 int ms = result.RunTime;         // 执行耗时(ms)
 
 // 获取泛型结果数据
-var data = result.GetRData<ConcurrentDictionary<string, AddressValue>>();
+var data = result.GetSource<ConcurrentDictionary<string, AddressValue>>();
 
 // 获取详情
 if (result.GetDetails<ConcurrentDictionary<string, AddressValue>>(out var dict))
@@ -476,6 +476,8 @@ new AddressDetails
 | `String` | — | `string` | n×2 |
 | `ByteArray` | — | `byte[]` | n |
 | `Char` | — | `char` | 2 |
+| `Date` / `Time` / `DateTime` | — | `DateTime` | — |
+| `None` | — | `object`（原始值直通） | — |
 
 ### 4.6 DataFormat（字节序）
 
@@ -503,33 +505,88 @@ DataFormat.DCBA  // 完全反转
 | "西门子" "S7-1200" "1200" | `SiemensOperate` | `SiemensS7Net_S1200` |
 | "西门子" "S7-1500" "1500" | `SiemensOperate` | `SiemensS7Net_S1500` |
 | "西门子" "PPI" "串口" | `SiemensOperate` | `SiemensPPI` |
+| "西门子" "PPI" "TCP" "PPI以太网" | `SiemensOperate` | `SiemensPPIOverTcp` |
+| "西门子" "S7Plus" "1500R" | `SiemensOperate` | `SiemensS7Plus` |
+| "西门子" "FetchWrite" | `SiemensOperate` | `SiemensFetchWriteNet` |
 | "Modbus" "TCP" | `ModbusOperate` | `ModbusTcpNet` |
 | "Modbus" "RTU" "串口" | `ModbusOperate` | `ModbusRtu` |
 | "Modbus" "ASCII" | `ModbusOperate` | `ModbusAscii` |
+| "Modbus" "UDP" | `ModbusOperate` | `ModbusUdpNet` |
+| "Modbus" "RTU" "TCP" "RTU over TCP" | `ModbusOperate` | `ModbusRtuOverTcp` |
+| "Modbus" "ASCII" "TCP" "ASCII over TCP" | `ModbusOperate` | `ModbusAsciiOverTcp` |
 | "三菱" "MC" "Q系列" | `MitsubishiOperate` | `MelsecMcNet` |
-| "三菱" "FX" "串口" | `MitsubishiOperate` | `MelsecFxSerial` |
-| "三菱" "Links" "计算机链接" | `MitsubishiOperate` | `MelsecFxLinks` |
+| "三菱" "MC" "UDP" | `MitsubishiOperate` | `MelsecMcUdp` |
+| "三菱" "MC" "ASCII" | `MitsubishiOperate` | `MelsecMcAsciiNet` |
+| "三菱" "MC" "ASCII" "UDP" | `MitsubishiOperate` | `MelsecMcAsciiUdp` |
 | "三菱" "R系列" "MC R" | `MitsubishiOperate` | `MelsecMcRNet` |
+| "三菱" "FX" "串口" | `MitsubishiOperate` | `MelsecFxSerial` |
+| "三菱" "FX" "串口" "TCP" | `MitsubishiOperate` | `MelsecFxSerialOverTcp` |
+| "三菱" "Links" "计算机链接" | `MitsubishiOperate` | `MelsecFxLinks` |
+| "三菱" "Links" "TCP" | `MitsubishiOperate` | `MelsecFxLinksOverTcp` |
+| "三菱" "A1E" | `MitsubishiOperate` | `MelsecA1ENet` |
+| "三菱" "A1E" "ASCII" | `MitsubishiOperate` | `MelsecA1EAsciiNet` |
+| "三菱" "A3C" | `MitsubishiOperate` | `MelsecA3CNet` |
+| "三菱" "A3C" "TCP" | `MitsubishiOperate` | `MelsecA3CNetOverTcp` |
+| "三菱" "CIP" | `MitsubishiOperate` | `MelsecCipNet` |
 | "欧姆龙" "Fins" "TCP" | `OmronOperate` | `OmronFinsNet` |
+| "欧姆龙" "Fins" "UDP" | `OmronOperate` | `OmronFinsUdp` |
 | "欧姆龙" "CIP" "NJ" "NX" "NY" | `OmronOperate` | `OmronCipNet` |
+| "欧姆龙" "Connected CIP" | `OmronOperate` | `OmronConnectedCipNet` |
 | "欧姆龙" "HostLink" | `OmronOperate` | `OmronHostLink` |
-| "自由协议" "Freedom" "自定义报文" "raw" | `FreedomOperate` | `FreedomTcpNet` / `FreedomUdpNet` / `FreedomSerial` |
+| "欧姆龙" "HostLink" "TCP" | `OmronOperate` | `OmronHostLinkOverTcp` |
+| "欧姆龙" "HostLink" "CMode" | `OmronOperate` | `OmronHostLinkCMode` |
+| "欧姆龙" "HostLink" "CMode" "TCP" | `OmronOperate` | `OmronHostLinkCModeOverTcp` |
 | "汇川" "AM" "AC" "H3U" "H5U" | `InovanceOperate` | `InovanceTcpNet` |
 | "汇川" "Easy" | `InovanceOperate` | `InovanceEasyNet` |
 | "汇川" "串口" | `InovanceOperate` | `InovanceSerial` |
+| "汇川" "串口" "TCP" | `InovanceOperate` | `InovanceSerialOverTcp` |
+| "汇川" "ComputerLink" | `InovanceOperate` | `InovanceComputerLink` |
+| "汇川" "Connected CIP" | `InovanceOperate` | `InovanceConnectedCipNet` |
 | "OPC UA" "OPCUA" | `OpcUaClientOperate` | (无需 ProtocolType) |
 | "罗克韦尔" "AB" "Allen Bradley" "CIP" | `AllenBradleyOperate` | `AllenBradleyNet` |
+| "罗克韦尔" "Connected CIP" | `AllenBradleyOperate` | `AllenBradleyConnectedCipNet` |
 | "罗克韦尔" "Micro800" | `AllenBradleyOperate` | `AllenBradleyMicroCip` |
+| "罗克韦尔" "PCCC" "SLC" | `AllenBradleyOperate` | `AllenBradleyPcccNet` |
+| "罗克韦尔" "SLC500" | `AllenBradleyOperate` | `AllenBradleySLCNet` |
+| "罗克韦尔" "DF1" "串口" | `AllenBradleyOperate` | `AllenBradleyDF1Serial` |
 | "台达" "Delta" | `DeltaOperate` | `DeltaTcpNet` |
+| "台达" "Delta" "串口" | `DeltaOperate` | `DeltaSerial` |
+| "台达" "Delta" "串口" "TCP" | `DeltaOperate` | `DeltaSerialOverTcp` |
+| "台达" "Delta" "ASCII" | `DeltaOperate` | `DeltaSerialAscii` |
+| "台达" "Delta" "ASCII" "TCP" | `DeltaOperate` | `DeltaSerialAsciiOverTcp` |
 | "基恩士" "Keyence" "MC" | `KeyenceOperate` | `KeyenceMcNet` |
+| "基恩士" "Keyence" "MC" "ASCII" | `KeyenceOperate` | `KeyenceMcAsciiNet` |
+| "基恩士" "Keyence" "Nano" "串口" | `KeyenceOperate` | `KeyenceNanoSerial` |
+| "基恩士" "Keyence" "Nano" "TCP" | `KeyenceOperate` | `KeyenceNanoSerialOverTcp` |
+| "基恩士" "Keyence" "KV" "旧版" | `KeyenceOperate` | `KeyenceKvOld` |
 | "松下" "Panasonic" "MC" | `PanasonicOperate` | `PanasonicMcNet` |
+| "松下" "Panasonic" "Mewtocol" | `PanasonicOperate` | `PanasonicMewtocol` |
+| "松下" "Panasonic" "Mewtocol" "TCP" | `PanasonicOperate` | `PanasonicMewtocolOverTcp` |
 | "麦格米特" "MegMeet" | `MegMeetOperate` | `MegMeetTcpNet` |
+| "麦格米特" "MegMeet" "串口" | `MegMeetOperate` | `MegMeetSerial` |
+| "麦格米特" "MegMeet" "串口" "TCP" | `MegMeetOperate` | `MegMeetSerialOverTcp` |
 | "英威腾" "Invt" | `InvtOperate` | `ModbusTcpNet` |
+| "英威腾" "Invt" "串口" | `InvtOperate` | `ModbusRtu` |
 | "倍福" "Beckhoff" "ADS" | `BeckhoffOperate` | `BeckhoffAdsNet` |
 | "通用电气" "GE" "SRTP" | `GEOperate` | `GeSRTPNet` |
 | "安川" "Yaskawa" "Memobus" | `YaskawaOperate` | `MemobusTcpNet` |
+| "安川" "Yaskawa" "Memobus" "UDP" | `YaskawaOperate` | `MemobusUdpNet` |
 | "数据库" "DB" "SqlServer" "MySQL" "Oracle" "SQLite" | `DBOperate` | (DBType 枚举: SqlServer/MySql/Oracle/SQLite) |
 | "TEP" "TCP扩展" "非标设备" "自定义协议" | `TepMasterOperate` | (无需 ProtocolType) |
+| "Cimon" "西蒙" | `CimonOperate` | `CimonHmiProtocol` |
+| "发那科" "Fanuc" "CNC" | `FanucOperate` | `FanucInterfaceNet` |
+| "永宏" "Fatek" | `FatekOperate` | `FatekProgram` / `FatekProgramOverTcp` |
+| "富士" "Fuji" "SPH" "SPB" | `FujiOperate` | `FujiSPHNet` / `FujiSPB` / `FujiSPBOverTcp` / `FujiCommandSettingType` |
+| "LS产电" "LSis" "LG" | `LSisOperate` | `LSFastEnet` / `LSCnet` / `LSCpu` / `LSCnetOverTcp` |
+| "RKC" "理化" | `RKCOperate` | `TemperatureControllerOverTcp` / `TemperatureController` |
+| "丰田" "Toyota" | `ToyotaOperate` | `ToyoPuc` |
+| "图尔克" "Turck" "IO-Link" | `TurckOperate` | `ReaderNet` |
+| "丰炜" "Vigor" | `VigorOperate` | `VigorSerialOverTcp` / `VigorSerial` |
+| "维控" "WeCon" | `WeConOperate` | `ModbusTcpNet` / `ModbusRtu` |
+| "信捷" "XinJE" | `XinJEOperate` | `XinJETcpNet` / `XinJESerial` / `XinJESerialOverTcp` / `XinJEInternalNet` |
+| "山武" "Yamatake" "AZBIL" | `YamatakeOperate` | `DigitronCPLOverTcp` / `DigitronCPL` |
+| "横河" "Yokogawa" | `YokogawaOperate` | `YokogawaLinkTcp` |
+| "自由协议" "Freedom" "自定义报文" "raw" | `FreedomOperate` | `FreedomTcpNet` / `FreedomUdpNet` / `FreedomSerial` |
 | "模拟" "Sim" "测试" | `SimOperate` | (无需 ProtocolType) |
 
 ### 5.2 端口默认值
@@ -546,21 +603,73 @@ DataFormat.DCBA  // 完全反转
 | AB CIP | 44818 | 6688 |
 | MQTT | 1883 | 6688 |
 
+### 5.3 各协议 Basics 核心属性速查
+
+> **完整属性列表请参考源码 `XxxData.cs`，以下仅列出关键配置项。**
+
+| 协议 | 关键属性（除公共属性外） | 源码文件 |
+|------|------------------------|----------|
+| **西门子** | `Rack`, `Slot`, `PDULength`, `LocalTSAP` | `SiemensData.cs` |
+| **Modbus** | `Station`, `DataFormat`, `AddressStartWithZero`, `IsCheckMessageId` | `ModbusData.cs` |
+| **三菱** | `Slot`, `NetworkNumber`, `NetworkStationNumber`, `EnableWriteBitToWordRegister` | `MitsubishiData.cs` |
+| **欧姆龙** | `OmronPlcType`, `SA1`, `DA1`, `DA2`, `GCT`, `DataFormat` | `OmronData.cs` |
+| **汇川** | `Station`, `InovanceSeries`(AM/AC/H3U/H5U), `DataFormat`, `AddressStartWithZero` | `InovanceData.cs` |
+| **OPC UA** | `ServerUrl`(代替Ip+Port), `AType`(认证方式), `SamplingInterval`, `PublishingInterval` | `OpcUaClientData.cs` |
+| **罗克韦尔** | `Slot`, `ReadArrayUseSegment`, `ContextCheck`, `DstNode` | `AllenBradleyData.cs` |
+| **台达** | `Station`, `DeltaSeries` | `DeltaData.cs` |
+| **基恩士** | `UseStation`, `Station`, `EnableWriteBitToWordRegister` | `KeyenceData.cs` |
+| **松下** | `Station` | `PanasonicData.cs` |
+| **麦格米特** | `Station`, `DataFormat`, `AddressStartWithZero` | `MegMeetData.cs` |
+| **英威腾** | `Station`, `DataFormat`, `StationCheckMatch`, `AddressStartWithZero` | `InvtData.cs` |
+| **倍福** | `SenderAMSNetId`, `TargetAMSNetId`, `UseAutoAmsNetID`, `UseTagCache` | `BeckhoffData.cs` |
+| **安川** | `CpuFrom`, `CpuTo`, `DataFormat` | `YaskawaData.cs` |
+| **西蒙** | `FrameNo` | `CimonData.cs` |
+| **发那科** | `StringEncoding` | `FanucData.cs` |
+| **永宏** | `Station`, `DataFormat` | `FatekData.cs` |
+| **富士** | `ConnectionID`, `DataFormat`, `DataSwap`, `Station` | `FujiData.cs` |
+| **LS产电** | `SlotNo`, `CpuType`, `CompanyID`, `Station` | `LSisData.cs` |
+| **理化** | `Station` | `RKCData.cs` |
+| **丰田** | 无特殊属性 | `ToyotaData.cs` |
+| **图尔克** | 无特殊属性 | `TurckData.cs` |
+| **丰炜** | `Station` | `VigorData.cs` |
+| **维控** | `Station`, `DataFormat`, `AddressStartWithZero`, `IsCheckMessageId` | `WeConData.cs` |
+| **信捷** | `Station`, `XinJESeries`, `DataFormat`, `AddressStartWithZero` | `XinJEData.cs` |
+| **山武** | `Station` | `YamatakeData.cs` |
+| **横河** | `CpuNumber` | `YokogawaData.cs` |
+| **自由协议** | `DataFormat`, `IsStringReverseByteWord` | `FreedomData.cs` |
+
+**公共属性（所有协议共有）：** `IpAddress`, `Port`, `ConnectTimeOut`, `ReceiveTimeOut`, `SleepTime`, `SocketKeepAliveTime`, `IsPersistentConnection`, `SerialPortInfo`, `RtsEnable`, `DtrEnable`, `ProtocolType`
+
 ---
 
 ## 6. 地址格式速查
 
-| PLC/协议 | 位地址 | 字地址 | 示例 |
-|----------|--------|--------|------|
-| 西门子 S7 | `M0.0`, `I0.0`, `Q0.0` | `DB1.0`, `MW0`, `IW0` | `DB1.DBD0` |
-| Modbus | `00001`(线圈) `10001`(输入) | `40001`(保持) `30001`(输入) | `40001` |
-| 三菱 MC | `M0`, `X0`, `Y0` | `D100`, `W100`, `R100` | `D100` |
-| 三菱 FX | `M0`, `X0`, `Y0` | `D100` | `D100` |
-| 欧姆龙 Fins | `CIO`, `W`, `H`, `D`, `A` | 按区域 | `D100`, `CIO100` |
-| 欧姆龙 CIP | Tag名 | `MyTag` | `Program:MainProgram.Var` |
-| 罗克韦尔 | Tag名 | `MyTag` | `Program:MainProgram.Var` |
-| 汇川 | `M0`, `X0`, `Y0` | `D100`, `SD100` | 兼容三菱/Modbus |
-| OPC UA | NodeId | `ns=0;i=2258` | `ns=2;s=MyVariable` |
+> **地址名称 `AddressName` 就是表格中的示例值，AI 根据用户描述自动填写。**
+
+| PLC/协议 | 位地址 | 字地址 | 示例 AddressName | 数据类型 |
+|----------|--------|--------|-----------------|----------|
+| 西门子 S7 | `M0.0`, `I0.0`, `Q0.0` | `DB1.0`, `MW0`, `IW0` | `DB1.0` | Int32/Float/Bool |
+| Modbus | `00001`(线圈) `10001`(输入) | `40001`(保持) `30001`(输入) | `40001` | Int16/Int32/Float |
+| 三菱 MC | `M0`, `X0`, `Y0` | `D100`, `W100`, `R100` | `D100` | Int16/Int32/Float |
+| 三菱 FX | `M0`, `X0`, `Y0` | `D100` | `D100` | Int16/Int32 |
+| 欧姆龙 Fins | `CIO0.0`, `W0.0`, `H0.0` | `D100`, `A0` | `D100` | Int16/Int32/Float |
+| 欧姆龙 CIP | Tag名 | `MyTag` | `Program:MainProgram.Var` | 任意 |
+| 罗克韦尔 | Tag名 | `MyTag` | `Program:MainProgram.Var` | 任意 |
+| 汇川 | `M0`, `X0`, `Y0` | `D100`, `SD100` | `D100` | Int16/Int32/Float |
+| 台达 | `M0`, `X0`, `Y0` | `D100`, `S100` | `D100` | Int16/Int32 |
+| 基恩士 | `M0`, `X0`, `Y0` | `D100`, `R100` | `D100` | Int16/Int32 |
+| 松下 | `R0`, `X0`, `Y0` | `DT100`, `LD100` | `DT100` | Int16/Int32 |
+| OPC UA | NodeId | `ns=0;i=2258` | `ns=2;s=MyVariable` | 任意 |
+| 丰炜 | `M0`, `X0`, `Y0` | `D100` | `D100` | Int16/Int32 |
+| 维控 | `M0`, `X0`, `Y0` | `D100` | `D100` | Int16/Int32/Float |
+| 信捷 | `M0`, `X0`, `Y0` | `D100`, `SD100` | `D100` | Int16/Int32/Float |
+| LS产电 | `M0`, `X0`, `Y0` | `D100`, `R100` | `D100` | Int16/Int32 |
+| 安川 | `M0`, `X0`, `Y0` | `D100`, `R100` | `D100` | Int16/Int32 |
+| 永宏 | `M0`, `X0`, `Y0` | `D100`, `R100` | `D100` | Int16/Int32 |
+| 富士 | `M0`, `X0`, `Y0` | `D100`, `R100` | `D100` | Int16/Int32 |
+| 山武 | `M0`, `X0`, `Y0` | `D100`, `R100` | `D100` | Int16/Int32 |
+| 横河 | `M0`, `X0`, `Y0` | `D100`, `R100` | `D100` | Int16/Int32 |
+| 理化温控器 | — | 寄存器地址 | `100` | Float |
 
 ---
 
@@ -979,7 +1088,7 @@ using (MqttClientOperate mq = new MqttClientOperate(config))
     mq.OnDataEvent += (sender, e) =>
     {
         if (!e.Status) return;
-        string content = e.GetRData<string>();
+        string content = e.GetSource<string>();
         Console.WriteLine($"收到: {content}");
     };
     mq.Consume("topic/hello");
@@ -1029,7 +1138,64 @@ LogHelper.Fatal("致命");
 
 ---
 
-## 10. 故障排查
+## 10. WebAPI 远程控制
+
+> DaqAbstract 内置 WebAPI 服务端，可通过 HTTP 接口远程控制采集设备。
+
+### 10.1 启动 WebAPI
+
+```csharp
+using (var operate = new XxxOperate(config))
+{
+    operate.On();
+    
+    // 启动 WebAPI（可选）
+    var waResult = operate.WAOn(new WAModel
+    {
+        Port = 5000,  // WebAPI 端口
+    });
+    
+    if (waResult.Status)
+        Console.WriteLine("WebAPI 已启动，端口: 5000");
+}
+```
+
+### 10.2 WebAPI 接口
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/on` | POST | 打开连接 |
+| `/api/off` | POST | 关闭连接 |
+| `/api/read` | POST | 读取数据（需传 Address JSON） |
+| `/api/write` | POST | 写入数据（需传 WriteModel JSON） |
+| `/api/getstatus` | POST | 获取连接状态 |
+| `/api/switchlanguage` | POST | 切换中英文 |
+
+### 10.3 WebAPI 方法
+
+```csharp
+// 启动 WebAPI
+OperateResult WAOn(WAModel wAModel);
+
+// 关闭 WebAPI
+OperateResult WAOff();
+
+// 获取 WebAPI 状态
+OperateResult WAStatus();
+
+// 获取请求示例（返回各接口的请求格式）
+OperateResult WARequestExample();
+
+// 异步版本
+Task<OperateResult> WAOnAsync(WAModel wAModel, CancellationToken token = default);
+Task<OperateResult> WAOffAsync(CancellationToken token = default);
+Task<OperateResult> WAStatusAsync(CancellationToken token = default);
+Task<OperateResult> WARequestExampleAsync(CancellationToken token = default);
+```
+
+---
+
+## 11. 故障排查
 
 ### 10.1 编译错误
 
@@ -1056,7 +1222,82 @@ LogHelper.Fatal("致命");
 
 ---
 
-## 11. 最佳实践
+## 12. 事件模型
+
+> 采集设备通过事件机制推送数据，外部通过订阅事件接收数据。
+
+### 12.1 事件类型
+
+| 事件 | 触发时机 | 数据类型 |
+|------|----------|----------|
+| `OnDataEvent` | 订阅数据到达时 | `EventDataResult` |
+| `OnInfoEvent` | 状态变化/告警时 | `EventDataResult` |
+
+### 12.2 EventDataResult
+
+```csharp
+public class EventDataResult : ResultModel
+{
+    public bool Status { get; set; }      // 状态
+    public string Message { get; set; }   // 消息
+    public object ResultData { get; set; } // 结果数据
+    
+    // 获取泛型数据
+    public T? GetSource<T>();
+    
+    // 获取详情
+    public bool GetDetails(out EventDataResult result);
+}
+```
+
+### 12.3 订阅数据示例
+
+```csharp
+// 订阅数据事件
+siemens.OnDataEvent += (sender, e) =>
+{
+    if (!e.Status) return;
+    
+    // 获取数据字典
+    var data = e.GetSource<ConcurrentDictionary<string, AddressValue>>();
+    if (data == null) return;
+    
+    foreach (var kv in data)
+    {
+        if (kv.Value.Quality == QualityType.Normal)
+        {
+            Console.WriteLine($"{kv.Key} = {kv.Value.ResultValue}");
+        }
+    }
+};
+
+// 订阅信息事件
+siemens.OnInfoEvent += (sender, e) =>
+{
+    if (!e.Status)
+        LogHelper.Warning($"告警: {e.Message}");
+};
+```
+
+### 12.4 异步事件
+
+```csharp
+// 异步订阅数据事件
+siemens.OnDataEventAsync += async (sender, e) =>
+{
+    if (!e.Status) return;
+    
+    var data = e.GetSource<ConcurrentDictionary<string, AddressValue>>();
+    if (data == null) return;
+    
+    // 异步处理数据
+    await ProcessDataAsync(data);
+};
+```
+
+---
+
+## 13. 最佳实践
 
 ### 11.1 错误处理模板
 
@@ -1113,7 +1354,7 @@ DAQ → Netty:   "Snet.Netty.NettyOperate.{SN}"
 
 ---
 
-## 12. 技能关联
+## 14. 技能关联
 
 > **本技能覆盖不了的协议？** → 用 [PluginDev-Skill](../PluginDev-Skill) 开发自定义插件，打包 ZIP 上传 Daq 工具热插拔加载。
 >
