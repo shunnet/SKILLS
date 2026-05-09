@@ -27,16 +27,16 @@
   <a href="https://github.com/shunnet/Daq"><b>🔌 Daq 工具</b></a>
 </p>
 
----
+
 
 ## 📋 技能一览
 
 | 技能 | 目录 | 定位 | 🗣️ 用户说一句话 → |
-|------|------|------|---------------------|
+|||||
 | **🔌 DAQ-Skill** | `DAQ-Skill/` | 🏭 使用库 — 数据采集与转发 | "连接西门子S7-1500，IP 192.168.0.1，读取DB1.0，MQTT转发到broker" |
 | **🧩 PluginDev-Skill** | `PluginDev-Skill/` | ⚙️ 开发插件 — 自定义协议对接 Daq 工具 | "开发一个温湿度传感器插件，TCP发送 01 03 00 00 00 02，解析响应字节" |
 
----
+
 
 ## 🔌 DAQ-Skill — 工业物联网数据采集
 
@@ -48,7 +48,7 @@
 
 ### ✨ 能力
 
-- 🏭 **30+ 种工业协议** — 西门子/Modbus/三菱/欧姆龙/OPC UA/罗克韦尔/台达/基恩士/松下/倍福/汇川/英威腾/麦格米特/自由协议
+- 🏭 **30+ 种工业协议** — 西门子/Modbus/三菱/欧姆龙/OPC UA/罗克韦尔/台达/基恩士/松下/倍福/汇川/英威腾/麦格米特
 - 🗄️ **数据库采集** — SqlServer/MySQL/Oracle/SQLite + TEP 非标设备
 - 📡 **5 种消息中间件转发** — MQTT/Kafka/RabbitMQ/NetMQ/Netty
 - 🎮 **内置模拟库** — 无需真实 PLC 即可测试
@@ -69,7 +69,7 @@ AI 先用大白话问用户（🏷️ 牌子型号、🔌 怎么连的、📍 IP
 
 **📄 文件：** `README.md`（6KB）+ `SKILL.md`（38KB，13章）
 
----
+
 
 ## 🧩 PluginDev-Skill — Daq 工具插件开发
 
@@ -92,7 +92,7 @@ AI 先用大白话问用户（🏷️ 牌子型号、🔌 怎么连的、📍 IP
 ### 🔑 核心原则
 
 | 🧠 AI 自行决定 | 📏 硬性契约 |
-|----------------|-------------|
+|-|-|
 | 采集什么、用什么方式 | 数据怎么封装、方法返回什么 |
 
 ### 💬 场景示例
@@ -109,7 +109,7 @@ AI 先用大白话问用户（🏷️ 设备是什么、🔌 怎么连的、📋
 
 **📄 文件：** `README.md`（3KB）+ `SKILL.md`（36KB，11章）
 
----
+
 
 ## 🔗 技能关系
 
@@ -131,33 +131,33 @@ AI 先用大白话问用户（🏷️ 设备是什么、🔌 怎么连的、📋
 
 **💡 一句话总结：** DAQ-Skill 帮用户用好现成的协议，PluginDev-Skill 帮用户开发新协议插件。
 
----
+
 
 ## 📦 依赖关系
 
 两个技能都基于 [Snet NuGet 生态](https://www.nuget.org/profiles/shun)：
 
 | 组件 | 说明 |
-|------|------|
+|||
 | 🧠 `Snet.Core` | 抽象基类 + 通信 + 缓存 + 反射 + 脚本 + WebAPI |
 | 📐 `Snet.Model` | 接口 + 数据模型 + 枚举 |
 | 📝 `Snet.Log` | 6 级日志系统 |
 | 🔧 `Snet.Utility` | 工具集（字节/枚举/文件/JSON/XML/FTP） |
 | ⚙️ `Snet.Driver` | 底层硬件通信驱动 |
 
----
+
 
 ## 🌍 相关链接
 
 | 🔗 | 链接 | 说明 |
-|-----|------|------|
+|--|||
 | 🌐 | [官网](https://shunnet.top) | 官方网站 |
 | 📚 | [NuGet](https://www.nuget.org/profiles/shun) | NuGet 包仓库 |
 | 💻 | [GitHub](https://github.com/shunnet) | 源代码仓库 |
 | 🔌 | [Daq 工具](https://github.com/shunnet/Daq) | 插件化数采工具 |
 | 📝 | [博客](https://blog.shunnet.top) | 技术博客 |
 
----
+
 
 <p align="center">
   <b>🙏 感谢使用 Snet 工业物联网技能集</b>
