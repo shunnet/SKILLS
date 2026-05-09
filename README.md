@@ -132,21 +132,6 @@ AI 先用大白话问用户（🏷️ 设备是什么、🔌 怎么连的、📋
 **💡 一句话总结：** DAQ-Skill 帮用户用好现成的协议，PluginDev-Skill 帮用户开发新协议插件。
 
 
-
-## 📦 依赖关系
-
-两个技能都基于 [Snet NuGet 生态](https://www.nuget.org/profiles/shun)：
-
-| 组件 | 说明 |
-|||
-| 🧠 `Snet.Core` | 抽象基类 + 通信 + 缓存 + 反射 + 脚本 + WebAPI |
-| 📐 `Snet.Model` | 接口 + 数据模型 + 枚举 |
-| 📝 `Snet.Log` | 6 级日志系统 |
-| 🔧 `Snet.Utility` | 工具集（字节/枚举/文件/JSON/XML/FTP） |
-| ⚙️ `Snet.Driver` | 底层硬件通信驱动 |
-
-
-
 ## 🌍 相关链接
 
 | 🔗 | 链接 | 说明 |
