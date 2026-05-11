@@ -10,9 +10,9 @@
 
 <p align="center">
 
-  <img src="https://img.shields.io/badge/.NET-8.0%2B-purple.svg"/>
+  <img src="https://img.shields.io/badge/.NET-10.0%2B-purple.svg"/>
   <img src="https://img.shields.io/badge/license-MIT-green"/>
-  <img src="https://img.shields.io/badge/version-1.0.0.1-blue"/>
+  <img src="https://img.shields.io/badge/version-1.0.0.2-blue"/>
   <img src="https://img.shields.io/github/stars/shunnet/SKILLS?style=social"/>
 
 </p>
@@ -68,7 +68,7 @@
 
 AI 先用大白话问用户（🏷️ 牌子型号、🔌 怎么连的、📍 IP多少、📊 读什么数据、📨 发到哪里），确认后再生成代码。
 
-**📄 文件：** `README.md`（6KB）+ `SKILL.md`（38KB，13章）
+**📄 文件：** `SKILL.md`（55KB，14章）
 
 
 
@@ -108,7 +108,7 @@ AI 先用大白话问用户（🏷️ 牌子型号、🔌 怎么连的、📍 IP
 
 AI 先用大白话问用户（🏷️ 设备是什么、🔌 怎么连的、📋 协议规矩是什么、📊 数据长什么样），确认后再生成代码。
 
-**📄 文件：** `README.md`（3KB）+ `SKILL.md`（36KB，11章）
+**📄 文件：** `SKILL.md`（41KB，10章）
 
 
 

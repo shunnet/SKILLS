@@ -1,15 +1,17 @@
-﻿---
+---
 name: daq-skill
 description: 工业物联网数据采集通信库，基于 Snet 框架，支持 PLC/工控/电力/机器人 等 30+ 种工业协议的数据读取、写入、订阅、状态获取，以及 Kafka/MQTT/RabbitMQ/NetMQ/Netty 消息中间件转发。所有采集库通过 ProtocolType 枚举自动选择底层驱动。支持"一句话"完成采集+转发。
-version: 1.0.0.1
+version: 1.0.0.2
 metadata:
-  openclaw:
-    requires:
-      bins: []
-      dotnet: "8.0"
+  hermes:
+    tags: [daq, iot, plc, industrial-automation, modbus, siemens, opc-ua, mqtt, kafka]
+    related_skills: [plugindev-skill]
+    homepage: https://shunnet.top
 ---
 
 # DAQ-Skill — 工业物联网数据采集技能
+
+> **运行环境：** .NET 10.0 SDK，所有 NuGet 包通过 `dotnet add package` 安装
 
 ## 一句话生成采集代码
 
@@ -667,12 +669,13 @@ DataFormat.DCBA  // 完全反转
 | "信捷" "XinJE" | `XinJEOperate` | `XinJETcpNet` / `XinJESerial` / `XinJESerialOverTcp` / `XinJEInternalNet` |
 | "山武" "Yamatake" "AZBIL" | `YamatakeOperate` | `DigitronCPLOverTcp` / `DigitronCPL` |
 | "横河" "Yokogawa" | `YokogawaOperate` | `YokogawaLinkTcp` |
+| "电力" "电表" "DLT" "PQDIF" "698" "645" "CJT188" "DTSU6606" "国网" | `PQDIFOperate` | `DLT698TcpNet` / `DLT645` / `DLT645With1997` / `CJT188` / `DTSU6606Serial` 等（NuGet: `Snet.PQDIF`） |
 | "自由协议" "Freedom" "自定义报文" "raw" | `FreedomOperate` | `FreedomTcpNet` / `FreedomUdpNet` / `FreedomSerial` |
 | "模拟" "Sim" "测试" | `SimOperate` | (无需 ProtocolType) |
 
 ### 5.2 端口默认值
 
-**所有协议库默认端口都是 6688**，务必根据实际设备显式指定：
+**多数协议库默认端口为 6688（框架设计偏好），务必根据实际设备显式指定标准端口：**
 
 | 协议 | 标准端口 | 库默认 |
 |------|----------|--------|
@@ -717,6 +720,7 @@ DataFormat.DCBA  // 完全反转
 | **信捷** | `Station`, `XinJESeries`, `DataFormat`, `AddressStartWithZero` | `XinJEData.cs` |
 | **山武** | `Station` | `YamatakeData.cs` |
 | **横河** | `CpuNumber` | `YokogawaData.cs` |
+| **PQDIF（电力）** | `StationStr`, `EnableCodeFE`, `UseSecurityResquest`, `CA`, `Password`, `OpCode`, `CheckDataId`, `InstrumentType`, `AddressStartWithZero`, `IsStringReverse`, `Crc16CheckEnable` | `PQDIFData.cs` |
 | **自由协议** | `DataFormat`, `IsStringReverseByteWord` | `FreedomData.cs` |
 
 **公共属性（所有协议共有）：** `IpAddress`, `Port`, `ConnectTimeOut`, `ReceiveTimeOut`, `SleepTime`, `SocketKeepAliveTime`, `IsPersistentConnection`, `SerialPortInfo`, `RtsEnable`, `DtrEnable`, `ProtocolType`
@@ -1140,6 +1144,104 @@ Console.ReadKey();
 clientOperate.Off();
 ```
 
+### 7.8 电力通讯规约 PQDIF（电表/电力采集）
+
+> NuGet: `dotnet add package Snet.PQDIF -v <最新版本>`
+> Operate: `PQDIFOperate` | Config: `PQDIFData.Basics`
+> 统一电力协议库，通过 ProtocolType 覆盖 DLT645/DLT698/CJT188/DTSU6606 等 10 种电表协议
+
+**协议子类型速查：**
+
+| 用户描述 | ProtocolType | 通信方式 |
+|----------|-------------|----------|
+| "698.45" "面向对象" "DLT698 TCP" | `DLT698TcpNet` | TCP |
+| "698.45" "DLT698 串口" | `DLT698` | 串口 |
+| "698.45" "DLT698 透传" | `DLT698OverTcp` | 串口转网口透传 |
+| "DLT645-2007" "645 串口" | `DLT645` | 串口 |
+| "DLT645-2007" "645 TCP" | `DLT645OverTcp` | 串口转网口透传 |
+| "DLT645-1997" "老版645 串口" | `DLT645With1997` | 串口 |
+| "DLT645-1997" "老版645 TCP" | `DLT645With1997OverTcp` | 串口转网口透传 |
+| "CJT188" "户表" "188协议 串口" | `CJT188` | 串口 |
+| "CJT188" "户表" "188协议 TCP" | `CJT188OverTcp` | 串口转网口透传 |
+| "DTSU6606" "德力西" "Modbus电表" | `DTSU6606Serial` | 串口(Modbus-RTU) |
+
+**关键属性（除公共属性外）：** `StationStr`(站号，字符串), `EnableCodeFE`, `UseSecurityResquest`, `CA`(客户机地址), `Password`, `OpCode`, `CheckDataId`, `InstrumentType`, `AddressStartWithZero`, `IsStringReverse`
+
+**示例：读取 DLT645-2007 电表数据并转发 MQTT**
+
+```csharp
+using Snet.PQDIF;
+using Snet.Mqtt.client;
+using Snet.Model.data;
+using Snet.Model.@enum;
+using Snet.Log;
+using System.Collections.Concurrent;
+using static Snet.PQDIF.PQDIFData;
+
+// MQTT 客户端
+var mq = new MqttClientOperate(new MqttClientData.Basics
+{
+    SN = "power-mqtt", IpAddress = "127.0.0.1", Port = 1883,
+});
+mq.On();
+
+// PQDIF 电表 — DLT645-2007 TCP
+using var meter = new PQDIFOperate(new Basics
+{
+    IpAddress = "192.168.0.100",
+    Port = 2404,                       // DLT645 常用端口
+    ProtocolType = ProtocolType.DLT645OverTcp,
+    StationStr = "123456789012",       // 12位表号
+    Password = "00000000",
+    OpCode = "00000000",
+    CheckDataId = true,
+});
+meter.On();
+
+Address address = new Address
+{
+    SN = "电表1",
+    AddressArray = new List<AddressDetails>
+    {
+        new AddressDetails
+        {
+            SN = "电压", AddressName = "02010100",     // A相电压 数据标识
+            AddressDataType = DataType.Float, IsEnable = true,
+            AddressMqParam = new AddressMq
+            {
+                ISns = new List<string> { "Snet.Mqtt.client.MqttClientOperate.power-mqtt" },
+                Topic = "meter/voltage",
+                ContentFormat = "电压 = {0} V"
+            }
+        },
+        new AddressDetails
+        {
+            SN = "电流", AddressName = "02020100",     // A相电流
+            AddressDataType = DataType.Float, IsEnable = true,
+        },
+        new AddressDetails
+        {
+            SN = "有功功率", AddressName = "02030100", // 总有功功率
+            AddressDataType = DataType.Float, IsEnable = true,
+        },
+    }
+};
+
+// 读取
+var result = meter.Read(address);
+if (result.GetDetails<ConcurrentDictionary<string, AddressValue>>(out var data))
+    foreach (var kv in data)
+        Console.WriteLine($"{kv.Key} = {kv.Value.ResultValue}");
+
+// 订阅（定时读取 + 自动MQTT转发）
+meter.Subscribe(address);
+Console.WriteLine("电表采集已启动，按任意键停止...");
+Console.ReadKey();
+meter.Off(); mq.Off();
+```
+
+> **地址格式说明：** DLT645 使用 4 字节数据标识（DI0-DI3），格式为 `DDDDDDDD`（8 位十六进制）。例如 `02010100` = A相电压。DLT698 使用 OAD（对象属性描述符）字符串格式。
+
 ---
 
 ## 8. 消息中间件
@@ -1439,4 +1541,4 @@ DAQ → Netty:   "Snet.Netty.NettyOperate.{SN}"
 
 > **本技能覆盖不了的协议？** → 用 [PluginDev-Skill](../PluginDev-Skill) 开发自定义插件，打包 ZIP 上传 Daq 工具热插拔加载。
 >
-> **已覆盖：** 西门子/Modbus/三菱/欧姆龙/汇川/OPC UA/罗克韦尔/台达/基恩士/松下/倍福/GE/安川/英威腾/麦格米特/数据库/TEP/自由协议/模拟库。**不在列表中？** PluginDev-Skill 定义插件开发契约，AI 根据协议描述自动生成插件代码。
+> **已覆盖：** 西门子/Modbus/三菱/欧姆龙/汇川/OPC UA/罗克韦尔/台达/基恩士/松下/倍福/GE/安川/英威腾/麦格米特/数据库/TEP/自由协议/模拟库/PQDIF(电力电表：DLT645/DLT698/CJT188/DTSU6606)。**不在列表中？** PluginDev-Skill 定义插件开发契约，AI 根据协议描述自动生成插件代码。

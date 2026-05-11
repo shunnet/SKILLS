@@ -3,7 +3,7 @@
 **版本:** 1.0.0.1
 **作者:** Shun
 **许可证:** MIT
-**框架:** .NET 8.0+
+**框架:** .NET 10.0
 
 ## 核心原则
 
@@ -51,6 +51,23 @@
 | `Subscribe(Address)` | 地址配置 | `OperateResult` | 调用 Read + 触发 OnDataEvent |
 | `UnSubscribe(Address)` | 地址配置 | `OperateResult` | 取消 Token |
 
+## 继承字段默认值（SubscribeData.SCData）
+
+| 字段 | 默认值 | 说明 |
+|------|--------|------|
+| `HandleInterval` | 1000 | 订阅轮询间隔(ms) |
+| `ChangeOut` | **true** | 仅变化时输出（true=只抛变化项） |
+| `AllOut` | **false** | 变化项与未变项一同抛出 |
+| `TaskNumber` | **5** | 并行任务数 |
+
+## 事件模型
+
+| 事件 | 触发时机 | 适用场景 |
+|------|----------|----------|
+| `OnDataEvent` | 订阅数据到达 | 同步处理 |
+| `OnDataEventAsync` | 订阅数据到达 | 异步 I/O |
+| `OnInfoEvent` | 状态变化/告警 | 连接监控 |
+
 ## 可选内置组件
 
 | 组件 | 命名空间 | 用途 |
@@ -81,7 +98,7 @@
 
 ## 参考实现
 
-`Snet.Siemens` `Snet.Modbus` `Snet.Mitsubishi` `Snet.DB` `Snet.Sim` `Snet.Freedom` `Snet.TEP`
+`Snet.Siemens` `Snet.Modbus` `Snet.Mitsubishi` `Snet.DB` `Snet.Sim` `Snet.Freedom` `Snet.TEP` `Snet.PQDIF`
 
 > **📌 关于版本号：** 所有 `dotnet add package` 命令**必须**指定 `-v` 版本号。
 > 获取最新版本：打开 `https://www.nuget.org/packages/<包名>` 查看，例如：

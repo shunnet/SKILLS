@@ -1,15 +1,17 @@
-﻿---
+---
 name: plugindev-skill
 description: Snet.Iot.Daq 插件开发技能。严格定义插件开发契约：必须实现的抽象方法、必须遵循的返回类型、必须使用的数据标注、必须调用的框架方法。AI 自行决定采集方式（TCP/HTTP/文件/串口），但必须遵守契约。
-version: 1.0.0.1
+version: 1.0.0.2
 metadata:
-  openclaw:
-    requires:
-      bins: []
-      dotnet: "8.0"
+  hermes:
+    tags: [plugin-development, daq, iot, dotnet, contract, code-generation]
+    related_skills: [daq-skill]
+    homepage: https://shunnet.top
 ---
 
 # PluginDev-Skill — Snet Daq 插件开发契约
+
+> **运行环境：** .NET 10.0 SDK，插件引用 `Snet.Core` NuGet 包
 
 ## 核心原则
 
@@ -132,15 +134,16 @@ public class XxxOperate : DaqAbstract<XxxOperate, XxxData.Basics>, IDaq
 
 ## 2. 方法契约详解
 
+> **核心约束：** 6 个方法必须 `BegOperate → try → GetStatus检查 → 实现 → catch`，2 个方法禁止 try/catch。
+
 ### 2.1 On() — 打开连接
 
 | 约束 | 值 |
 |------|-----|
 | 返回类型 | `OperateResult` |
-| 成功条件 | `Status = true` |
-| 失败处理 | 内部调用 `Off(true)` 清理，返回失败 |
-| 状态检查 | 必须先 `GetStatus().GetDetails(out msg)`，已连接返回失败 |
-| 必须调用 | 第一行 `BegOperate()`，返回 `EndOperate(status, message?)` |
+| 状态检查 | 已连接则返回失败（与其它方法相反） |
+| 失败处理 | **必须在 catch 中调用 `Off(true)` 清理** |
+| try/catch | **必须** |
 
 ```csharp
 public override OperateResult On()
@@ -148,8 +151,8 @@ public override OperateResult On()
     BegOperate();
     try
     {
-        if (GetStatus().GetDetails(out string? msg))
-            return EndOperate(false, msg);  // 已连接
+        if (GetStatus().GetDetails(out string? message))
+            return EndOperate(false, message);  // 已连接，返回失败
 
         // AI 自行决定如何连接（TCP、文件、HTTP...）
 
@@ -157,7 +160,7 @@ public override OperateResult On()
     }
     catch (Exception ex)
     {
-        Off(true);
+        Off(true);   // ← 必须：失败时清理
         return EndOperate(false, ex.Message, exception: ex);
     }
 }
@@ -167,10 +170,10 @@ public override OperateResult On()
 
 | 约束 | 值 |
 |------|-----|
-| 返回类型 | `OperateResult` |
-| hardClose=false | 先检查 `GetStatus()`，未连接返回失败 |
+| hardClose=false | 未连接则返回失败 |
 | hardClose=true | 跳过状态检查，强制关闭 |
-| 必须操作 | 释放所有资源（连接、订阅、FileSystemWatcher 等） |
+| 必须释放 | SubscribeOperate、VAM、通信对象、日志 |
+| try/catch | **必须** |
 
 ```csharp
 public override OperateResult Off(bool hardClose = false)
@@ -178,8 +181,16 @@ public override OperateResult Off(bool hardClose = false)
     BegOperate();
     try
     {
-        if (!hardClose && !GetStatus().GetDetails(out string? msg))
-            return EndOperate(false, msg);
+        if (!hardClose)
+        {
+            if (!GetStatus().GetDetails(out string? message))
+                return EndOperate(false, message);
+        }
+
+        // 释放顺序：订阅 → 虚拟地址 → 通信对象 → 日志
+        subscribeOperate?.Off();
+        subscribeOperate = null;
+        VAM?.Dispose();
 
         // AI 自行决定如何断开连接
 
@@ -199,10 +210,16 @@ public override OperateResult Off(bool hardClose = false)
 | 返回类型 | `OperateResult` |
 | Status=true | 已连接 |
 | Status=false | 未连接 |
+| try/catch | **禁止**（简单状态判断，无需异常捕获） |
+| consoleOutput | 建议 `false`（避免高频日志刷屏） |
 
 ```csharp
 public override OperateResult GetStatus()
-    => EndOperate(/* AI 判断连接状态 */);
+{
+    BegOperate();
+    // AI 判断连接状态，直接返回
+    return EndOperate(/* 已连接? */, consoleOutput: false);
+}
 ```
 
 ### 2.4 GetBaseObject() — 获取底层对象
@@ -210,24 +227,32 @@ public override OperateResult GetStatus()
 | 约束 | 值 |
 |------|-----|
 | 返回类型 | `OperateResult` |
-| ResultData | 底层连接对象（TcpClient、HttpClient 等） |
-| 说明 | 返回插件内部使用的通信类实例，如 `TcpClientOperate`、`SerialOperate` 等。供外部诊断/调试用 |
+| ResultData | 底层连接对象（TcpClient、SerialPort、HttpClient 等） |
+| try/catch | **禁止** |
+| 前置检查 | 必须先 GetStatus 确认已连接 |
 
-### 2.5 ⭐ Read(Address address) — 读取数据（核心）
+```csharp
+public override OperateResult GetBaseObject()
+{
+    BegOperate();
+    if (!GetStatus().GetDetails(out string? message))
+        return EndOperate(false, message);
+
+    return EndOperate(true, resultData: /* 底层对象 */);
+}
+```
+
+### 2.5 Read(Address address) — 读取数据（核心）
 
 | 约束 | 值 |
 |------|-----|
-| 入参 | `Address address` |
 | 返回类型 | `OperateResult` |
 | ResultData 类型 | **`ConcurrentDictionary<string, AddressValue>`** |
-| 必调方法 | `address.CheckAddress()` 检查点位 |
-| 每个点位处理 | `AddressHandler.ExecuteDispose(item, rawValue, message)` |
-| 跳过禁用 | `if (!item.IsEnable) continue;` |
-| 虚拟地址 | `VAM.InitVirtualAddress(item, out bool IsVA)` → 区分虚实 |
-| 成功返回 | `EndOperate(true, resultData: param)` |
-| 空结果返回 | `EndOperate(false, "读取失败")` |
-
-**Read 方法的唯一职责：采集原始数据 → 交给 ExecuteDispose 处理 → 返回字典**
+| 前置检查 | GetStatus + `address.CheckAddress()` |
+| 每个点位 | `AddressHandler.ExecuteDispose(item, rawValue, message)` |
+| 跳过禁用 | `if (!item.IsEnable) continue` |
+| 虚拟地址 | `VAM.InitVirtualAddress(item, out bool IsVA)` |
+| try/catch | **必须** |
 
 ```csharp
 public override OperateResult Read(Address address)
@@ -235,19 +260,17 @@ public override OperateResult Read(Address address)
     BegOperate();
     try
     {
-        if (!GetStatus().GetDetails(out string? msg))
-            return EndOperate(false, msg);
+        if (!GetStatus().GetDetails(out string? message))
+            return EndOperate(false, message);
 
         if (!address.CheckAddress())
             return EndOperate(false, "存在无效点位数据，操作失败");
 
         ConcurrentDictionary<string, AddressValue> param = new();
-
         foreach (var item in address.AddressArray)
         {
             if (!item.IsEnable) continue;
 
-            // 判断是否虚拟地址
             bool IsVA = false;
             VAM.InitVirtualAddress(item, out IsVA);
 
@@ -256,44 +279,29 @@ public override OperateResult Read(Address address)
 
             if (IsVA)
             {
-                value = VAM.Read(item);  // 虚拟地址读
+                value = VAM.Read(item);
             }
             else
             {
-                // ═══ AI 在这里自行实现采集逻辑 ═══
-                // 采集什么、怎么采集——AI 决定
-                // 示例：TCP 发命令收响应 / HTTP GET / 读文件 / 查数据库
+                // ═══ AI 在此实现采集逻辑 ═══
                 value = /* AI 自行实现的采集 */;
                 resultMsg = value != null ? "成功" : "读取失败";
             }
 
-            // ═══ 必须调用！框架处理类型转换+解析+转发 ═══
             AddressValue? av = AddressHandler.ExecuteDispose(item, value, resultMsg);
             if (av != null)
                 param.AddOrUpdate(item.AddressName, av, (k, v) => av);
         }
-
         return param.Count > 0
             ? EndOperate(true, resultData: param)
             : EndOperate(false, "读取失败");
     }
     catch (Exception ex)
     {
-        return EndOperate(false, exception: ex);
+        return EndOperate(false, ex.Message, exception: ex);
     }
 }
 ```
-
-**ExecuteDispose 自动完成：**
-
-| 步骤 | 说明 |
-|------|------|
-| 空值检测 | `value` 为空 → `QualityType.Exception` |
-| 类型转换 | 根据 `AddressDataType` 自动转换 `string→int/float/bool...` |
-| 反射解析 | 如果 `AddressParseParam` 不为空，调用反射方法二次加工 |
-| MQ转发 | 如果 `AddressMqParam` 不为空，Normal/ParseUnknown 时触发 `Produce` |
-| 质量标记 | Quality = None / Exception / Normal / DataTypeError / ParseUnknown / ParseError |
-| 返回 | 返回完整的 `AddressValue` |
 
 ### 2.6 Write(values) — 写入数据
 
@@ -301,22 +309,23 @@ public override OperateResult Read(Address address)
 |------|-----|
 | 入参 | `ConcurrentDictionary<string, (object value, EncodingType? encodingType)>` |
 | 返回类型 | `OperateResult` |
-| Key | 地址名（AddressName） |
-| Value | 元组：(写入的值, 编码类型) |
+| 前置检查 | GetStatus |
+| 虚拟地址 | `VAM.IsVirtualAddress(key)` → `VAM.Write(key, value)` |
+| try/catch | **必须** |
 
 ```csharp
-public override OperateResult Write(ConcurrentDictionary<string, (object value, EncodingType? encodingType)> values)
+public override OperateResult Write(
+    ConcurrentDictionary<string, (object value, EncodingType? encodingType)> values)
 {
     BegOperate();
     try
     {
-        if (!GetStatus().GetDetails(out string? msg))
-            return EndOperate(false, msg);
+        if (!GetStatus().GetDetails(out string? message))
+            return EndOperate(false, message);
 
         foreach (var (addressName, (value, encoding)) in values)
         {
-            bool IsVA = VAM.IsVirtualAddress(addressName);
-            if (IsVA)
+            if (VAM.IsVirtualAddress(addressName))
             {
                 VAM.Write(addressName, value);
             }
@@ -329,7 +338,7 @@ public override OperateResult Write(ConcurrentDictionary<string, (object value, 
     }
     catch (Exception ex)
     {
-        return EndOperate(false, exception: ex);
+        return EndOperate(false, ex.Message, exception: ex);
     }
 }
 ```
@@ -338,35 +347,51 @@ public override OperateResult Write(ConcurrentDictionary<string, (object value, 
 
 | 约束 | 值 |
 |------|-----|
-| 必须做的事 | 创建 `SubscribeOperate` 管理订阅生命周期 |
-| 数据事件 | 通过 `OnDataEvent?.Invoke(this, eventResult)` 推送 |
 | 返回类型 | `OperateResult` |
-| 实现方式 | AI 决定（轮询 Read / 事件驱动 / FileSystemWatcher） |
+| 前置检查 | GetStatus + `address.CheckAddress()` |
+| 必须创建 | `SubscribeOperate` 管理订阅生命周期 |
+| 数据事件 | 通过 `OnDataEvent?.Invoke` / `OnDataEventAsync?.Invoke` 推送 |
+| try/catch | **必须** |
 
 ```csharp
 public override OperateResult Subscribe(Address address)
 {
     BegOperate();
-    subscribeToken = new CancellationTokenSource();
-    subscribeOperate = new SubscribeOperate();
-
-    _ = Task.Run(async () =>
+    try
     {
-        while (!subscribeToken.Token.IsCancellationRequested)
-        {
-            OperateResult r = Read(address);  // ← 重用 Read 方法
-            if (r.Status)
-            {
-                var eventResult = new EventDataResult(true, "订阅数据", r.ResultData);
-                OnDataEvent?.Invoke(this, eventResult);
-                if (OnDataEventAsync != null)
-                    await OnDataEventAsync.Invoke(this, eventResult);
-            }
-            await Task.Delay(basics.HandleInterval, subscribeToken.Token);
-        }
-    }, subscribeToken.Token);
+        if (!GetStatus().GetDetails(out string? message))
+            return EndOperate(false, message);
 
-    return EndOperate(true);
+        if (!address.CheckAddress())
+            return EndOperate(false, "存在无效点位数据，操作失败");
+
+        subscribeToken = new CancellationTokenSource();
+        subscribeOperate = new SubscribeOperate();
+
+        _ = Task.Run(async () =>
+        {
+            while (!subscribeToken.Token.IsCancellationRequested)
+            {
+                OperateResult r = Read(address);
+                if (r.Status)
+                {
+                    var e = new EventDataResult(true, "订阅数据", r.ResultData);
+                    OnDataEvent?.Invoke(this, e);
+                    if (OnDataEventAsync != null)
+                        await OnDataEventAsync.Invoke(this, e);
+                }
+                await Task.Delay(
+                    basics.HandleInterval > 0 ? basics.HandleInterval : 1000,
+                    subscribeToken.Token);
+            }
+        }, subscribeToken.Token);
+
+        return EndOperate(true);
+    }
+    catch (Exception ex)
+    {
+        return EndOperate(false, ex.Message, exception: ex);
+    }
 }
 ```
 
@@ -374,8 +399,58 @@ public override OperateResult Subscribe(Address address)
 
 | 约束 | 值 |
 |------|-----|
-| 必须操作 | 取消订阅 Token，关闭 SubscribeOperate |
 | 返回类型 | `OperateResult` |
+| 前置检查 | GetStatus |
+| 必须操作 | 取消 Token，关闭 SubscribeOperate |
+| try/catch | **必须** |
+
+```csharp
+public override OperateResult UnSubscribe(Address address)
+{
+    BegOperate();
+    try
+    {
+        if (!GetStatus().GetDetails(out string? message))
+            return EndOperate(false, message);
+
+        subscribeToken?.Cancel();
+        subscribeOperate?.Off();
+        return EndOperate(true);
+    }
+    catch (Exception ex)
+    {
+        return EndOperate(false, ex.Message, exception: ex);
+    }
+}
+```
+
+### 2.9 事件模型 — OnDataEvent / OnDataEventAsync
+
+`CoreUnify` 提供同步和异步两种数据事件，订阅数据到达时自动触发：
+
+```csharp
+// 同步事件（推荐用于简单日志/打印）
+operate.OnDataEvent += (sender, e) =>
+{
+    if (!e.Status) return;
+    var data = e.GetSource<ConcurrentDictionary<string, AddressValue>>();
+    // 处理数据...
+};
+
+// 异步事件（推荐用于 I/O 密集型处理，如写数据库/HTTP）
+operate.OnDataEventAsync += async (sender, e) =>
+{
+    if (!e.Status) return;
+    var data = e.GetSource<ConcurrentDictionary<string, AddressValue>>();
+    await SaveToDatabaseAsync(data);
+};
+```
+
+| 事件 | 触发时机 | 数据类型 | 适用场景 |
+|------|----------|----------|----------|
+| `OnDataEvent` | 订阅数据到达时 | `EventDataResult` | 同步处理（日志/打印/内存操作） |
+| `OnInfoEvent` | 状态变化/告警时 | `EventDataResult` | 连接状态监控 |
+| `OnDataEventAsync` | 订阅数据到达时 | `EventDataResult` | 异步 I/O（数据库写入/HTTP 转发） |
 
 ---
 
@@ -432,9 +507,9 @@ public class XxxData
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `HandleInterval` | `int` | 1000 | 订阅轮询间隔(ms) |
-| `ChangeOut` | `bool` | false | 仅变化时输出 |
-| `AllOut` | `bool` | true | 全量输出 |
-| `TaskNumber` | `int` | 1 | 并行任务数 |
+| `ChangeOut` | `bool` | true | 仅变化时输出；true=只抛变化项，false=实时全量输出 |
+| `AllOut` | `bool` | false | 变化项与未变项一同抛出；当 ChangeOut 为 true 时生效，确保此批数据完整性 |
+| `TaskNumber` | `int` | 5 | 并行任务数，一个任务属于一个队列 |
 
 ### 3.3 属性标注速查
 
@@ -499,8 +574,7 @@ if (VAM.IsVirtualAddress(addressName))
 | 方法 | 用途 |
 |------|------|
 | `BegOperate()` | 每个 public 方法第一行调用，初始化操作上下文 |
-| `EndOperate(status, message?, resultData?, exception?)` | 统一返回 OperateResult，自动记录耗时和日志 |
-| `EndOperateAsync(status, ...)` | 异步版本 |
+| `EndOperate(bool status, string? message=null, object? resultData=null, Exception? exception=null, bool logOutput=true, bool consoleOutput=true)` | 统一返回 OperateResult，自动记录耗时和日志。`consoleOutput: false` 可静默调用（如 GetStatus 高频检查）。**重载：** `EndOperate(OperateResult result)` 传递已有结果，`EndOperateAsync(...)` 异步版本 |
 | `Instance(basics)` | 单例模式获取实例 |
 | `CreateInstance(basics)` | 创建新实例 |
 | `GetParam()` | 获取配置参数（自动反射读取所有属性） |
@@ -719,9 +793,10 @@ ReflectionData.Basics
 | 方法 | 说明 |
 |------|------|
 | `Init()` | 加载 DLL，实例化类，绑定方法/事件 |
-| `Invoke<T>(sn, params)` | 调用方法（sn = MethodData.SN） |
-| `RegisterEvent(sn, handler)` | 注册事件处理器（sn = EventData.SN） |
-| `GetStatus()` | 反射是否已初始化 |
+| `ExecuteMethod(sn, params)` | 调用方法（sn = MethodData.SN），返回 `object?` |
+| `RegisterEvent(sn, register, handler)` | 注册(`true`)/注销(`false`) 事件处理器（sn = EventData.SN），支持 1-6 个参数的 Action |
+| `GetStatus()` | 反射是否已初始化（返回 `bool`，非 `OperateResult`） |
+| `ReflectionInstance(sn)` | 获取指定 SN 的实例对象 |
 | `Dispose()` | 释放资源 |
 
 **在 Read 方法中使用反射：**
@@ -731,9 +806,11 @@ ReflectionData.Basics
 object? rawValue = /* 原始采集值 */;
 if (reflect.GetStatus())
 {
-    var result = reflect.Invoke<object>("parse-temp", new object[] { rawValue });
-    if (result.Status)
-        rawValue = result.GetSource<object>();  // 用解析后的值替换原始值
+    var result = reflect.ExecuteMethod("parse-temp", new object[] { rawValue });
+    if (result is OperateResult op && op.Status)
+        rawValue = op.GetSource<object>();  // 用解析后的值替换原始值
+    else if (result != null)
+        rawValue = result;                   // 直接返回值
 }
 // 然后交给框架
 var av = AddressHandler.ExecuteDispose(item, rawValue, "成功");
@@ -784,59 +861,81 @@ namespace XxxNamespace
         private ProcessCacheOperate? cache;    // 按需：进程缓存
         private ReflectionOperate? reflect;    // 按需：反射
 
-        // ═══ On ═══
+        // ═══ On — 必须 try/catch，失败调用 Off(true) ═══
         public override OperateResult On()
         {
             BegOperate();
             try
             {
-                if (GetStatus().GetDetails(out string? msg))
-                    return EndOperate(false, msg);
+                if (GetStatus().GetDetails(out string? message))
+                    return EndOperate(false, message);
 
                 // 【AI 在此实现连接逻辑】
 
                 return EndOperate(true);
             }
-            catch (Exception ex) { Off(true); return EndOperate(false, ex.Message, exception: ex); }
+            catch (Exception ex)
+            {
+                Off(true);
+                return EndOperate(false, ex.Message, exception: ex);
+            }
         }
 
-        // ═══ Off ═══
+        // ═══ Off — 必须 try/catch ═══
         public override OperateResult Off(bool hardClose = false)
         {
             BegOperate();
             try
             {
-                if (!hardClose && !GetStatus().GetDetails(out string? msg))
-                    return EndOperate(false, msg);
+                if (!hardClose)
+                {
+                    if (!GetStatus().GetDetails(out string? message))
+                        return EndOperate(false, message);
+                }
 
                 subscribeToken?.Cancel(); subscribeToken?.Dispose();
                 subscribeOperate?.Off(); subscribeOperate = null;
+                VAM?.Dispose();
 
                 // 【AI 在此实现断开逻辑】
 
                 return EndOperate(true);
             }
-            catch (Exception ex) { return EndOperate(false, ex.Message, exception: ex); }
+            catch (Exception ex)
+            {
+                return EndOperate(false, ex.Message, exception: ex);
+            }
         }
 
-        // ═══ GetStatus ═══
+        // ═══ GetStatus — 禁止 try/catch，consoleOutput: false ═══
         public override OperateResult GetStatus()
-            => EndOperate(/* 【AI 判断连接状态】 */);
+        {
+            BegOperate();
+            // 【AI 判断连接状态】
+            return EndOperate(/* 已连接? */, consoleOutput: false);
+        }
 
-        // ═══ GetBaseObject ═══
+        // ═══ GetBaseObject — 禁止 try/catch，必须先 GetStatus ═══
         public override OperateResult GetBaseObject()
-            => EndOperate(true, resultData: /* 【AI 返回底层对象】 */);
+        {
+            BegOperate();
+            if (!GetStatus().GetDetails(out string? message))
+                return EndOperate(false, message);
 
-        // ═══ Read ═══
+            return EndOperate(true, resultData: /* 【AI 返回底层对象】 */);
+        }
+
+        // ═══ Read — 必须 try/catch ═══
         public override OperateResult Read(Address address)
         {
             BegOperate();
             try
             {
-                if (!GetStatus().GetDetails(out string? msg))
-                    return EndOperate(false, msg);
+                if (!GetStatus().GetDetails(out string? message))
+                    return EndOperate(false, message);
+
                 if (!address.CheckAddress())
-                    return EndOperate(false, "存在无效点位数据");
+                    return EndOperate(false, "存在无效点位数据，操作失败");
 
                 ConcurrentDictionary<string, AddressValue> param = new();
                 foreach (var item in address.AddressArray)
@@ -849,70 +948,117 @@ namespace XxxNamespace
                     object? value = null;
                     string resultMsg = "失败";
 
-                    if (IsVA) { value = VAM.Read(item); }
+                    if (IsVA)
+                    {
+                        value = VAM.Read(item);
+                    }
                     else
                     {
                         // ═══ 【AI 在此实现采集逻辑】 ═══
                         // item.AddressName  = 用户配置的地址
                         // item.AddressDataType = 用户配置的数据类型
-                        // 返回采集到的原始值 value
+                        // 返回采集到的原始值 value，成功时设 resultMsg = "成功"
                     }
 
                     AddressValue? av = AddressHandler.ExecuteDispose(item, value, resultMsg);
                     if (av != null)
                         param.AddOrUpdate(item.AddressName, av, (k, v) => av);
                 }
-                return param.Count > 0 ? EndOperate(true, resultData: param) : EndOperate(false, "读取失败");
+                return param.Count > 0
+                    ? EndOperate(true, resultData: param)
+                    : EndOperate(false, "读取失败");
             }
-            catch (Exception ex) { return EndOperate(false, exception: ex); }
+            catch (Exception ex)
+            {
+                return EndOperate(false, ex.Message, exception: ex);
+            }
         }
 
-        // ═══ Write ═══
-        public override OperateResult Write(ConcurrentDictionary<string, (object value, EncodingType? encodingType)> values)
+        // ═══ Write — 必须 try/catch ═══
+        public override OperateResult Write(
+            ConcurrentDictionary<string, (object value, EncodingType? encodingType)> values)
         {
             BegOperate();
             try
             {
-                if (!GetStatus().GetDetails(out string? msg)) return EndOperate(false, msg);
-                foreach (var (key, (val, enc)) in values)
+                if (!GetStatus().GetDetails(out string? message))
+                    return EndOperate(false, message);
+
+                foreach (var (addressName, (value, encoding)) in values)
                 {
-                    if (VAM.IsVirtualAddress(key)) { VAM.Write(key, val); continue; }
+                    if (VAM.IsVirtualAddress(addressName))
+                    {
+                        VAM.Write(addressName, value);
+                        continue;
+                    }
                     // 【AI 在此实现写入逻辑】
                 }
                 return EndOperate(true);
             }
-            catch (Exception ex) { return EndOperate(false, exception: ex); }
+            catch (Exception ex)
+            {
+                return EndOperate(false, ex.Message, exception: ex);
+            }
         }
 
-        // ═══ Subscribe ═══
+        // ═══ Subscribe — 必须 try/catch ═══
         public override OperateResult Subscribe(Address address)
         {
             BegOperate();
-            subscribeToken = new CancellationTokenSource();
-            subscribeOperate = new SubscribeOperate();
-            _ = Task.Run(async () =>
+            try
             {
-                while (!subscribeToken.Token.IsCancellationRequested)
+                if (!GetStatus().GetDetails(out string? message))
+                    return EndOperate(false, message);
+
+                if (!address.CheckAddress())
+                    return EndOperate(false, "存在无效点位数据，操作失败");
+
+                subscribeToken = new CancellationTokenSource();
+                subscribeOperate = new SubscribeOperate();
+
+                _ = Task.Run(async () =>
                 {
-                    OperateResult r = Read(address);  // ← 复用 Read
-                    if (r.Status)
+                    while (!subscribeToken.Token.IsCancellationRequested)
                     {
-                        var e = new EventDataResult(true, "订阅数据", r.ResultData);
-                        OnDataEvent?.Invoke(this, e);
-                        if (OnDataEventAsync != null) await OnDataEventAsync.Invoke(this, e);
+                        OperateResult r = Read(address);
+                        if (r.Status)
+                        {
+                            var e = new EventDataResult(true, "订阅数据", r.ResultData);
+                            OnDataEvent?.Invoke(this, e);
+                            if (OnDataEventAsync != null)
+                                await OnDataEventAsync.Invoke(this, e);
+                        }
+                        await Task.Delay(
+                            basics.HandleInterval > 0 ? basics.HandleInterval : 1000,
+                            subscribeToken.Token);
                     }
-                    await Task.Delay(basics.HandleInterval > 0 ? basics.HandleInterval : 1000, subscribeToken.Token);
-                }
-            }, subscribeToken.Token);
-            return EndOperate(true);
+                }, subscribeToken.Token);
+
+                return EndOperate(true);
+            }
+            catch (Exception ex)
+            {
+                return EndOperate(false, ex.Message, exception: ex);
+            }
         }
 
-        // ═══ UnSubscribe ═══
+        // ═══ UnSubscribe — 必须 try/catch ═══
         public override OperateResult UnSubscribe(Address address)
         {
-            subscribeToken?.Cancel();
-            subscribeOperate?.Off();
-            return EndOperate(true);
+            BegOperate();
+            try
+            {
+                if (!GetStatus().GetDetails(out string? message))
+                    return EndOperate(false, message);
+
+                subscribeToken?.Cancel();
+                subscribeOperate?.Off();
+                return EndOperate(true);
+            }
+            catch (Exception ex)
+            {
+                return EndOperate(false, ex.Message, exception: ex);
+            }
         }
     }
 }

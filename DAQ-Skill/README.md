@@ -74,6 +74,7 @@
 | `Snet.XinJE` | 信捷（另一系列） | `XinJEOperate` | 4 种 |
 | `Snet.Yamatake` | 山武（AZBIL） | `YamatakeOperate` | 2 种 |
 | `Snet.Yokogawa` | 横河 PLC | `YokogawaOperate` | 1 种 |
+| `Snet.PQDIF` | 电力通讯规约（DLT645/DLT698/CJT188/DTSU6606） | `PQDIFOperate` | 10 种 |
 | `Snet.DB` | 数据库采集（SqlServer/MySQL/Oracle/SQLite） | `DBOperate` | 4 种 DB |
 | `Snet.TEP` | TCP 扩展插件（非标设备采集） | `TepMasterOperate` / `TepSlaveOperate` | 自定义 |
 | `Snet.Freedom` | 自由协议（自定义报文） | `FreedomOperate` | 3 种 |
@@ -109,7 +110,7 @@
 |------|------|
 | 状态检查 | `result.Status`（不是 `IsSuccess`！） |
 | Write 签名 | `(object value, EncodingType? encodingType)` 元组 |
-| 端口默认 | 所有库默认 6688，务必显式设置标准端口 |
+| 端口默认 | 多数库默认 6688，务必显式设置标准端口 |
 | MQTT 属性 | `IpAddress`（不是 `Ip`！） |
 | ISns 格式 | `完整命名空间.Operate类名.Basics.SN` |
 | 数据质量 | `QualityType`: None(-1) / Exception(0) / **Normal(1)** / DataTypeError(2) / ParseUnknown(3) / ParseError(4) |
@@ -126,6 +127,9 @@ dotnet new console -n DaqDemo && cd DaqDemo
 #   https://www.nuget.org/packages/Snet.Mqtt
 dotnet add package Snet.Siemens -v 1.0.0.1
 dotnet add package Snet.Mqtt -v 1.0.0.1
+
+# 电力协议示例
+# dotnet add package Snet.PQDIF -v <latest>
 
 # 编写代码 → 参考 SKILL.md 场景模板
 dotnet run
