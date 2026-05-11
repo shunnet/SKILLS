@@ -119,11 +119,26 @@
 
 ```bash
 dotnet new console -n DaqDemo && cd DaqDemo
-dotnet add package Snet.Siemens Snet.Mqtt Snet.Core Snet.Model Snet.Log Snet.Utility
+
+# ✅ 只需引用驱动包 + MQ 包，其他库（Core/Model/Log/Utility）会作为传递依赖自动引入
+# ⚠️ 必须指定版本号！到 nuget.org 查找最新版本：
+#   https://www.nuget.org/packages/Snet.Siemens
+#   https://www.nuget.org/packages/Snet.Mqtt
+dotnet add package Snet.Siemens -v 1.0.0.1
+dotnet add package Snet.Mqtt -v 1.0.0.1
 
 # 编写代码 → 参考 SKILL.md 场景模板
 dotnet run
 ```
+
+> **📌 关于版本号：** 所有 `dotnet add package` 命令**必须**指定 `-v` 版本号。
+> 获取最新版本：打开 `https://www.nuget.org/packages/<包名>` 查看，例如：
+> - `https://www.nuget.org/packages/Snet.Siemens`
+> - `https://www.nuget.org/packages/Snet.Modbus`
+> - `https://www.nuget.org/packages/Snet.Mqtt`
+> 
+> **📌 关于传递依赖：** 只需引用顶层驱动包（如 `Snet.Siemens`、`Snet.Modbus`），
+> `Snet.Core`、`Snet.Model`、`Snet.Log`、`Snet.Utility`、`Snet.Driver` 等会自动引入，**无需手动添加**。
 
 ## 相关链接
 

@@ -18,6 +18,31 @@ metadata:
 
 ---
 
+## NuGet 引用规范
+
+> **⚠️ 以下规则在生成代码时必须遵守，违反会导致编译或运行时错误。**
+
+### 版本号：必须指定
+
+所有 `dotnet add package` 命令**必须**带 `-v` 版本号，**禁止使用 `*` 通配符**（运行时会报版本冲突错误）。
+
+**获取最新版本的方式：** 访问 `https://www.nuget.org/packages/<包名>`，页面顶部显示的版本即为最新稳定版。
+
+```bash
+# ✅ 正确：指定版本号
+dotnet add package Snet.Core -v 1.0.0.1
+
+# ❌ 错误：不带版本号（使用 * 通配符，运行时报错）
+dotnet add package Snet.Core
+```
+
+### 传递依赖：只引用顶层包
+
+插件开发通常只需引用 `Snet.Core`（提供 `DaqAbstract`、`CoreUnify`、`IDaq` 等基类和接口），
+`Snet.Model`、`Snet.Log`、`Snet.Utility`、`Snet.Driver` 等会作为传递依赖自动引入，**不要手动添加**。
+
+---
+
 ## 0. 交互流程 — 开发插件前先问清楚
 
 > **原则：用户说大白话就行，AI 负责翻译成技术参数。**

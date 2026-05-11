@@ -82,3 +82,8 @@
 ## 参考实现
 
 `Snet.Siemens` `Snet.Modbus` `Snet.Mitsubishi` `Snet.DB` `Snet.Sim` `Snet.Freedom` `Snet.TEP`
+
+> **📌 关于版本号：** 所有 `dotnet add package` 命令**必须**指定 `-v` 版本号。
+> 获取最新版本：打开 `https://www.nuget.org/packages/<包名>` 查看，例如：
+> - `https://www.nuget.org/packages/Snet.DB`
+> - `https://www.nuget.org/packages/Snet.TEP`
