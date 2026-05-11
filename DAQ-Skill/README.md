@@ -1,9 +1,9 @@
 # DAQ-Skill — 工业物联网数据采集技能
 
-**版本:** 1.0.0.1  
+**版本:** 1.0.0.2  
 **作者:** Shun  
 **许可证:** MIT  
-**框架:** .NET 8.0 / 9.0 / 10.0
+**框架:** .NET 10.0
 
 ## 一句话采集+转发
 
@@ -129,7 +129,7 @@ dotnet add package Snet.Siemens -v 1.0.0.1
 dotnet add package Snet.Mqtt -v 1.0.0.1
 
 # 电力协议示例
-# dotnet add package Snet.PQDIF -v <latest>
+# dotnet add package Snet.PQDIF -v <最新版本>
 
 # 编写代码 → 参考 SKILL.md 场景模板
 dotnet run

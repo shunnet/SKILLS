@@ -846,13 +846,14 @@ using Snet.Sim;
 using (SimOperate operate = new SimOperate(new SimData.Basics { SN = "test" }))
 {
     operate.On();
-    // 5 种虚拟地址: VirtualStatic, VirtualDynamicRandom, VirtualDynamicRandomRange,
-    //               VirtualDynamicSequential, VirtualDynamicSequentialRange
+    // 5 种虚拟地址: VirtualStatic, VirtualDynamic_Random, VirtualDynamic_RandomScope,
+    //               VirtualDynamic_Order, VirtualDynamic_OrderScope
     Address address = new Address(new AddressDetails
     {
-        SN = "v1", AddressName = "SimVal", AddressDataType = DataType.Int32,
-        AddressType = AddressType.VirtualDynamicRandom,
-        AddressExtendParam = (0, 1000)  // 范围
+        SN = "v1", AddressName = "SimVal{1000,1^100}", AddressDataType = DataType.Int32,
+        AddressType = AddressType.VirtualDynamic_RandomScope,
+        // 虚拟地址可在 AddressName 中嵌入参数：
+        // {间隔} / {间隔,最小值^最大值} / {间隔,增长比例} / {间隔,增长比例,最小值^最大值}
     });
     var result = operate.Read(address);
 }
