@@ -1107,13 +1107,15 @@ public interface ICommunication : IOn, IOff, ISend, ISendWait, IGetObject, IGetS
 
 ### 9.2 通信类速查
 
-| 类 | 命名空间 | Config | 连接参数 |
-|----|---------|--------|----------|
-| `TcpClientOperate` | `Snet.Core.communication.net.tcp.client` | `TcpClientData.Basics` | `IpAddress`, `Port`, `Timeout`, `InterruptReconnection` |
-| `UdpOperate` | `Snet.Core.communication.net.udp` | `UdpData.Basics` | `IpAddress`, `Port` |
-| `SerialOperate` | `Snet.Core.communication.serial` | `SerialData.Basics` | `SerialPortInfo`（`"COM3-9600-8-N-1"`） |
-| `WsClientOperate` | `Snet.Core.communication.net.ws.client` | `WsClientData.Basics` | `Url`（`"ws://IP:Port/path"`） |
-| `HttpClientOperate` | `Snet.Core.communication.net.http.client` | `HttpClientData.Basics` | 无连接，每次 `Request(RequestData)` |
+| 类 | 命名空间 | Config | 连接参数 | 特殊属性 |
+|----|---------|--------|----------|----------|
+| `TcpClientOperate` | `Snet.Core.communication.net.tcp.client` | `TcpClientData.Basics` | `IpAddress`, `Port`, `Timeout` | `InterruptReconnection`, `ReconnectionInterval`, `SendWaitInterval`, `MaxChunkSize`, `RetrySendCount`, `BufferSize` |
+| `UdpOperate` | `Snet.Core.communication.net.udp` | `UdpData.Basics` | `IpAddress`, `Port` | — |
+| `SerialOperate` | `Snet.Core.communication.serial` | `SerialData.Basics` | `PortName`, `BaudRate`, `ParityBit`, `DataBit`, `StopBit` | `WriteTimeout`, `ReadTimeout`, `ReceivedBytesThreshold`, `SendWaitInterval`, `MaxChunkSize`, `RetrySendCount`, `BufferSize` |
+| `WsClientOperate` | `Snet.Core.communication.net.ws.client` | `WsClientData.Basics` | `Url`（`"ws://IP:Port/path"`） | — |
+| `HttpClientOperate` | `Snet.Core.communication.net.http.client` | `HttpClientData.Basics` | 无连接，每次 `Request(RequestData)` | — |
+
+> **注意：** `SerialData.Basics` 使用独立属性（`PortName`/`BaudRate`/`ParityBit`/`DataBit`/`StopBit`），不是 `SerialPortInfo` 字符串格式。串口驱动库（如 Snet.Modbus 的 ModbusRtu）使用 `SerialPortInfo` 字符串（`"COM3-9600-8-N-1"`），但内置通信类 `SerialOperate` 使用独立属性。
 
 ### 9.3 使用模板（TCP/Serial/UDP/WebSocket）
 

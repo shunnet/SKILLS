@@ -1293,19 +1293,33 @@ using (MqttClientOperate mq = new MqttClientOperate(config))
 // Kafka: dotnet add package Snet.Kafka -v <最新版本>
 //   Operate: KafkaOperate, Config: KafkaData.Basics
 //   ISns: "Snet.Kafka.KafkaOperate.my-kafka"
+//   注意: Kafka 用 BootstrapServers（非 IpAddress+Port），支持 SASL 认证
 //
 // RabbitMQ: dotnet add package Snet.RabbitMQ -v <最新版本>
 //   Operate: RabbitMqOperate, Config: RabbitMqData.Basics
 //   ISns: "Snet.RabbitMQ.RabbitMqOperate.my-rabbit"
+//   注意: RabbitMQ 有 ExChangeName（交换机名称）属性
 //
 // NetMQ: dotnet add package Snet.NetMQ -v <最新版本>
-//   Operate: NetMqOperate, Config: NetMqData.Basics
+//   Operate: NetMqOperate, Config: NetMQData.Basics
 //   ISns: "Snet.NetMQ.NetMqOperate.my-netmq"
+//   注意: NetMQ 用 Address（如 "tcp://127.0.0.1:8866"），有 UModel（PubModel/SubModel）
 //
 // Netty: dotnet add package Snet.Netty -v <最新版本>
-//   Operate: NettyOperate, Config: NettyData.Basics
-//   ISns: "Snet.Netty.NettyOperate.my-netty"
+//   Operate: NettyClientOperate, Config: NettyClientData.Basics
+//   ISns: "Snet.Netty.client.NettyClientOperate.my-netty"
+//   注意: Netty 支持 SSL（SslFilePath/SslFilePassword）
 ```
+
+**各 MQ 关键属性速查：**
+
+| MQ 类型 | 连接参数 | 特殊属性 |
+|---------|---------|---------|
+| **MQTT** | `IpAddress` + `Port`(1883) | `ClientID`, `QualityOfServiceLevel`, `MessageExpirationTime` |
+| **Kafka** | `BootstrapServers`（如 `"192.168.0.1:9092"`） | `SecurityProtocol`, `SaslMechanism`, `AutoOffsetReset` |
+| **RabbitMQ** | `IpAddress` + `Port`(5672) | `ExChangeName`, `MessageExpirationTime` |
+| **NetMQ** | `Address`（如 `"tcp://127.0.0.1:8866"`） | `UModel`(PubModel/SubModel), `TimeOut` |
+| **Netty** | `IpAddress` + `Port` | `SslFilePath`, `SslFilePassword`, `TaskNumber` |
 
 ---
 
