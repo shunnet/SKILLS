@@ -1,7 +1,7 @@
 ---
 name: plugindev-skill
 description: Snet.Iot.Daq 插件开发技能。严格定义插件开发契约：必须实现的抽象方法、必须遵循的返回类型、必须使用的数据标注、必须调用的框架方法。AI 自行决定采集方式（TCP/HTTP/文件/串口），但必须遵守契约。
-version: 1.0.0.2
+version: 1.0.0.3
 metadata:
   hermes:
     tags: [plugin-development, daq, iot, dotnet, contract, code-generation]
@@ -749,18 +749,24 @@ if (!initResult.Status)
     return;
 }
 
-// ③ 调用方法
-var methodResult = reflect.Invoke<object>("parse-temp", new object[] { "25.6" });
-if (methodResult.Status)
+// ③ 调用方法（返回 object?，不是 OperateResult）
+object? methodResult = reflect.ExecuteMethod("parse-temp", new object[] { "25.6" });
+if (methodResult != null)
 {
-    object? parsed = methodResult.GetSource<object>();
+    // 结果可能是 OperateResult 或直接值，需判断类型
+    if (methodResult is OperateResult op && op.Status)
+        object? parsed = op.GetSource<object>();
+    else
+        object? parsed = methodResult;  // 直接返回值
 }
 
-// ④ 注册事件
-reflect.RegisterEvent("on-data", (sender, args) =>
-{
-    LogHelper.Info($"反射事件触发: {args}");
-});
+// ④ 注册事件（签名：RegisterEvent(SN, Register, P1?, P2?, ..., P6?)）
+// Register=true 注册，Register=false 移除；P1~P6 对应 1~6 个参数的 Action
+reflect.RegisterEvent("on-data", true,
+    P1: (sender) =>
+    {
+        LogHelper.Info($"反射事件触发: {sender}");
+    });
 
 // ⑤ 释放
 reflect.Dispose();
@@ -793,10 +799,12 @@ ReflectionData.Basics
 | 方法 | 说明 |
 |------|------|
 | `Init()` | 加载 DLL，实例化类，绑定方法/事件 |
-| `ExecuteMethod(sn, params)` | 调用方法（sn = MethodData.SN），返回 `object?` |
-| `RegisterEvent(sn, register, handler)` | 注册(`true`)/注销(`false`) 事件处理器（sn = EventData.SN），支持 1-6 个参数的 Action |
+| `ExecuteMethod(sn, params)` | 调用方法（sn = MethodData.SN），返回 `object?`（可能是 OperateResult 或直接值） |
+| `RegisterEvent(sn, register, P1?, P2?, ..., P6?)` | 注册(`true`)/注销(`false`) 事件处理器（sn = EventData.SN），P1~P6 对应 1~6 个参数的 Action |
 | `GetStatus()` | 反射是否已初始化（返回 `bool`，非 `OperateResult`） |
 | `ReflectionInstance(sn)` | 获取指定 SN 的实例对象 |
+| `GetMethod(sn?)` | 获取所有方法或指定 SN 的方法 |
+| `GetEvent(sn?)` | 获取所有事件或指定 SN 的事件 |
 | `Dispose()` | 释放资源 |
 
 **在 Read 方法中使用反射：**
@@ -806,7 +814,7 @@ ReflectionData.Basics
 object? rawValue = /* 原始采集值 */;
 if (reflect.GetStatus())
 {
-    var result = reflect.ExecuteMethod("parse-temp", new object[] { rawValue });
+    object? result = reflect.ExecuteMethod("parse-temp", new object[] { rawValue });
     if (result is OperateResult op && op.Status)
         rawValue = op.GetSource<object>();  // 用解析后的值替换原始值
     else if (result != null)

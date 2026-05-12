@@ -1,7 +1,7 @@
 ---
 name: daq-skill
 description: 工业物联网数据采集通信库，基于 Snet 框架，支持 PLC/工控/电力/机器人 等 30+ 种工业协议的数据读取、写入、订阅、状态获取，以及 Kafka/MQTT/RabbitMQ/NetMQ/Netty 消息中间件转发。所有采集库通过 ProtocolType 枚举自动选择底层驱动。支持"一句话"完成采集+转发。
-version: 1.0.0.2
+version: 1.0.0.3
 metadata:
   hermes:
     tags: [daq, iot, plc, industrial-automation, modbus, siemens, opc-ua, mqtt, kafka]
@@ -199,9 +199,12 @@ var mqConfig = new MqttClientData.Basics
 {
     SN = "mqtt-target",              // 重要：设置 SN 用于 AddressMqParam.ISns 匹配
     IpAddress = "127.0.0.1",
-    Port = 1883,
-    UserName = null,
-    Password = null,
+    Port = 1883,                      // 库默认 6688，需改标准端口
+    UserName = null,                   // 默认 "sample"，不需要认证时设 null
+    Password = null,                   // 默认 "sample"，不需要认证时设 null
+    ClientID = null,                   // 客户端ID，null 则自动生成随机
+    MessageExpirationTime = 86400000,  // 消息过期时间(ms)，默认 24h
+    QualityOfServiceLevel = MqttQualityOfServiceLevel.AtMostOnce, // QoS: AtMostOnce/AtLeastOnce/ExactlyOnce
 };
 using (MqttClientOperate mqClient = new MqttClientOperate(mqConfig))
 {
@@ -1257,8 +1260,11 @@ var config = new MqttClientData.Basics
     SN = "my-mqtt",              // 重要：用于 ISns 匹配
     IpAddress = "127.0.0.1",     // ← 属性名是 IpAddress，不是 Ip！
     Port = 1883,                  // 库默认 6688，需改标准端口
-    UserName = "admin",
-    Password = "password",
+    UserName = "admin",           // 默认 "sample"
+    Password = "password",        // 默认 "sample"
+    ClientID = null,              // 客户端ID，null 则自动生成随机
+    MessageExpirationTime = 86400000,  // 消息过期时间(ms)，默认 24h
+    QualityOfServiceLevel = MqttQualityOfServiceLevel.AtMostOnce, // QoS: AtMostOnce/AtLeastOnce/ExactlyOnce
     ResponseType = ResponseType.Content,  // Content/Bytes/ContentWithTopic
 };
 using (MqttClientOperate mq = new MqttClientOperate(config))
