@@ -1,7 +1,7 @@
 ---
 name: daq-skill
 description: 工业物联网数据采集通信库，基于 Snet 框架，支持 PLC/工控/电力/机器人 等 30+ 种工业协议的数据读取、写入、订阅、状态获取，以及 Kafka/MQTT/RabbitMQ/NetMQ/Netty 消息中间件转发。所有采集库通过 ProtocolType 枚举自动选择底层驱动。支持"一句话"完成采集+转发。
-version: 1.0.0.3
+version: 1.0.0.4
 metadata:
   hermes:
     tags: [daq, iot, plc, industrial-automation, modbus, siemens, opc-ua, mqtt, kafka]
@@ -445,9 +445,9 @@ public class AddressMq
 |---------|---------------|
 | MQTT Client | `"Snet.Mqtt.client.MqttClientOperate.my-mqtt-1"` |
 | Kafka | `"Snet.Kafka.KafkaOperate.my-kafka-1"` |
-| RabbitMQ | `"Snet.RabbitMQ.RabbitMqOperate.my-rabbit-1"` |
-| NetMQ | `"Snet.NetMQ.NetMqOperate.my-netmq-1"` |
-| Netty | `"Snet.Netty.NettyOperate.my-netty-1"` |
+| RabbitMQ | `"Snet.RabbitMQ.RabbitMQOperate.my-rabbit-1"` |
+| NetMQ | `"Snet.NetMQ.NetMQOperate.my-netmq-1"` |
+| Netty | `"Snet.Netty.client.NettyClientOperate.my-netty-1"` |
 
 ### 3.3 ContentFormat 模板
 
@@ -806,7 +806,12 @@ var config = new ModbusData.Basics
 using (ModbusOperate operate = new ModbusOperate(config)) { operate.On(); }
 ```
 
-### 7.3 OPC UA
+### 7.3 OPC UA / OPC DA
+
+> NuGet: `dotnet add package Snet.Opc -v <最新版本>`
+> OPC 项目提供 4 种操作类：UA 客户端、UA 服务端、DA 客户端（COM/DCOM）、DA HTTP 转发
+
+**OPC UA Client（最常用）：**
 
 ```csharp
 using Snet.Opc.ua.client;
@@ -822,6 +827,54 @@ using (OpcUaClientOperate operate = new OpcUaClientOperate(config))
 {
     operate.On();
     // 地址: ns=0;i=2258 或 ns=2;s=MyVariable
+}
+```
+
+**OPC UA Server（提供 OPC UA 服务端）：**
+
+```csharp
+using Snet.Opc.ua.service;
+
+using (OpcUaServiceOperate operate = new OpcUaServiceOperate(new OpcUaServiceData.Basics
+{
+    Port = 6688,
+    AType = Snet.Opc.core.Data.AuType.UserName,
+    UserName = "user",
+    Password = "password",
+    AutoCreateAddress = true,   // 自动创建地址空间
+    AddressSpaceName = "Snet",  // 地址空间名称
+}))
+{
+    operate.On();
+    // 客户端可连接 opc.tcp://127.0.0.1:6688/Opc.Ua.Service
+}
+```
+
+**OPC DA Client（COM/DCOM，传统 OPC DA 服务器）：**
+
+```csharp
+using Snet.Opc.da.client;
+
+using (OpcDaClientOperate operate = new OpcDaClientOperate(new OpcDaClientData.Basics
+{
+    ServerUrl = "opcda://192.168.0.1/OpcDaServer",
+}))
+{
+    operate.On();
+}
+```
+
+**OPC DA HTTP（通过 HTTP 转发 OPC DA 操作）：**
+
+```csharp
+using Snet.Opc.da.http;
+
+using (OpcDaHttpOperate operate = new OpcDaHttpOperate(new OpcDaHttpData.Basics
+{
+    ServerUrl = "http://192.168.0.1:8080/opcda",
+}))
+{
+    operate.On();
 }
 ```
 
@@ -1246,11 +1299,33 @@ meter.Off(); mq.Off();
 
 > **地址格式说明：** DLT645 使用 4 字节数据标识（DI0-DI3），格式为 `DDDDDDDD`（8 位十六进制）。例如 `02010100` = A相电压。DLT698 使用 OAD（对象属性描述符）字符串格式。
 
+### 7.9 Snet.Driver 内置协议（无需单独 NuGet 包）
+
+> 以下协议已在 `Snet.Driver` 中实现底层驱动，但暂无独立的 NuGet 包和 Operate 封装类。
+> 如需使用，可通过 `Snet.Freedom`（自由协议）间接调用，或参考 [PluginDev-Skill](../PluginDev-Skill) 自行封装 Operate。
+> 这些协议由 `Snet.Driver` 包作为传递依赖自动引入。
+
+| 协议 | 驱动目录 | 说明 | 通信方式 |
+|------|---------|------|----------|
+| **Knx** | `Snet.Driver.Profinet.Knx` | KNXnet/IP 楼宇自动化协议（ISO/IEC 14543） | UDP |
+| **OpenProtocol** | `Snet.Driver.Profinet.OpenProtocol` | Atlas Copco 拧紧枪协议（MID 指令） | TCP (默认 4545) |
+| **Sick ICR** | `Snet.Driver.Profinet.Sick` | SICK/海康/Keyence/Datalogic 条码扫描器 | TCP Server |
+| **Geniitek** | `Snet.Driver.Profinet.Geniitek` | 捷杰 VB31 无线振动传感器 | TCP (默认 3001) |
+| **IDCard** | `Snet.Driver.Profinet.IDCard` | SAM 身份证读卡器 | 串口/TCP |
+| **OrientalMotor** | `Snet.Driver.Profinet.OrientalMotor` | 东方马达步进驱动器（EIP） | TCP |
+| **Toledo** | `Snet.Driver.Profinet.Toledo` | 梅特勒-托利多称重仪表 | TCP |
+| **IEC 60870-5-104** | `Snet.Driver.Instrument.IEC` | IEC 104 电力远动协议 | TCP (默认 2404) |
+| **ShineIn Light** | `Snet.Driver.Instrument.Light` | 昱行智造光源控制器（私有协议） | 串口 (57600-8-E-1) |
+| **YuDian AIBus** | `Snet.Driver.Instrument.Temperature` | 宇电 AIBus 温控器协议 | 串口 (RS-485) |
+| **DAM3601** | `Snet.Driver.Instrument.Temperature` | 阿尔泰科技 DAM3601 温控模块（Modbus RTU 变体） | 串口 |
+
 ---
 
 ## 8. 消息中间件
 
-### 8.1 MQTT Client
+### 8.1 MQTT Client / Service / WebSocket
+
+**MQTT Client（最常用 — 连接外部 Broker）：**
 
 ```csharp
 using Snet.Mqtt.client;
@@ -1287,6 +1362,40 @@ using (MqttClientOperate mq = new MqttClientOperate(config))
 }
 ```
 
+**MQTT Service（内置 Broker — 无需外部 MQTT 服务器）：**
+
+```csharp
+using Snet.Mqtt.service;
+
+var config = new MqttServiceData.Basics
+{
+    Port = 6688,
+    MaxNumber = 10000,    // 最大客户端连接数
+};
+using (MqttServiceOperate mqttService = new MqttServiceOperate(config))
+{
+    mqttService.On();
+    // 内置 MQTT Broker 已启动，客户端可连接 mqtt://127.0.0.1:6688
+}
+```
+
+**MQTT WebSocket Service（支持浏览器 WebSocket 连接）：**
+
+```csharp
+using Snet.Mqtt.service.websocket;
+
+var config = new MqttWebSocketServiceData.Basics
+{
+    Port = 6688,          // MQTT 端口
+    WsPort = 8866,        // WebSocket 端口
+};
+using (MqttWebSocketServiceOperate wsService = new MqttWebSocketServiceOperate(config))
+{
+    wsService.On();
+    // 浏览器可通过 ws://127.0.0.1:8866 连接
+}
+```
+
 ### 8.2 Kafka / RabbitMQ / NetMQ / Netty
 
 ```
@@ -1296,13 +1405,13 @@ using (MqttClientOperate mq = new MqttClientOperate(config))
 //   注意: Kafka 用 BootstrapServers（非 IpAddress+Port），支持 SASL 认证
 //
 // RabbitMQ: dotnet add package Snet.RabbitMQ -v <最新版本>
-//   Operate: RabbitMqOperate, Config: RabbitMqData.Basics
-//   ISns: "Snet.RabbitMQ.RabbitMqOperate.my-rabbit"
+//   Operate: RabbitMQOperate, Config: RabbitMQData.Basics
+//   ISns: "Snet.RabbitMQ.RabbitMQOperate.my-rabbit"
 //   注意: RabbitMQ 有 ExChangeName（交换机名称）属性
 //
 // NetMQ: dotnet add package Snet.NetMQ -v <最新版本>
-//   Operate: NetMqOperate, Config: NetMQData.Basics
-//   ISns: "Snet.NetMQ.NetMqOperate.my-netmq"
+//   Operate: NetMQOperate, Config: NetMQData.Basics
+//   ISns: "Snet.NetMQ.NetMQOperate.my-netmq"
 //   注意: NetMQ 用 Address（如 "tcp://127.0.0.1:8866"），有 UModel（PubModel/SubModel）
 //
 // Netty: dotnet add package Snet.Netty -v <最新版本>
@@ -1544,9 +1653,9 @@ using (var operate = new XxxOperate(config))
 ```
 DAQ → MQTT:    "Snet.Mqtt.client.MqttClientOperate.{SN}"
 DAQ → Kafka:   "Snet.Kafka.KafkaOperate.{SN}"
-DAQ → RabbitMQ:"Snet.RabbitMQ.RabbitMqOperate.{SN}"
-DAQ → NetMQ:   "Snet.NetMQ.NetMqOperate.{SN}"
-DAQ → Netty:   "Snet.Netty.NettyOperate.{SN}"
+DAQ → RabbitMQ:"Snet.RabbitMQ.RabbitMQOperate.{SN}"
+DAQ → NetMQ:   "Snet.NetMQ.NetMQOperate.{SN}"
+DAQ → Netty:   "Snet.Netty.client.NettyClientOperate.{SN}"
 ```
 
 ### 13.3 性能建议
@@ -1562,4 +1671,6 @@ DAQ → Netty:   "Snet.Netty.NettyOperate.{SN}"
 
 > **本技能覆盖不了的协议？** → 用 [PluginDev-Skill](../PluginDev-Skill) 开发自定义插件，打包 ZIP 上传 Daq 工具热插拔加载。
 >
-> **已覆盖：** 西门子/Modbus/三菱/欧姆龙/汇川/OPC UA/罗克韦尔/台达/基恩士/松下/倍福/GE/安川/英威腾/麦格米特/数据库/TEP/自由协议/模拟库/PQDIF(电力电表：DLT645/DLT698/CJT188/DTSU6606)。**不在列表中？** PluginDev-Skill 定义插件开发契约，AI 根据协议描述自动生成插件代码。
+> **已覆盖：** 西门子/Modbus/三菱/欧姆龙/汇川/OPC UA Client+Server/OPC DA/罗克韦尔/台达/基恩士/松下/倍福/GE/安川/英威腾/麦格米特/数据库/TEP/自由协议/模拟库/PQDIF(电力电表：DLT645/DLT698/CJT188/DTSU6606)。
+>
+> **Snet.Driver 内置（无独立 NuGet 包）：** Knx(楼宇自动化)/OpenProtocol(拧紧枪)/Sick(条码扫描)/Geniitek(振动传感器)/IDCard(身份证读卡器)/OrientalMotor(步进马达)/Toledo(称重)/IEC104(电力远动)/ShineIn Light(光源)/YuDian AIBus(温控)/DAM3601(温控)。**不在列表中？** PluginDev-Skill 定义插件开发契约，AI 根据协议描述自动生成插件代码。

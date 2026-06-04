@@ -1,6 +1,6 @@
 # DAQ-Skill — 工业物联网数据采集技能
 
-**版本:** 1.0.0.3  
+**版本:** 1.0.0.4  
 **作者:** Shun  
 **许可证:** MIT  
 **框架:** .NET 10.0
@@ -51,7 +51,7 @@
 | `Snet.Mitsubishi` | 三菱 MC/FX/A1E/A3C/CIP/Links | `MitsubishiOperate` | 14 种 |
 | `Snet.Omron` | 欧姆龙 Fins/CIP/HostLink/CMode | `OmronOperate` | 8 种 |
 | `Snet.Inovance` | 汇川 TCP/Serial/CIP/Easy/ComputerLink | `InovanceOperate` | 6 种 |
-| `Snet.Opc` | OPC UA/DA/DAHttp | `OpcUaClientOperate` | 3 种 |
+| `Snet.Opc` | OPC UA Client/Server + DA Client/HTTP | `OpcUaClientOperate` / `OpcUaServiceOperate` / `OpcDaClientOperate` / `OpcDaHttpOperate` | 4 个类 |
 | `Snet.AllenBradley` | 罗克韦尔 CIP/PCCC/SLC/DF1 | `AllenBradleyOperate` | 6 种 |
 | `Snet.Delta` | 台达 TCP/Serial/ASCII | `DeltaOperate` | 5 种 |
 | `Snet.Keyence` | 基恩士 MC/Nano/KvOld | `KeyenceOperate` | 5 种 |
@@ -79,16 +79,17 @@
 | `Snet.TEP` | TCP 扩展插件（非标设备采集） | `TepMasterOperate` / `TepSlaveOperate` | 自定义 |
 | `Snet.Freedom` | 自由协议（自定义报文） | `FreedomOperate` | 3 种 |
 | `Snet.Sim` | 模拟库（无硬件测试） | `SimOperate` | 5 种虚拟地址 |
+| *(Snet.Driver)* | Knx / OpenProtocol / Sick / Geniitek / IDCard / OrientalMotor / Toledo / IEC104 / Light / AIBus / DAM3601 | 驱动层（无独立 NuGet 包） | 11 种 |
 
 ## 消息中间件
 
 | 包名 | 能力 | ISns 格式 |
 |------|------|-----------|
-| `Snet.Mqtt` | Client/Service/WSService | `Snet.Mqtt.client.MqttClientOperate.{SN}` |
+| `Snet.Mqtt` | Client（连接 Broker）+ Service（内置 Broker）+ WSService（WebSocket） | `Snet.Mqtt.client.MqttClientOperate.{SN}` |
 | `Snet.Kafka` | AdminClient/Producer/Consumer | `Snet.Kafka.KafkaOperate.{SN}` |
-| `Snet.RabbitMQ` | Publish/Subscribe | `Snet.RabbitMQ.RabbitMqOperate.{SN}` |
-| `Snet.NetMQ` | Publish/Subscribe | `Snet.NetMQ.NetMqOperate.{SN}` |
-| `Snet.Netty` | Client/Service | `Snet.Netty.NettyOperate.{SN}` |
+| `Snet.RabbitMQ` | Publish/Subscribe | `Snet.RabbitMQ.RabbitMQOperate.{SN}` |
+| `Snet.NetMQ` | Publish/Subscribe | `Snet.NetMQ.NetMQOperate.{SN}` |
+| `Snet.Netty` | Client/Service | `Snet.Netty.client.NettyClientOperate.{SN}` |
 
 ## 数据转发机制
 

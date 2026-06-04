@@ -1,6 +1,6 @@
 # PluginDev-Skill — Snet Daq 插件开发契约
 
-**版本:** 1.0.0.3
+**版本:** 1.0.0.4
 **作者:** Shun
 **许可证:** MIT
 **框架:** .NET 10.0
@@ -75,6 +75,9 @@
 | `ProcessCacheOperate` | `Snet.Core.cache.process` | 进程内内存缓存（自动过期、线程安全）|
 | `ShareCacheOperate` | `Snet.Core.cache.share` | 跨进程共享内存缓存（MemoryMappedFile + Mutex）|
 | `ReflectionOperate` | `Snet.Core.reflection` | 动态加载 DLL、调用方法、注册事件 |
+| `BytesHandler` | `Snet.Core.handler` | 字节数组自动解析为 `ConcurrentDictionary<string, AddressValue>` |
+| `BytesTransformHandler` | `Snet.Core.handler` | 底层字节↔值转换（14 种类型 + 4 种字节序） |
+| `ChannelOperate` | `Snet.Core.channel` | 高性能异步数据管道（基于 System.Threading.Channels） |
 
 ## Read 方法唯一数据流
 
@@ -98,7 +101,7 @@
 
 ## 参考实现
 
-`Snet.Siemens` `Snet.Modbus` `Snet.Mitsubishi` `Snet.DB` `Snet.Sim` `Snet.Freedom` `Snet.TEP` `Snet.PQDIF`
+`Snet.Siemens` `Snet.Modbus` `Snet.Mitsubishi` `Snet.Omron` `Snet.Opc` `Snet.AllenBradley` `Snet.DB` `Snet.Sim` `Snet.Freedom` `Snet.TEP` `Snet.PQDIF` `Snet.Mqtt` `Snet.Kafka`
 
 > **📌 关于版本号：** 所有 `dotnet add package` 命令**必须**指定 `-v` 版本号。
 > 获取最新版本：打开 `https://www.nuget.org/packages/<包名>` 查看，例如：

@@ -1,7 +1,7 @@
 ---
 name: plugindev-skill
 description: Snet.Iot.Daq 插件开发技能。严格定义插件开发契约：必须实现的抽象方法、必须遵循的返回类型、必须使用的数据标注、必须调用的框架方法。AI 自行决定采集方式（TCP/HTTP/文件/串口），但必须遵守契约。
-version: 1.0.0.3
+version: 1.0.0.4
 metadata:
   hermes:
     tags: [plugin-development, daq, iot, dotnet, contract, code-generation]
@@ -685,7 +685,64 @@ share.Dispose();
 | 插件内部缓存（单进程） | `ProcessCacheOperate` |
 | 多插件进程间数据共享 | `ShareCacheOperate` |
 
-### 6.3 反射 ReflectionOperate
+### 6.3 字节处理 BytesHandler / BytesTransformHandler
+
+> 命名空间: `Snet.Core.handler`
+> 将原始字节数组自动转换为 `ConcurrentDictionary<string, AddressValue>`，支持 14 种数据类型和字节序转换。
+> 适用于：协议响应为字节流，需要按配置自动解析为结构化数据。
+
+```csharp
+using Snet.Core.handler;
+using static Snet.Core.handler.BytesHandler;
+
+// BytesHandler 自动根据 AddressDetails 中的配置（DataType, Length, DataFormat）解析字节
+// 在 Read 方法中使用：
+byte[] response = /* 从设备收到的原始字节 */;
+Address address = /* 用户配置的地址 */;
+
+// BytesHandler 内部会遍历 address.AddressArray，按每个 item 的配置解析 response
+// 返回 ConcurrentDictionary<string, AddressValue>
+var result = BytesHandler.Execute(address, response);
+```
+
+**BytesTransformHandler** 提供底层的字节↔值转换：
+- 支持 ABCD/BADC/CDAB/DCBA 四种字节序
+- 覆盖 Bool/Byte/Int16/UInt16/Int32/UInt32/Int64/UInt64/Single/Double/String 全部类型
+- 自动处理数组类型的字节切分和重组
+
+### 6.4 数据通道 ChannelOperate
+
+> 命名空间: `Snet.Core.channel`
+> 基于 `System.Threading.Channels` 的高性能异步数据管道，支持背压控制。
+> 适用于：生产者-消费者模式、数据缓冲队列、异步流水线处理。
+
+```csharp
+using Snet.Core.channel;
+
+// 创建通道（支持泛型）
+ChannelOperate<AddressValue> channel = new ChannelOperate<AddressValue>(new ChannelData
+{
+    IsSync = false,  // false=后台自动消费并触发事件, true=手动调用 ReadAsync
+});
+
+// 写入数据
+channel.TryWrite(new AddressValue { ... });
+
+// 同步模式下手动读取
+var result = await channel.ReadAsync(token);
+
+// 通过事件消费（异步模式）
+channel.OnDataEvent += (sender, e) =>
+{
+    var item = e.GetSource<AddressValue>();
+    // 处理数据...
+};
+
+// 释放
+channel.Dispose();
+```
+
+### 6.5 反射 ReflectionOperate
 
 > 命名空间: `Snet.Core.reflection`
 > 动态加载 DLL、调用方法、注册事件，用于运行时扩展能力。
@@ -1110,10 +1167,13 @@ public interface ICommunication : IOn, IOff, ISend, ISendWait, IGetObject, IGetS
 | 类 | 命名空间 | Config | 连接参数 | 特殊属性 |
 |----|---------|--------|----------|----------|
 | `TcpClientOperate` | `Snet.Core.communication.net.tcp.client` | `TcpClientData.Basics` | `IpAddress`, `Port`, `Timeout` | `InterruptReconnection`, `ReconnectionInterval`, `SendWaitInterval`, `MaxChunkSize`, `RetrySendCount`, `BufferSize` |
-| `UdpOperate` | `Snet.Core.communication.net.udp` | `UdpData.Basics` | `IpAddress`, `Port` | — |
+| `TcpServiceOperate` | `Snet.Core.communication.net.tcp.service` | `TcpServiceData.Basics` | `IpAddress`, `Port` | 多客户端管理，`Send(byte[], string[])` 定向/广播发送 |
+| `UdpOperate` | `Snet.Core.communication.net.udp` | `UdpData.Basics` | `IpAddress`, `Port` | 支持广播模式、远程定向模式 |
 | `SerialOperate` | `Snet.Core.communication.serial` | `SerialData.Basics` | `PortName`, `BaudRate`, `ParityBit`, `DataBit`, `StopBit` | `WriteTimeout`, `ReadTimeout`, `ReceivedBytesThreshold`, `SendWaitInterval`, `MaxChunkSize`, `RetrySendCount`, `BufferSize` |
-| `WsClientOperate` | `Snet.Core.communication.net.ws.client` | `WsClientData.Basics` | `Url`（`"ws://IP:Port/path"`） | — |
-| `HttpClientOperate` | `Snet.Core.communication.net.http.client` | `HttpClientData.Basics` | 无连接，每次 `Request(RequestData)` | — |
+| `WsClientOperate` | `Snet.Core.communication.net.ws.client` | `WsClientData.Basics` | `Url`（`"ws://IP:Port/path"`） | 支持断线重连 |
+| `WsServiceOperate` | `Snet.Core.communication.net.ws.service` | `WsServiceData.Basics` | `Port` | WebSocket 服务端，管理多客户端连接 |
+| `HttpClientOperate` | `Snet.Core.communication.net.http.client` | `HttpClientData.Basics` | 无连接，每次 `Request(RequestData)` | 支持 FormData/Raw/Cookie/Proxy |
+| `HttpServiceOperate` | `Snet.Core.communication.net.http.service` | `HttpServiceData.Basics` | `Port` | REST API 服务端，支持 CORS、路由注册 |
 
 > **注意：** `SerialData.Basics` 使用独立属性（`PortName`/`BaudRate`/`ParityBit`/`DataBit`/`StopBit`），不是 `SerialPortInfo` 字符串格式。串口驱动库（如 Snet.Modbus 的 ModbusRtu）使用 `SerialPortInfo` 字符串（`"COM3-9600-8-N-1"`），但内置通信类 `SerialOperate` 使用独立属性。
 
@@ -1217,7 +1277,14 @@ public override OperateResult Read(Address address)
 |------|--------|---------------|--------|
 | `Snet.Siemens` | TCP | 发送 S7 协议 → 解析响应 | Driver.PipeTcpNet |
 | `Snet.Modbus` | TCP/UDP/串口 | 发送 Modbus 帧 → 解析 | Driver.PipeTcpNet |
+| `Snet.Mitsubishi` | TCP/UDP/串口 | 发送 MELSEC 帧 → 解析 | Driver.PipeTcpNet |
+| `Snet.Omron` | TCP/UDP/串口 | 发送 FINS/HostLink/CIP 帧 | Driver.PipeTcpNet |
+| `Snet.Opc` | TCP/COM | UA 二进制协议 / DA COM 调用 | OPC Foundation SDK |
+| `Snet.AllenBradley` | TCP/串口 | 发送 CIP/PCCC/DF1 帧 | Driver.PipeTcpNet |
 | `Snet.Freedom` | TCP/UDP/串口 | 发送自定义报文 → 偏移解析 | Driver.PipeTcpNet |
-| `Snet.DB` | 数据库 | 执行 SQL → JSON | Dapper/SqlSugar |
+| `Snet.DB` | 数据库 | 执行 SQL → JSON/Dapper | Dapper/SqlSugar |
 | `Snet.Sim` | 内存 | 虚拟地址随机/序列 | 无 |
 | `Snet.TEP` | TCP | 私有协议握手→认证→数据流 | 内置 TcpServiceOperate |
+| `Snet.PQDIF` | TCP/串口 | DLT645/DLT698/CJT188 帧 | Driver.PipeTcpNet |
+| `Snet.Mqtt` | TCP | MQTT 协议（Client/Service/WS） | MQTTnet |
+| `Snet.Kafka` | TCP | Kafka 协议（Producer/Consumer） | Confluent.Kafka |
