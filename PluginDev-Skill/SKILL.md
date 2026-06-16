@@ -1,7 +1,7 @@
 ---
 name: plugindev-skill
 description: Snet.Iot.Daq 插件开发技能。严格定义插件开发契约：必须实现的抽象方法、必须遵循的返回类型、必须使用的数据标注、必须调用的框架方法。AI 自行决定采集方式（TCP/HTTP/文件/串口），但必须遵守契约。
-version: 1.0.0.4
+version: 1.0.0.5
 metadata:
   hermes:
     tags: [plugin-development, daq, iot, dotnet, contract, code-generation]
@@ -100,7 +100,8 @@ dotnet add package Snet.Core
 你的 Operate 类
   └─ 必须继承 DaqAbstract<你的Operate类, 你的Data.Basics>
        └─ DaqAbstract 继承 CoreUnify（自动提供：单例、事件、日志、多语言、参数、WebApi）
-            └─ 必须实现 8 个抽象方法 + 3 个属性
+            └─ 必须实现 8 个抽象异步方法 + 3 个属性
+            └─ 同步方法是薄封装：`=> XxxAsync().GetAwaiter().GetResult()`，从基类自动继承
 ```
 
 ```csharp
@@ -118,15 +119,18 @@ public class XxxOperate : DaqAbstract<XxxOperate, XxxData.Basics>, IDaq
     public XxxOperate() : base() { LanguageHandler(); }
     public XxxOperate(XxxData.Basics basics) : base(basics) { LanguageHandler(); }
 
-    // ============ 8 个抽象方法 ============
-    public override OperateResult On() { ... }
-    public override OperateResult Off(bool hardClose = false) { ... }
-    public override OperateResult GetStatus() { ... }
-    public override OperateResult GetBaseObject() { ... }
-    public override OperateResult Read(Address address) { ... }
-    public override OperateResult Write(ConcurrentDictionary<string, (object, EncodingType?)> values) { ... }
-    public override OperateResult Subscribe(Address address) { ... }
-    public override OperateResult UnSubscribe(Address address) { ... }
+    // ============ 8 个抽象异步方法（核心实现）============
+    public override async Task<OperateResult> OnAsync(CancellationToken token = default) { ... }
+    public override async Task<OperateResult> OffAsync(bool hardClose = false, CancellationToken token = default) { ... }
+    public override async Task<OperateResult> GetStatusAsync(CancellationToken token = default) { ... }
+    public override async Task<OperateResult> GetBaseObjectAsync(CancellationToken token = default) { ... }
+    public override async Task<OperateResult> ReadAsync(Address address, CancellationToken token = default) { ... }
+    public override async Task<OperateResult> WriteAsync(ConcurrentDictionary<string, (object, EncodingType?)> values, CancellationToken token = default) { ... }
+    public override async Task<OperateResult> SubscribeAsync(Address address, CancellationToken token = default) { ... }
+    public override async Task<OperateResult> UnSubscribeAsync(Address address, CancellationToken token = default) { ... }
+    
+    // 同步方法自动从基类继承（无需实现）：
+    // On(), Off(), Read(), Write(), Subscribe(), UnSubscribe(), GetStatus(), GetBaseObject()
 }
 ```
 
@@ -134,39 +138,40 @@ public class XxxOperate : DaqAbstract<XxxOperate, XxxData.Basics>, IDaq
 
 ## 2. 方法契约详解
 
-> **核心约束：** 6 个方法必须 `BegOperate → try → GetStatus检查 → 实现 → catch`，2 个方法禁止 try/catch。
+> **核心约束：** 8 个抽象异步方法必须 `await BegOperateAsync → try → await GetStatusAsync检查 → 实现 → catch`，2 个方法禁止 try/catch。
 
-### 2.1 On() — 打开连接
+### 2.1 OnAsync — 打开连接
 
 | 约束 | 值 |
 |------|-----|
-| 返回类型 | `OperateResult` |
+| 返回类型 | `Task<OperateResult>` |
 | 状态检查 | 已连接则返回失败（与其它方法相反） |
-| 失败处理 | **必须在 catch 中调用 `Off(true)` 清理** |
+| 失败处理 | **必须在 catch 中调用 `await OffAsync(true, token)` 清理** |
 | try/catch | **必须** |
 
 ```csharp
-public override OperateResult On()
+public override async Task<OperateResult> OnAsync(CancellationToken token = default)
 {
-    BegOperate();
+    await BegOperateAsync(token);
     try
     {
-        if (GetStatus().GetDetails(out string? message))
-            return EndOperate(false, message);  // 已连接，返回失败
+        var status = await GetStatusAsync(token);
+        if (status.GetDetails(out string? message))
+            return await EndOperateAsync(false, message, token);  // 已连接，返回失败
 
         // AI 自行决定如何连接（TCP、文件、HTTP...）
 
-        return EndOperate(true);
+        return await EndOperateAsync(true, token: token);
     }
     catch (Exception ex)
     {
-        Off(true);   // ← 必须：失败时清理
-        return EndOperate(false, ex.Message, exception: ex);
+        await OffAsync(true, token);   // ← 必须：失败时清理
+        return await EndOperateAsync(false, ex.Message, exception: ex, token: token);
     }
 }
 ```
 
-### 2.2 Off(bool hardClose) — 关闭连接
+### 2.2 OffAsync(bool hardClose) — 关闭连接
 
 | 约束 | 值 |
 |------|-----|
@@ -176,95 +181,101 @@ public override OperateResult On()
 | try/catch | **必须** |
 
 ```csharp
-public override OperateResult Off(bool hardClose = false)
+public override async Task<OperateResult> OffAsync(bool hardClose = false, CancellationToken token = default)
 {
-    BegOperate();
+    await BegOperateAsync(token);
     try
     {
         if (!hardClose)
         {
-            if (!GetStatus().GetDetails(out string? message))
-                return EndOperate(false, message);
+            var status = await GetStatusAsync(token);
+            if (!status.GetDetails(out string? message))
+                return await EndOperateAsync(false, message, token);
         }
 
         // 释放顺序：订阅 → 虚拟地址 → 通信对象 → 日志
-        subscribeOperate?.Off();
-        subscribeOperate = null;
+        if (subscribeOperate != null)
+        {
+            await subscribeOperate.OffAsync(token);
+            subscribeOperate = null;
+        }
         VAM?.Dispose();
 
         // AI 自行决定如何断开连接
 
-        return EndOperate(true);
+        return await EndOperateAsync(true, token: token);
     }
     catch (Exception ex)
     {
-        return EndOperate(false, ex.Message, exception: ex);
+        return await EndOperateAsync(false, ex.Message, exception: ex, token: token);
     }
 }
 ```
 
-### 2.3 GetStatus() — 获取状态
+### 2.3 GetStatusAsync — 获取状态
 
 | 约束 | 值 |
 |------|-----|
-| 返回类型 | `OperateResult` |
+| 返回类型 | `Task<OperateResult>` |
 | Status=true | 已连接 |
 | Status=false | 未连接 |
 | try/catch | **禁止**（简单状态判断，无需异常捕获） |
 | consoleOutput | 建议 `false`（避免高频日志刷屏） |
 
 ```csharp
-public override OperateResult GetStatus()
+public override async Task<OperateResult> GetStatusAsync(CancellationToken token = default)
 {
-    BegOperate();
+    await BegOperateAsync(token);
     // AI 判断连接状态，直接返回
-    return EndOperate(/* 已连接? */, consoleOutput: false);
+    return await EndOperateAsync(/* 已连接? */, consoleOutput: false, token: token);
 }
 ```
 
-### 2.4 GetBaseObject() — 获取底层对象
+### 2.4 GetBaseObjectAsync — 获取底层对象
 
 | 约束 | 值 |
 |------|-----|
-| 返回类型 | `OperateResult` |
+| 返回类型 | `Task<OperateResult>` |
 | ResultData | 底层连接对象（TcpClient、SerialPort、HttpClient 等） |
 | try/catch | **禁止** |
-| 前置检查 | 必须先 GetStatus 确认已连接 |
+| 前置检查 | 必须先 GetStatusAsync 确认已连接 |
 
 ```csharp
-public override OperateResult GetBaseObject()
+public override async Task<OperateResult> GetBaseObjectAsync(CancellationToken token = default)
 {
-    BegOperate();
-    if (!GetStatus().GetDetails(out string? message))
-        return EndOperate(false, message);
+    await BegOperateAsync(token);
+    var status = await GetStatusAsync(token);
+    if (!status.GetDetails(out string? message))
+        return await EndOperateAsync(false, message, token);
 
-    return EndOperate(true, resultData: /* 底层对象 */);
+    return await EndOperateAsync(true, resultData: /* 底层对象 */, token: token);
 }
 ```
 
-### 2.5 Read(Address address) — 读取数据（核心）
+### 2.5 ReadAsync(Address address) — 读取数据（核心）
 
 | 约束 | 值 |
 |------|-----|
-| 返回类型 | `OperateResult` |
+| 返回类型 | `Task<OperateResult>` |
 | ResultData 类型 | **`ConcurrentDictionary<string, AddressValue>`** |
-| 前置检查 | GetStatus + `address.CheckAddress()` |
+| 前置检查 | GetStatusAsync + `address.CheckAddress()` |
 | 每个点位 | `AddressHandler.ExecuteDispose(item, rawValue, message)` |
 | 跳过禁用 | `if (!item.IsEnable) continue` |
 | 虚拟地址 | `VAM.InitVirtualAddress(item, out bool IsVA)` |
 | try/catch | **必须** |
 
 ```csharp
-public override OperateResult Read(Address address)
+public override async Task<OperateResult> ReadAsync(Address address, CancellationToken token = default)
 {
-    BegOperate();
+    await BegOperateAsync(token);
     try
     {
-        if (!GetStatus().GetDetails(out string? message))
-            return EndOperate(false, message);
+        var status = await GetStatusAsync(token);
+        if (!status.GetDetails(out string? message))
+            return await EndOperateAsync(false, message, token);
 
         if (!address.CheckAddress())
-            return EndOperate(false, "存在无效点位数据，操作失败");
+            return await EndOperateAsync(false, "存在无效点位数据，操作失败", token);
 
         ConcurrentDictionary<string, AddressValue> param = new();
         foreach (var item in address.AddressArray)
@@ -293,35 +304,37 @@ public override OperateResult Read(Address address)
                 param.AddOrUpdate(item.AddressName, av, (k, v) => av);
         }
         return param.Count > 0
-            ? EndOperate(true, resultData: param)
-            : EndOperate(false, "读取失败");
+            ? await EndOperateAsync(true, resultData: param, token: token)
+            : await EndOperateAsync(false, "读取失败", token);
     }
     catch (Exception ex)
     {
-        return EndOperate(false, ex.Message, exception: ex);
+        return await EndOperateAsync(false, ex.Message, exception: ex, token: token);
     }
 }
 ```
 
-### 2.6 Write(values) — 写入数据
+### 2.6 WriteAsync(values) — 写入数据
 
 | 约束 | 值 |
 |------|-----|
 | 入参 | `ConcurrentDictionary<string, (object value, EncodingType? encodingType)>` |
-| 返回类型 | `OperateResult` |
-| 前置检查 | GetStatus |
+| 返回类型 | `Task<OperateResult>` |
+| 前置检查 | GetStatusAsync |
 | 虚拟地址 | `VAM.IsVirtualAddress(key)` → `VAM.Write(key, value)` |
 | try/catch | **必须** |
 
 ```csharp
-public override OperateResult Write(
-    ConcurrentDictionary<string, (object value, EncodingType? encodingType)> values)
+public override async Task<OperateResult> WriteAsync(
+    ConcurrentDictionary<string, (object value, EncodingType? encodingType)> values,
+    CancellationToken token = default)
 {
-    BegOperate();
+    await BegOperateAsync(token);
     try
     {
-        if (!GetStatus().GetDetails(out string? message))
-            return EndOperate(false, message);
+        var status = await GetStatusAsync(token);
+        if (!status.GetDetails(out string? message))
+            return await EndOperateAsync(false, message, token);
 
         foreach (var (addressName, (value, encoding)) in values)
         {
@@ -334,45 +347,47 @@ public override OperateResult Write(
                 // AI 自行实现写入逻辑
             }
         }
-        return EndOperate(true);
+        return await EndOperateAsync(true, token: token);
     }
     catch (Exception ex)
     {
-        return EndOperate(false, ex.Message, exception: ex);
+        return await EndOperateAsync(false, ex.Message, exception: ex, token: token);
     }
 }
 ```
 
-### 2.7 Subscribe(Address address) — 订阅数据
+### 2.7 SubscribeAsync(Address address) — 订阅数据
 
 | 约束 | 值 |
 |------|-----|
-| 返回类型 | `OperateResult` |
-| 前置检查 | GetStatus + `address.CheckAddress()` |
-| 必须创建 | `SubscribeOperate` 管理订阅生命周期 |
+| 返回类型 | `Task<OperateResult>` |
+| 前置检查 | GetStatusAsync + `address.CheckAddress()` |
+| 必须创建 | `SubscribeOperate.InstanceAsync(basics)` 管理订阅生命周期 |
 | 数据事件 | 通过 `OnDataEvent?.Invoke` / `OnDataEventAsync?.Invoke` 推送 |
 | try/catch | **必须** |
 
 ```csharp
-public override OperateResult Subscribe(Address address)
+public override async Task<OperateResult> SubscribeAsync(Address address, CancellationToken token = default)
 {
-    BegOperate();
+    await BegOperateAsync(token);
     try
     {
-        if (!GetStatus().GetDetails(out string? message))
-            return EndOperate(false, message);
+        var status = await GetStatusAsync(token);
+        if (!status.GetDetails(out string? message))
+            return await EndOperateAsync(false, message, token);
 
         if (!address.CheckAddress())
-            return EndOperate(false, "存在无效点位数据，操作失败");
+            return await EndOperateAsync(false, "存在无效点位数据，操作失败", token);
 
         subscribeToken = new CancellationTokenSource();
-        subscribeOperate = new SubscribeOperate();
+        subscribeOperate = SubscribeOperate.InstanceAsync(basics);
+        await subscribeOperate.OnAsync(token);
 
         _ = Task.Run(async () =>
         {
             while (!subscribeToken.Token.IsCancellationRequested)
             {
-                OperateResult r = Read(address);
+                OperateResult r = await ReadAsync(address, subscribeToken.Token);
                 if (r.Status)
                 {
                     var e = new EventDataResult(true, "订阅数据", r.ResultData);
@@ -386,40 +401,45 @@ public override OperateResult Subscribe(Address address)
             }
         }, subscribeToken.Token);
 
-        return EndOperate(true);
+        return await EndOperateAsync(true, token: token);
     }
     catch (Exception ex)
     {
-        return EndOperate(false, ex.Message, exception: ex);
+        return await EndOperateAsync(false, ex.Message, exception: ex, token: token);
     }
 }
 ```
 
-### 2.8 UnSubscribe(Address address) — 取消订阅
+### 2.8 UnSubscribeAsync(Address address) — 取消订阅
 
 | 约束 | 值 |
 |------|-----|
-| 返回类型 | `OperateResult` |
-| 前置检查 | GetStatus |
+| 返回类型 | `Task<OperateResult>` |
+| 前置检查 | GetStatusAsync |
 | 必须操作 | 取消 Token，关闭 SubscribeOperate |
 | try/catch | **必须** |
 
 ```csharp
-public override OperateResult UnSubscribe(Address address)
+public override async Task<OperateResult> UnSubscribeAsync(Address address, CancellationToken token = default)
 {
-    BegOperate();
+    await BegOperateAsync(token);
     try
     {
-        if (!GetStatus().GetDetails(out string? message))
-            return EndOperate(false, message);
+        var status = await GetStatusAsync(token);
+        if (!status.GetDetails(out string? message))
+            return await EndOperateAsync(false, message, token);
 
         subscribeToken?.Cancel();
-        subscribeOperate?.Off();
-        return EndOperate(true);
+        if (subscribeOperate != null)
+        {
+            await subscribeOperate.OffAsync(token);
+            subscribeOperate = null;
+        }
+        return await EndOperateAsync(true, token: token);
     }
     catch (Exception ex)
     {
-        return EndOperate(false, ex.Message, exception: ex);
+        return await EndOperateAsync(false, ex.Message, exception: ex, token: token);
     }
 }
 ```
@@ -457,6 +477,8 @@ operate.OnDataEventAsync += async (sender, e) =>
 ## 3. 数据类契约
 
 ### 3.1 基础数据类
+
+> **异步兼容：** Basics 字段同时支持同步和异步事件处理模式，`HandleInterval` 等字段在 async 订阅轮询中同样生效。
 
 ```csharp
 public class XxxData
@@ -533,8 +555,9 @@ public class XxxData
 ```csharp
 private SubscribeOperate? subscribeOperate;
 
-// 启动订阅时
-subscribeOperate = new SubscribeOperate();
+// 异步启动订阅时
+subscribeOperate = SubscribeOperate.InstanceAsync(basics);
+await subscribeOperate.OnAsync();
 
 // 停止订阅时
 subscribeOperate?.Off();
@@ -573,8 +596,10 @@ if (VAM.IsVirtualAddress(addressName))
 
 | 方法 | 用途 |
 |------|------|
-| `BegOperate()` | 每个 public 方法第一行调用，初始化操作上下文 |
-| `EndOperate(bool status, string? message=null, object? resultData=null, Exception? exception=null, bool logOutput=true, bool consoleOutput=true)` | 统一返回 OperateResult，自动记录耗时和日志。`consoleOutput: false` 可静默调用（如 GetStatus 高频检查）。**重载：** `EndOperate(OperateResult result)` 传递已有结果，`EndOperateAsync(...)` 异步版本 |
+| `BegOperateAsync(token)` | 每个异步方法首行调用，初始化操作上下文 |
+| `BegOperate()` | 同步版本（同步封装方法使用） |
+| `EndOperateAsync(bool status, string? message=null, object? resultData=null, Exception? exception=null, bool logOutput=true, bool consoleOutput=true, CancellationToken token=default)` | 异步统一返回 OperateResult，自动记录耗时和日志。`consoleOutput: false` 可静默调用（如 GetStatusAsync 高频检查）。**重载：** `EndOperateAsync(OperateResult result, token)` 传递已有结果 |
+| `EndOperate(...)` | 同步版本（同步封装方法使用） |
 | `Instance(basics)` | 单例模式获取实例 |
 | `CreateInstance(basics)` | 创建新实例 |
 | `GetParam()` | 获取配置参数（自动反射读取所有属性） |
@@ -702,6 +727,7 @@ Address address = /* 用户配置的地址 */;
 
 // BytesHandler 内部会遍历 address.AddressArray，按每个 item 的配置解析 response
 // 返回 ConcurrentDictionary<string, AddressValue>
+// 注意：BytesHandler.Execute 是同步处理器，在 ReadAsync 异步方法内部同步调用
 var result = BytesHandler.Execute(address, response);
 ```
 
@@ -885,6 +911,10 @@ var av = AddressHandler.ExecuteDispose(item, rawValue, "成功");
 
 ## 7. 完整模板（AI 填写采集逻辑）
 
+> **异步架构说明：** DaqAbstract 的 8 个抽象方法现全部为异步（`Task<OperateResult>` + `CancellationToken`）。
+> 同步方法（`On()`, `Off()`, `Read()`, `Write()`, `Subscribe()`, `UnSubscribe()`, `GetStatus()`, `GetBaseObject()`）
+> 是基类中的薄封装 `=> XxxAsync().GetAwaiter().GetResult()`，从基类自动继承，**插件无需实现**。
+
 ```csharp
 using Snet.Core.@abstract;
 using Snet.Core.handler;
@@ -926,81 +956,89 @@ namespace XxxNamespace
         private ProcessCacheOperate? cache;    // 按需：进程缓存
         private ReflectionOperate? reflect;    // 按需：反射
 
-        // ═══ On — 必须 try/catch，失败调用 Off(true) ═══
-        public override OperateResult On()
+        // ═══ OnAsync — 必须 try/catch，失败调用 OffAsync(true) ═══
+        public override async Task<OperateResult> OnAsync(CancellationToken token = default)
         {
-            BegOperate();
+            await BegOperateAsync(token);
             try
             {
-                if (GetStatus().GetDetails(out string? message))
-                    return EndOperate(false, message);
+                var status = await GetStatusAsync(token);
+                if (status.GetDetails(out string? message))
+                    return await EndOperateAsync(false, message, token);
 
                 // 【AI 在此实现连接逻辑】
 
-                return EndOperate(true);
+                return await EndOperateAsync(true, token: token);
             }
             catch (Exception ex)
             {
-                Off(true);
-                return EndOperate(false, ex.Message, exception: ex);
+                await OffAsync(true, token);
+                return await EndOperateAsync(false, ex.Message, exception: ex, token: token);
             }
         }
 
-        // ═══ Off — 必须 try/catch ═══
-        public override OperateResult Off(bool hardClose = false)
+        // ═══ OffAsync — 必须 try/catch ═══
+        public override async Task<OperateResult> OffAsync(bool hardClose = false, CancellationToken token = default)
         {
-            BegOperate();
+            await BegOperateAsync(token);
             try
             {
                 if (!hardClose)
                 {
-                    if (!GetStatus().GetDetails(out string? message))
-                        return EndOperate(false, message);
+                    var status = await GetStatusAsync(token);
+                    if (!status.GetDetails(out string? message))
+                        return await EndOperateAsync(false, message, token);
                 }
 
                 subscribeToken?.Cancel(); subscribeToken?.Dispose();
-                subscribeOperate?.Off(); subscribeOperate = null;
+                if (subscribeOperate != null)
+                {
+                    await subscribeOperate.OffAsync(token);
+                    subscribeOperate = null;
+                }
                 VAM?.Dispose();
 
                 // 【AI 在此实现断开逻辑】
 
-                return EndOperate(true);
+                return await EndOperateAsync(true, token: token);
             }
             catch (Exception ex)
             {
-                return EndOperate(false, ex.Message, exception: ex);
+                return await EndOperateAsync(false, ex.Message, exception: ex, token: token);
             }
         }
 
-        // ═══ GetStatus — 禁止 try/catch，consoleOutput: false ═══
-        public override OperateResult GetStatus()
+        // ═══ GetStatusAsync — 禁止 try/catch，consoleOutput: false ═══
+        public override async Task<OperateResult> GetStatusAsync(CancellationToken token = default)
         {
-            BegOperate();
+            await BegOperateAsync(token);
             // 【AI 判断连接状态】
-            return EndOperate(/* 已连接? */, consoleOutput: false);
+            return await EndOperateAsync(/* 已连接? */, consoleOutput: false, token: token);
         }
 
-        // ═══ GetBaseObject — 禁止 try/catch，必须先 GetStatus ═══
-        public override OperateResult GetBaseObject()
+        // ═══ GetBaseObjectAsync — 禁止 try/catch，必须先 GetStatusAsync ═══
+        public override async Task<OperateResult> GetBaseObjectAsync(CancellationToken token = default)
         {
-            BegOperate();
-            if (!GetStatus().GetDetails(out string? message))
-                return EndOperate(false, message);
+            await BegOperateAsync(token);
+            var status = await GetStatusAsync(token);
+            if (!status.GetDetails(out string? message))
+                return await EndOperateAsync(false, message, token);
 
-            return EndOperate(true, resultData: /* 【AI 返回底层对象】 */);
+            return await EndOperateAsync(true, resultData: /* 【AI 返回底层对象】 */, token: token);
         }
 
-        // ═══ Read — 必须 try/catch ═══
-        public override OperateResult Read(Address address)
+        // ═══ ReadAsync — 必须 try/catch ═══
+        public override async Task<OperateResult> ReadAsync(Address address, CancellationToken token = default)
         {
-            BegOperate();
+            await BegOperateAsync(token);
             try
             {
-                if (!GetStatus().GetDetails(out string? message))
-                    return EndOperate(false, message);
+                var status = await GetStatusAsync(token);
+                if (!status.GetDetails(out string? message))
+                    return await EndOperateAsync(false, message, token);
 
                 if (!address.CheckAddress())
-                    return EndOperate(false, "存在无效点位数据，操作失败");
+                    return await EndOperateAsync(false, "存在无效点位数据，操作失败", token);
 
                 ConcurrentDictionary<string, AddressValue> param = new();
                 foreach (var item in address.AddressArray)
@@ -1030,24 +1068,26 @@ namespace XxxNamespace
                         param.AddOrUpdate(item.AddressName, av, (k, v) => av);
                 }
                 return param.Count > 0
-                    ? EndOperate(true, resultData: param)
-                    : EndOperate(false, "读取失败");
+                    ? await EndOperateAsync(true, resultData: param, token: token)
+                    : await EndOperateAsync(false, "读取失败", token);
             }
             catch (Exception ex)
             {
-                return EndOperate(false, ex.Message, exception: ex);
+                return await EndOperateAsync(false, ex.Message, exception: ex, token: token);
             }
         }
 
-        // ═══ Write — 必须 try/catch ═══
-        public override OperateResult Write(
-            ConcurrentDictionary<string, (object value, EncodingType? encodingType)> values)
+        // ═══ WriteAsync — 必须 try/catch ═══
+        public override async Task<OperateResult> WriteAsync(
+            ConcurrentDictionary<string, (object value, EncodingType? encodingType)> values,
+            CancellationToken token = default)
         {
-            BegOperate();
+            await BegOperateAsync(token);
             try
             {
-                if (!GetStatus().GetDetails(out string? message))
-                    return EndOperate(false, message);
+                var status = await GetStatusAsync(token);
+                if (!status.GetDetails(out string? message))
+                    return await EndOperateAsync(false, message, token);
 
                 foreach (var (addressName, (value, encoding)) in values)
                 {
@@ -1058,34 +1098,36 @@ namespace XxxNamespace
                     }
                     // 【AI 在此实现写入逻辑】
                 }
-                return EndOperate(true);
+                return await EndOperateAsync(true, token: token);
             }
             catch (Exception ex)
             {
-                return EndOperate(false, ex.Message, exception: ex);
+                return await EndOperateAsync(false, ex.Message, exception: ex, token: token);
             }
         }
 
-        // ═══ Subscribe — 必须 try/catch ═══
-        public override OperateResult Subscribe(Address address)
+        // ═══ SubscribeAsync — 必须 try/catch ═══
+        public override async Task<OperateResult> SubscribeAsync(Address address, CancellationToken token = default)
         {
-            BegOperate();
+            await BegOperateAsync(token);
             try
             {
-                if (!GetStatus().GetDetails(out string? message))
-                    return EndOperate(false, message);
+                var status = await GetStatusAsync(token);
+                if (!status.GetDetails(out string? message))
+                    return await EndOperateAsync(false, message, token);
 
                 if (!address.CheckAddress())
-                    return EndOperate(false, "存在无效点位数据，操作失败");
+                    return await EndOperateAsync(false, "存在无效点位数据，操作失败", token);
 
                 subscribeToken = new CancellationTokenSource();
-                subscribeOperate = new SubscribeOperate();
+                subscribeOperate = SubscribeOperate.InstanceAsync(basics);
+                await subscribeOperate.OnAsync(token);
 
                 _ = Task.Run(async () =>
                 {
                     while (!subscribeToken.Token.IsCancellationRequested)
                     {
-                        OperateResult r = Read(address);
+                        OperateResult r = await ReadAsync(address, subscribeToken.Token);
                         if (r.Status)
                         {
                             var e = new EventDataResult(true, "订阅数据", r.ResultData);
@@ -1099,30 +1141,35 @@ namespace XxxNamespace
                     }
                 }, subscribeToken.Token);
 
-                return EndOperate(true);
+                return await EndOperateAsync(true, token: token);
             }
             catch (Exception ex)
             {
-                return EndOperate(false, ex.Message, exception: ex);
+                return await EndOperateAsync(false, ex.Message, exception: ex, token: token);
             }
         }
 
-        // ═══ UnSubscribe — 必须 try/catch ═══
-        public override OperateResult UnSubscribe(Address address)
+        // ═══ UnSubscribeAsync — 必须 try/catch ═══
+        public override async Task<OperateResult> UnSubscribeAsync(Address address, CancellationToken token = default)
         {
-            BegOperate();
+            await BegOperateAsync(token);
             try
             {
-                if (!GetStatus().GetDetails(out string? message))
-                    return EndOperate(false, message);
+                var status = await GetStatusAsync(token);
+                if (!status.GetDetails(out string? message))
+                    return await EndOperateAsync(false, message, token);
 
                 subscribeToken?.Cancel();
-                subscribeOperate?.Off();
-                return EndOperate(true);
+                if (subscribeOperate != null)
+                {
+                    await subscribeOperate.OffAsync(token);
+                    subscribeOperate = null;
+                }
+                return await EndOperateAsync(true, token: token);
             }
             catch (Exception ex)
             {
-                return EndOperate(false, ex.Message, exception: ex);
+                return await EndOperateAsync(false, ex.Message, exception: ex, token: token);
             }
         }
     }
@@ -1154,12 +1201,13 @@ public interface ICommunication : IOn, IOff, ISend, ISendWait, IGetObject, IGetS
 
 | 方法 | 说明 | 适用 |
 |------|------|------|
-| `On()` / `Off(bool)` | 打开/关闭连接 | 全部 |
+| `On()` / `Off(bool)` | 打开/关闭连接（同步封装） | 全部 |
+| `OnAsync(token)` / `OffAsync(bool, token)` | 打开/关闭连接（异步） | 全部 |
 | `GetStatus()` | 连接状态 | 全部 |
 | `GetBaseObject()` | 底层对象 | 全部 |
 | `Send(byte[])` | 发送字节（自动分包） | TCP/Serial/UDP/WS |
-| `SendWait(byte[], CancellationToken)` | 发送并等待响应 | TCP/Serial/UDP/WS |
-| `OnDataEvent` | 收到数据触发 → `e.GetSource<byte[]>()` | TCP/Serial/UDP/WS |
+| `SendWaitAsync(byte[], CancellationToken)` | 发送并等待响应（异步） | TCP/Serial/UDP/WS |
+| `OnDataEvent` / `OnDataEventAsync` | 收到数据触发 → `e.GetSource<byte[]>()` | TCP/Serial/UDP/WS |
 | `OnInfoEvent` | 状态变化触发 | 全部 |
 
 ### 9.2 通信类速查
@@ -1172,7 +1220,7 @@ public interface ICommunication : IOn, IOff, ISend, ISendWait, IGetObject, IGetS
 | `SerialOperate` | `Snet.Core.communication.serial` | `SerialData.Basics` | `PortName`, `BaudRate`, `ParityBit`, `DataBit`, `StopBit` | `WriteTimeout`, `ReadTimeout`, `ReceivedBytesThreshold`, `SendWaitInterval`, `MaxChunkSize`, `RetrySendCount`, `BufferSize` |
 | `WsClientOperate` | `Snet.Core.communication.net.ws.client` | `WsClientData.Basics` | `Url`（`"ws://IP:Port/path"`） | 支持断线重连 |
 | `WsServiceOperate` | `Snet.Core.communication.net.ws.service` | `WsServiceData.Basics` | `Port` | WebSocket 服务端，管理多客户端连接 |
-| `HttpClientOperate` | `Snet.Core.communication.net.http.client` | `HttpClientData.Basics` | 无连接，每次 `Request(RequestData)` | 支持 FormData/Raw/Cookie/Proxy |
+| `HttpClientOperate` | `Snet.Core.communication.net.http.client` | `HttpClientData.Basics` | 无连接，每次 `RequestAsync(RequestData, token)` | 支持 FormData/Raw/Cookie/Proxy |
 | `HttpServiceOperate` | `Snet.Core.communication.net.http.service` | `HttpServiceData.Basics` | `Port` | REST API 服务端，支持 CORS、路由注册 |
 
 > **注意：** `SerialData.Basics` 使用独立属性（`PortName`/`BaudRate`/`ParityBit`/`DataBit`/`StopBit`），不是 `SerialPortInfo` 字符串格式。串口驱动库（如 Snet.Modbus 的 ModbusRtu）使用 `SerialPortInfo` 字符串（`"COM3-9600-8-N-1"`），但内置通信类 `SerialOperate` 使用独立属性。
@@ -1186,37 +1234,46 @@ public class MyPluginOperate : DaqAbstract<MyPluginOperate, MyPluginData.Basics>
 {
     private TcpClientOperate? comm;  // ← 用内置通信类
 
-    public override OperateResult On()
+    public override async Task<OperateResult> OnAsync(CancellationToken token = default)
     {
-        BegOperate();
+        await BegOperateAsync(token);
         comm = new TcpClientOperate(new TcpClientData.Basics
         {
             IpAddress = basics.IpAddress, Port = basics.Port,
             Timeout = basics.ConnectTimeOut,
             InterruptReconnection = true,  // 自动断线重连
         });
-        // 事件驱动接收（可选，也可用 SendWait）
-        comm.OnDataEvent += (_, e) =>
+        // 事件驱动接收（可选，也可用 SendWaitAsync）
+        comm.OnDataEventAsync += async (_, e) =>
         {
             byte[] received = e.GetSource<byte[]>();
             // AI 缓存/处理接收数据
         };
-        return comm.On();
+        return await comm.OnAsync(token);
     }
 
-    public override OperateResult Off(bool hardClose = false)
-        => comm?.Off(hardClose) ?? EndOperate(true);
-
-    public override OperateResult GetStatus()
-        => comm?.GetStatus() ?? EndOperate(false);
-
-    public override OperateResult GetBaseObject()
-        => EndOperate(true, resultData: comm);
-
-    public override OperateResult Read(Address address)
+    public override async Task<OperateResult> OffAsync(bool hardClose = false, CancellationToken token = default)
     {
-        BegOperate();
-        if (!GetStatus().GetDetails(out var msg)) return EndOperate(false, msg);
+        if (comm != null)
+            return await comm.OffAsync(hardClose, token);
+        return await EndOperateAsync(true, token: token);
+    }
+
+    public override async Task<OperateResult> GetStatusAsync(CancellationToken token = default)
+    {
+        if (comm != null)
+            return await comm.GetStatusAsync(token);
+        return await EndOperateAsync(false, token: token);
+    }
+
+    public override async Task<OperateResult> GetBaseObjectAsync(CancellationToken token = default)
+        => await EndOperateAsync(true, resultData: comm, token: token);
+
+    public override async Task<OperateResult> ReadAsync(Address address, CancellationToken token = default)
+    {
+        await BegOperateAsync(token);
+        var status = await GetStatusAsync(token);
+        if (!status.GetDetails(out var msg)) return await EndOperateAsync(false, msg, token);
 
         ConcurrentDictionary<string, AddressValue> param = new();
         foreach (var item in address.AddressArray)
@@ -1228,8 +1285,8 @@ public class MyPluginOperate : DaqAbstract<MyPluginOperate, MyPluginData.Basics>
 
             // 2. 发送并等待响应
             using var cts = new CancellationTokenSource(basics.ReceiveTimeOut);
-            var recv = comm.SendWait(request, cts.Token);
-            if (!recv.Status) continue;  // SendWait 失败跳过
+            var recv = await comm.SendWaitAsync(request, cts.Token);
+            if (!recv.Status) continue;  // SendWaitAsync 失败跳过
             byte[] response = recv.GetSource<byte[]>();
 
             // 3. 解析响应
@@ -1240,11 +1297,11 @@ public class MyPluginOperate : DaqAbstract<MyPluginOperate, MyPluginData.Basics>
             if (av != null) param.AddOrUpdate(item.AddressName, av, (k, v) => av);
         }
         return param.Count > 0
-            ? EndOperate(true, resultData: param)
-            : EndOperate(false, "读取失败");
+            ? await EndOperateAsync(true, resultData: param, token: token)
+            : await EndOperateAsync(false, "读取失败", token);
     }
 
-    // Write / Subscribe 同上模式
+    // WriteAsync / SubscribeAsync 同上模式
 }
 ```
 
@@ -1254,16 +1311,16 @@ public class MyPluginOperate : DaqAbstract<MyPluginOperate, MyPluginData.Basics>
 using Snet.Core.communication.net.http.client;
 using static Snet.Core.communication.net.http.client.HttpClientData;
 
-public override OperateResult Read(Address address)
+public override async Task<OperateResult> ReadAsync(Address address, CancellationToken token = default)
 {
-    BegOperate();
+    await BegOperateAsync(token);
     using var http = new HttpClientOperate(new Basics());
-    var result = http.Request(new RequestData
+    var result = await http.RequestAsync(new RequestData
     {
         Url = basics.ApiUrl, Method = "GET",
         BType = BType.Json,
-    });
-    if (!result.Status) return EndOperate(false, result.Message);
+    }, token);
+    if (!result.Status) return await EndOperateAsync(false, result.Message, token);
     string json = result.GetSource<string>();
     // AI 解析 JSON → ExecuteDispose
 }
