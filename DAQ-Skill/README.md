@@ -1,6 +1,6 @@
 # DAQ-Skill — 工业物联网数据采集技能
 
-**版本:** 1.0.0.5  
+**版本:** 1.0.0.6  
 **作者:** Shun  
 **许可证:** MIT  
 **框架:** .NET 10.0
@@ -42,7 +42,7 @@
 | `Snet.Utility` | 工具集（字节 · 枚举 · 文件 · 字符串 · JSON · XML · Protobuf · FTP） |
 | `Snet.Driver` | 底层硬件通信驱动 |
 
-## 采集协议一览（30+ 种协议，150+ ProtocolType）
+## 采集协议一览（35+ 种协议，150+ ProtocolType）
 
 | 包名 | 协议 | Operate 类 | ProtocolType 数量 |
 |------|------|-----------|-------------------|
@@ -50,11 +50,13 @@
 | `Snet.Modbus` | Modbus TCP/UDP/RTU/ASCII/RTUoTCP/ASCIIoTCP | `ModbusOperate` | 6 种 |
 | `Snet.Mitsubishi` | 三菱 MC/FX/A1E/A3C/CIP/Links | `MitsubishiOperate` | 14 种 |
 | `Snet.Omron` | 欧姆龙 Fins/CIP/HostLink/CMode | `OmronOperate` | 8 种 |
+| `Snet.OrientalMotor` | 东方马达 EIP 步进驱动器 | `OrientalMotorOperate` | 1 种 |
 | `Snet.Inovance` | 汇川 TCP/Serial/CIP/Easy/ComputerLink | `InovanceOperate` | 6 种 |
 | `Snet.Opc` | OPC UA Client/Server + DA Client/HTTP | `OpcUaClientOperate` / `OpcUaServiceOperate` / `OpcDaClientOperate` / `OpcDaHttpOperate` | 4 个类 |
 | `Snet.AllenBradley` | 罗克韦尔 CIP/PCCC/SLC/DF1 | `AllenBradleyOperate` | 6 种 |
 | `Snet.Delta` | 台达 TCP/Serial/ASCII | `DeltaOperate` | 5 种 |
 | `Snet.Keyence` | 基恩士 MC/Nano/KvOld | `KeyenceOperate` | 5 种 |
+| `Snet.Kossi` | 科伺 PLC（Omron CIP） | `KossiOperate` | 1 种 |
 | `Snet.Panasonic` | 松下 MC/Mewtocol | `PanasonicOperate` | 3 种 |
 | `Snet.Invt` | 英威腾（Modbus） | `InvtOperate` | 2 种 |
 | `Snet.MegMeet` | 麦格米特 TCP/Serial | `MegMeetOperate` | 3 种 |
@@ -74,12 +76,13 @@
 | `Snet.XinJE` | 信捷（另一系列） | `XinJEOperate` | 4 种 |
 | `Snet.Yamatake` | 山武（AZBIL） | `YamatakeOperate` | 2 种 |
 | `Snet.Yokogawa` | 横河 PLC | `YokogawaOperate` | 1 种 |
+| `Snet.YuDian` | 宇电 AIBus 温控器 | `YuDianOperate` | 1 种 |
 | `Snet.PQDIF` | 电力通讯规约（DLT645/DLT698/CJT188/DTSU6606） | `PQDIFOperate` | 10 种 |
 | `Snet.DB` | 数据库采集（SqlServer/MySQL/Oracle/SQLite） | `DBOperate` | 4 种 DB |
 | `Snet.TEP` | TCP 扩展插件（非标设备采集） | `TepMasterOperate` / `TepSlaveOperate` | 自定义 |
 | `Snet.Freedom` | 自由协议（自定义报文） | `FreedomOperate` | 3 种 |
 | `Snet.Sim` | 模拟库（无硬件测试） | `SimOperate` | 5 种虚拟地址 |
-| *(Snet.Driver)* | Knx / OpenProtocol / Sick / Geniitek / IDCard / OrientalMotor / Toledo / IEC104 / Light / AIBus / DAM3601 | 驱动层（无独立 NuGet 包） | 11 种 |
+| *(Snet.Driver)* | Knx / OpenProtocol / Sick / Geniitek / IDCard / Toledo / IEC104 / ShineIn Light / DAM3601 | 驱动层（无独立 NuGet 包） | 9 种 |
 
 ## 消息中间件
 

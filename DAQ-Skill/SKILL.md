@@ -1,7 +1,7 @@
 ---
 name: daq-skill
 description: 工业物联网数据采集通信库，基于 Snet 框架，支持 PLC/工控/电力/机器人 等 30+ 种工业协议的数据读取、写入、订阅、状态获取，以及 Kafka/MQTT/RabbitMQ/NetMQ/Netty 消息中间件转发。所有采集库通过 ProtocolType 枚举自动选择底层驱动。支持"一句话"完成采集+转发。
-version: 1.0.0.5
+version: 1.0.0.6
 metadata:
   hermes:
     tags: [daq, iot, plc, industrial-automation, modbus, siemens, opc-ua, mqtt, kafka]
@@ -683,6 +683,7 @@ DataFormat.DCBA  // 完全反转
 | "欧姆龙" "HostLink" "TCP" | `OmronOperate` | `OmronHostLinkOverTcp` |
 | "欧姆龙" "HostLink" "CMode" | `OmronOperate` | `OmronHostLinkCMode` |
 | "欧姆龙" "HostLink" "CMode" "TCP" | `OmronOperate` | `OmronHostLinkCModeOverTcp` |
+| "东方马达" "OrientalMotor" "步进" "EIP" | `OrientalMotorOperate` | `OrientalMotorEipNet` |
 | "汇川" "AM" "AC" "H3U" "H5U" | `InovanceOperate` | `InovanceTcpNet` |
 | "汇川" "Easy" | `InovanceOperate` | `InovanceEasyNet` |
 | "汇川" "串口" | `InovanceOperate` | `InovanceSerial` |
@@ -706,6 +707,7 @@ DataFormat.DCBA  // 完全反转
 | "基恩士" "Keyence" "Nano" "串口" | `KeyenceOperate` | `KeyenceNanoSerial` |
 | "基恩士" "Keyence" "Nano" "TCP" | `KeyenceOperate` | `KeyenceNanoSerialOverTcp` |
 | "基恩士" "Keyence" "KV" "旧版" | `KeyenceOperate` | `KeyenceKvOld` |
+| "科伺" "Kossi" | `KossiOperate` | `OmronCipNet`（Kossi PLC 使用欧姆龙 CIP 协议） |
 | "松下" "Panasonic" "MC" | `PanasonicOperate` | `PanasonicMcNet` |
 | "松下" "Panasonic" "Mewtocol" | `PanasonicOperate` | `PanasonicMewtocol` |
 | "松下" "Panasonic" "Mewtocol" "TCP" | `PanasonicOperate` | `PanasonicMewtocolOverTcp` |
@@ -733,6 +735,7 @@ DataFormat.DCBA  // 完全反转
 | "信捷" "XinJE" | `XinJEOperate` | `XinJETcpNet` / `XinJESerial` / `XinJESerialOverTcp` / `XinJEInternalNet` |
 | "山武" "Yamatake" "AZBIL" | `YamatakeOperate` | `DigitronCPLOverTcp` / `DigitronCPL` |
 | "横河" "Yokogawa" | `YokogawaOperate` | `YokogawaLinkTcp` |
+| "宇电" "YuDian" "AIBus" "温控" | `YuDianOperate` | `YuDianAIBus` |
 | "电力" "电表" "DLT" "PQDIF" "698" "645" "CJT188" "DTSU6606" "国网" | `PQDIFOperate` | `DLT698TcpNet` / `DLT645` / `DLT645With1997` / `CJT188` / `DTSU6606Serial` 等（NuGet: `Snet.PQDIF`） |
 | "自由协议" "Freedom" "自定义报文" "raw" | `FreedomOperate` | `FreedomTcpNet` / `FreedomUdpNet` / `FreedomSerial` |
 | "模拟" "Sim" "测试" | `SimOperate` | (无需 ProtocolType) |
@@ -761,11 +764,13 @@ DataFormat.DCBA  // 完全反转
 | **Modbus** | `Station`, `DataFormat`, `AddressStartWithZero`, `IsCheckMessageId` | `ModbusData.cs` |
 | **三菱** | `Slot`, `NetworkNumber`, `NetworkStationNumber`, `EnableWriteBitToWordRegister` | `MitsubishiData.cs` |
 | **欧姆龙** | `OmronPlcType`, `SA1`, `DA1`, `DA2`, `GCT`, `DataFormat` | `OmronData.cs` |
+| **东方马达** | `RunIdleHeader`, `RPITime`, `ActualTimeout`（EIP 协议） | `OrientalMotorData.cs` |
 | **汇川** | `Station`, `InovanceSeries`(AM/AC/H3U/H5U), `DataFormat`, `AddressStartWithZero` | `InovanceData.cs` |
 | **OPC UA** | `ServerUrl`(代替Ip+Port), `AType`(认证方式), `SamplingInterval`, `PublishingInterval` | `OpcUaClientData.cs` |
 | **罗克韦尔** | `Slot`, `ReadArrayUseSegment`, `ContextCheck`, `DstNode` | `AllenBradleyData.cs` |
 | **台达** | `Station`, `DeltaSeries` | `DeltaData.cs` |
 | **基恩士** | `UseStation`, `Station`, `EnableWriteBitToWordRegister` | `KeyenceData.cs` |
+| **科伺（Kossi）** | `Slot`（Kossi PLC 使用欧姆龙 CIP 协议） | `KossiData.cs` |
 | **松下** | `Station` | `PanasonicData.cs` |
 | **麦格米特** | `Station`, `DataFormat`, `AddressStartWithZero` | `MegMeetData.cs` |
 | **英威腾** | `Station`, `DataFormat`, `StationCheckMatch`, `AddressStartWithZero` | `InvtData.cs` |
@@ -784,6 +789,7 @@ DataFormat.DCBA  // 完全反转
 | **信捷** | `Station`, `XinJESeries`, `DataFormat`, `AddressStartWithZero` | `XinJEData.cs` |
 | **山武** | `Station` | `YamatakeData.cs` |
 | **横河** | `CpuNumber` | `YokogawaData.cs` |
+| **宇电** | `Station`, `SerialPortInfo`（AIBus 串口协议） | `YuDianData.cs` |
 | **PQDIF（电力）** | `StationStr`, `EnableCodeFE`, `UseSecurityResquest`, `CA`, `Password`, `OpCode`, `CheckDataId`, `InstrumentType`, `AddressStartWithZero`, `IsStringReverse`, `Crc16CheckEnable` | `PQDIFData.cs` |
 | **自由协议** | `DataFormat`, `IsStringReverseByteWord` | `FreedomData.cs` |
 
@@ -1364,7 +1370,74 @@ await meter.OffAsync(); await mq.OffAsync();
 
 > **地址格式说明：** DLT645 使用 4 字节数据标识（DI0-DI3），格式为 `DDDDDDDD`（8 位十六进制）。例如 `02010100` = A相电压。DLT698 使用 OAD（对象属性描述符）字符串格式。
 
-### 7.9 Snet.Driver 内置协议（无需单独 NuGet 包）
+### 7.9 科伺 Kossi PLC
+
+> NuGet: `dotnet add package Snet.Kossi -v <最新版本>`
+> Operate: `KossiOperate` | Config: `KossiData.Basics`
+> 科伺 PLC 使用欧姆龙 CIP 协议通信
+
+```csharp
+using Snet.Kossi;
+
+var config = new KossiData.Basics
+{
+    IpAddress = "192.168.1.100",
+    ProtocolType = KossiData.ProtocolType.OmronCipNet,
+    Slot = 0,
+    ConnectTimeOut = 3000,
+    ReceiveTimeOut = 3000,
+};
+using var operate = new KossiOperate(config);
+await operate.OnAsync();
+// 地址: 参考欧姆龙 CIP Tag 格式
+```
+
+### 7.10 东方马达 OrientalMotor
+
+> NuGet: `dotnet add package Snet.OrientalMotor -v <最新版本>`
+> Operate: `OrientalMotorOperate` | Config: `OrientalMotorData.Basics`
+> 东方马达步进驱动器，使用 EIP（EtherNet/IP）协议
+
+```csharp
+using Snet.OrientalMotor;
+
+var config = new OrientalMotorData.Basics
+{
+    IpAddress = "192.168.1.100",
+    ProtocolType = OrientalMotorData.ProtocolType.OrientalMotorEipNet,
+    RunIdleHeader = 1,         // RunIdle 头
+    RPITime = 100,             // RPI 时间(ms)
+    ActualTimeout = 2,         // EIP 超时(秒)，必须为 2 的幂
+    ConnectTimeOut = 3000,
+    ReceiveTimeOut = 3000,
+};
+using var operate = new OrientalMotorOperate(config);
+await operate.OnAsync();
+// 读取: await operate.ReadAsync(address);
+```
+
+### 7.11 宇电 YuDian AIBus
+
+> NuGet: `dotnet add package Snet.YuDian -v <最新版本>`
+> Operate: `YuDianOperate` | Config: `YuDianData.Basics`
+> 宇电 AIBus 温控器，基于串口通信（RS-485）
+
+```csharp
+using Snet.YuDian;
+
+var config = new YuDianData.Basics
+{
+    SerialPortInfo = "COM3-9600-8-N-1",
+    ProtocolType = YuDianData.ProtocolType.YuDianAIBus,
+    Station = 1,
+    ReceiveTimeOut = 1000,
+};
+using var operate = new YuDianOperate(config);
+await operate.OnAsync();
+// 读取: await operate.ReadAsync(address);
+```
+
+### 7.12 Snet.Driver 内置协议（无需单独 NuGet 包）
 
 > 以下协议已在 `Snet.Driver` 中实现底层驱动，但暂无独立的 NuGet 包和 Operate 封装类。
 > 如需使用，可通过 `Snet.Freedom`（自由协议）间接调用，或参考 [PluginDev-Skill](../PluginDev-Skill) 自行封装 Operate。
@@ -1377,11 +1450,9 @@ await meter.OffAsync(); await mq.OffAsync();
 | **Sick ICR** | `Snet.Driver.Profinet.Sick` | SICK/海康/Keyence/Datalogic 条码扫描器 | TCP Server |
 | **Geniitek** | `Snet.Driver.Profinet.Geniitek` | 捷杰 VB31 无线振动传感器 | TCP (默认 3001) |
 | **IDCard** | `Snet.Driver.Profinet.IDCard` | SAM 身份证读卡器 | 串口/TCP |
-| **OrientalMotor** | `Snet.Driver.Profinet.OrientalMotor` | 东方马达步进驱动器（EIP） | TCP |
 | **Toledo** | `Snet.Driver.Profinet.Toledo` | 梅特勒-托利多称重仪表 | TCP |
 | **IEC 60870-5-104** | `Snet.Driver.Instrument.IEC` | IEC 104 电力远动协议 | TCP (默认 2404) |
 | **ShineIn Light** | `Snet.Driver.Instrument.Light` | 昱行智造光源控制器（私有协议） | 串口 (57600-8-E-1) |
-| **YuDian AIBus** | `Snet.Driver.Instrument.Temperature` | 宇电 AIBus 温控器协议 | 串口 (RS-485) |
 | **DAM3601** | `Snet.Driver.Instrument.Temperature` | 阿尔泰科技 DAM3601 温控模块（Modbus RTU 变体） | 串口 |
 
 ---
@@ -1765,6 +1836,6 @@ DAQ → Netty:   "Snet.Netty.client.NettyClientOperate.{SN}"
 
 > **本技能覆盖不了的协议？** → 用 [PluginDev-Skill](../PluginDev-Skill) 开发自定义插件，打包 ZIP 上传 Daq 工具热插拔加载。
 >
-> **已覆盖：** 西门子/Modbus/三菱/欧姆龙/汇川/OPC UA Client+Server/OPC DA/罗克韦尔/台达/基恩士/松下/倍福/GE/安川/英威腾/麦格米特/数据库/TEP/自由协议/模拟库/PQDIF(电力电表：DLT645/DLT698/CJT188/DTSU6606)。
+> **已覆盖 NuGet 包：** 西门子/Modbus/三菱/欧姆龙/东方马达/汇川/OPC UA Client+Server/OPC DA/罗克韦尔/台达/基恩士/科伺(Kossi)/松下/倍福/GE/安川/英威腾/麦格米特/宇电(YuDian)/数据库/TEP/自由协议/模拟库/PQDIF(电力电表：DLT645/DLT698/CJT188/DTSU6606)。
 >
-> **Snet.Driver 内置（无独立 NuGet 包）：** Knx(楼宇自动化)/OpenProtocol(拧紧枪)/Sick(条码扫描)/Geniitek(振动传感器)/IDCard(身份证读卡器)/OrientalMotor(步进马达)/Toledo(称重)/IEC104(电力远动)/ShineIn Light(光源)/YuDian AIBus(温控)/DAM3601(温控)。**不在列表中？** PluginDev-Skill 定义插件开发契约，AI 根据协议描述自动生成插件代码。
+> **Snet.Driver 内置（无独立 NuGet 包）：** Knx(楼宇自动化)/OpenProtocol(拧紧枪)/Sick(条码扫描)/Geniitek(振动传感器)/IDCard(身份证读卡器)/Toledo(称重)/IEC104(电力远动)/ShineIn Light(光源)/DAM3601(温控)。**不在列表中？** PluginDev-Skill 定义插件开发契约，AI 根据协议描述自动生成插件代码。
