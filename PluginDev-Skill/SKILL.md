@@ -1,7 +1,7 @@
 ---
 name: plugindev-skill
 description: Snet.Iot.Daq 插件开发技能。严格定义插件开发契约：必须实现的抽象方法、必须遵循的返回类型、必须使用的数据标注、必须调用的框架方法。AI 自行决定采集方式（TCP/HTTP/文件/串口），但必须遵守契约。
-version: 1.0.0.6
+version: 1.0.0.7
 metadata:
   hermes:
     tags: [plugin-development, daq, iot, dotnet, contract, code-generation]

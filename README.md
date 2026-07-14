@@ -12,13 +12,14 @@
 
   <img src="https://img.shields.io/badge/.NET-10.0%2B-purple.svg"/>
   <img src="https://img.shields.io/badge/license-MIT-green"/>
-  <img src="https://img.shields.io/badge/version-1.0.0.6-blue"/>
+  <img src="https://img.shields.io/badge/version-1.0.0.7-blue"/>
+  <img src="https://img.shields.io/badge/skills-3-orange"/>
   <img src="https://img.shields.io/github/stars/shunnet/SKILLS?style=social"/>
 
 </p>
 
 <p align="center">
-  🔄 覆盖从「<b>使用现有协议</b>」到「<b>开发自定义插件</b>」的完整流程
+  🔄 覆盖从「<b>采集转发</b>」→「<b>插件开发</b>」→「<b>桌面应用</b>」的完整 Snet 生态
 </p>
 
 <p align="center">
@@ -36,6 +37,7 @@
 |------|------|------|------|
 | **🔌 DAQ-Skill** | `DAQ-Skill/` | 🏭 使用库 — 数据采集与转发 | "连接西门子S7-1500，IP 192.168.0.1，读取DB1.0，MQTT转发到broker" |
 | **🧩 PluginDev-Skill** | `PluginDev-Skill/` | ⚙️ 开发插件 — 自定义协议对接 Daq 工具 | "开发一个温湿度传感器插件，TCP发送 01 03 00 00 00 02，解析响应字节" |
+| **🖥️ WpfUI-Skill** | `WpfUI-Skill/` | 🪟 界面开发 — WPF 桌面应用 | "创建一个监控面板，深色主题，中英文切换，LED状态灯，属性编辑器" |
 
 
 
@@ -112,6 +114,43 @@ AI 先用大白话问用户（🏷️ 设备是什么、🔌 怎么连的、📋
 
 
 
+## 🖥️ WpfUI-Skill — WPF 桌面应用开发
+
+> **一句话：** 用户描述界面 → AI 生成完整的 WPF 桌面应用程序
+
+### 🎯 用途
+
+帮助用户基于 Snet WPF 框架快速构建现代化桌面应用，覆盖窗口管理、MVVM绑定、皮肤切换、多语言、内置控件等。
+
+### ✨ 能力
+
+- 🪟 **WindowBase 窗口基类** — 自定义标题栏、DPI感知、加载动画、Win32 集成
+- 🎨 **深色/浅色主题** — Material Design + Wpf.Ui 双引擎，一键切换，JSON 持久化
+- 🌍 **中英文多语言** — `LocExtension` / `BLoc` XAML 标记扩展，运行时热切换
+- 🧩 **MVVM 架构** — `BindNotify` 表达式属性基类 + `InjectionWpf` DI容器 + EventCommand
+- 🎛️ **6 大内置控件** — ButtonControl / ComboBoxControl / TextBoxControl / LedGaugeControl / PageBarControl / PropertyControl
+- 🔧 **PropertyGrid 属性编辑器** — 40+ 注解，分类/可见性/条件启用/滑块/文件选择器/颜色选择器
+- 🖱️ **拖拽控件** — 8向缩放手柄 + 拖拽移动 + 动画拖拽创建
+- 💬 **消息对话框** — OK / OKCancel / Yes / YesNo，Material Design 风格
+- 🔔 **系统托盘** — NotifyIcon 最小化到托盘，右键菜单
+
+### 💬 场景示例
+
+```
+🗣️ "创建一个WPF监控面板，深色主题，中英文切换，左边数据表格，右边属性编辑器"
+🗣️ "做一个PLC调试工具，有连接按钮、LED状态灯、参数配置面板"
+🗣️ "做一个可拖拽的设备布局编辑器，控件可以拖动和缩放"
+🗣️ "做一个多页签的设置窗口，用PropertyGrid编辑配置"
+```
+
+### 🗣️ 交互流程
+
+AI 先用大白话问用户（🏷️ 窗口需求、🎨 主题偏好、🌍 语言需求、🎛️ 需要哪些控件、📊 数据绑定结构），确认后生成完整 XAML + C# 代码。
+
+**📄 文件：** `SKILL.md`（13章）
+
+
+
 ## 🔗 技能关系
 
 ```
@@ -127,10 +166,21 @@ AI 先用大白话问用户（🏷️ 设备是什么、🔌 怎么连的、📋
 │  → 用内置通信类(TcpClientOperate等) → Read/Write     │
 │  → 数据经 ExecuteDispose 处理 → 自动类型转换+转发     │
 │  → 打包 ZIP → 上传 Daq 工具 → 热插拔加载             │
+└───────────────────────┬───────────────────────────────┘
+                        │
+                        │ ⬇️ 需要桌面应用管理采集...
+                        ↓
+┌─ 🖥️ WpfUI-Skill ─────────────────────────────────────┐
+│  构建 WPF 桌面监控/管理应用                            │
+│  → WindowBase 窗口 + MVVM 架构                        │
+│  → 深色/浅色主题 + 中英文多语言                       │
+│  → Button/ComboBox/TextBox/LedGauge/PageBar          │
+│  → PropertyGrid 属性编辑器 + 拖拽控件                 │
+│  → 消息对话框 + 系统托盘                              │
 └───────────────────────────────────────────────────────┘
 ```
 
-**💡 一句话总结：** DAQ-Skill 帮用户用好现成的协议，PluginDev-Skill 帮用户开发新协议插件。
+**💡 一句话总结：** DAQ-Skill 用好现成协议，PluginDev-Skill 开发新协议，WpfUI-Skill 构建管理界面——覆盖从数据采集到人机交互的完整链路。
 
 
 ## 🌍 相关链接
