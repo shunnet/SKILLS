@@ -1,6 +1,6 @@
 # WpfUI-Skill — WPF 现代化界面开发技能
 
-**版本:** 1.0.0.7
+**版本:** 1.0.0.8
 **作者:** Shun
 **许可证:** MIT
 
@@ -17,8 +17,8 @@
 - 🎛️ 6 大内置控件（Button / ComboBox / TextBox / LedGauge / PageBar / PropertyControl）
 - 🔧 PropertyGrid 属性编辑器（40+ 注解，ColorPicker/FilePicker/DataGrid）
 - 🖱️ 拖拽控件（8 向缩放 + 拖拽移动 + 动画创建）
-- 💬 消息对话框（OK / OKCancel / Yes / YesNo）
-- 🔔 系统托盘（NotifyIcon 最小化到托盘）
+- 💬 消息对话框（OK / OKCancel / Yes / YesNo，⚠️ 与 System.Windows.MessageBox 同名需用别名，见 SKILL.md §8）
+- 🔔 系统托盘（NotifyIcon XAML 元素 + Register/点击事件，TrayManager 为 internal 不可访问）
 
 ## 💬 场景示例
 
@@ -31,4 +31,4 @@
 
 ## 📄 文件
 
-- `SKILL.md` — 主技能文件（13 章）
+- `SKILL.md` — 主技能文件（29 章）

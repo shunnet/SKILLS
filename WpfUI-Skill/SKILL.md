@@ -1,7 +1,7 @@
 ---
 name: wpfui-skill
 description: WPF 现代化界面开发技能，基于 Snet.Windows.Core 和 Snet.Windows.Controls 库，支持自定义窗口、MVVM 架构、深色/浅色主题切换、中英文多语言、PropertyGrid 属性编辑器、拖拽控件、LED 指示灯、分页栏、系统托盘、消息对话框等完整 WPF 桌面应用开发能力。支持"一句话"生成完整 WPF 界面。
-version: 1.0.0.7
+version: 1.0.0.8
 metadata:
   hermes:
     tags: [wpf, desktop, mvvm, ui, theme, localization, property-grid, drag-drop, dotnet]
@@ -50,21 +50,21 @@ AI 先用大白话问用户：
 
 ```bash
 # 核心库（必装）
-dotnet add package Snet.Windows.Core -v 1.0.0.1
+dotnet add package Snet.Windows.Core -v 26.214.1
 
 # 控件库（按需）
-dotnet add package Snet.Windows.Controls -v 1.0.0.1
+dotnet add package Snet.Windows.Controls -v 26.214.1
 ```
 
 ### NuGet 依赖关系
 
 ```
 Snet.Windows.Controls
-  ├── Snet.Windows.Core (>= 1.0.0.1)
+  ├── Snet.Windows.Core (>= 26.214.1)
   │     ├── MaterialDesignThemes (>= 5.3.2)
   │     ├── WPF-UI (>= 4.3.0)
   │     ├── CommunityToolkit.Mvvm (>= 8.4.2)
-  │     └── Snet.Core (>= 1.0.0.1)
+  │     └── Snet.Core (>= 26.214.1)
   └── AvalonEdit (>= 6.3.1.120)
 ```
 
@@ -84,7 +84,7 @@ Snet.Windows.Controls
 | 版本显示 | `VerEnabled` | `true` | 底部状态栏显示版本号 |
 | 加载动画 | `LoadAnimationEnabled` | `false` | 淡入淡出过渡效果 |
 | 动画时长 | `AnimationTime` | `2000` | 毫秒 |
-| 最大化补偿 | `MaximizeBorderThickness` | `0,0,0,0` | 最大化时的内边距补偿 |
+| 最大化补偿 | `MaximizeBorderThickness` | `0,0,0,0` | 最大化时的内边距补偿（⚠️ 由 WindowBase 按系统边框+DPI 自动计算并覆盖，勿手动设置）|
 
 ### 最小示例
 
@@ -113,7 +113,7 @@ Snet.Windows.Controls
     x:Class="MyApp.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:snet="https://shunnet.top"
+    xmlns:snet="https://snet.cn"
     Title="我的应用"
     Icon="/Icon.ico"
     LanguageEnabled="True"
@@ -127,6 +127,8 @@ Snet.Windows.Controls
     </Grid>
 </snet:WindowBase>
 ```
+
+> **⚠️ `Icon="/Icon.ico"` 要求项目根目录存在该文件且 Build Action 为 Resource**——文件缺失时应用启动即抛 IOException（无法定位资源）。无图标时可直接删除该属性。同理适用于 §10/§14 示例中的 `Icon="/icon.ico"`。
 
 **MainWindow.xaml.cs:**
 ```csharp
@@ -170,15 +172,16 @@ public class MainViewModel : BindNotify
     public void SetUserName(string value)
         => SetProperty(() => UserName, value);
 
-    // 设置属性（带回调 — 接收旧值）
-    public void SetUserName(string value)
+    // 设置属性（带回调 — 接收旧值；⚠️ 同名同参重载无法共存，以下两个带回调
+    // 示例为不同重载示意，实际使用时仅保留一个方法）
+    public void SetUserNameWithOldValue(string value)
         => SetProperty(() => UserName, value, oldValue =>
         {
             Console.WriteLine($"用户名从 {oldValue} 变更为 {value}");
         });
 
     // 设置属性（带回调 — 无参）
-    public void SetUserName(string value)
+    public void SetUserNameNoArg(string value)
         => SetProperty(() => UserName, value, () =>
         {
             Console.WriteLine("用户名已更新");
@@ -240,9 +243,8 @@ protected override void OnStartup(StartupEventArgs e)
 using Snet.Windows.Core.handler;
 using Snet.Windows.Core.@enum;
 
-// 获取当前皮肤
-SkinType current = SkinHandler.GetSkin();           // 同步
-SkinType current = await SkinHandler.GetSkinAsync(); // 异步
+// 获取当前皮肤（仅同步；SkinHandler 不支持异步操作）
+SkinType current = SkinHandler.GetSkin();
 
 // 设置皮肤
 SkinHandler.SetSkin(SkinType.Dark);   // 深色
@@ -256,14 +258,14 @@ SkinHandler.SetSkin(SkinType.Light);  // 浅色
 // 同步事件
 SkinHandler.OnSkinEvent += (sender, e) =>
 {
-    Console.WriteLine($"皮肤切换到: {e.SkinType}");
+    Console.WriteLine($"皮肤切换到: {e.Skin}");   // 事件参数属性为 Skin（非 SkinType）
 };
 
 // 异步事件（自动顺序执行多个异步处理器）
 SkinHandler.OnSkinEventAsync += async (sender, e) =>
 {
     await Task.Delay(100);
-    Console.WriteLine($"主题已切换: {e.SkinType}");
+    Console.WriteLine($"主题已切换: {e.Skin}");
 };
 ```
 
@@ -343,7 +345,7 @@ string? text = LanguageHandler.GetLanguageValue("Hello", model);
 
 ```xml
 <snet:WindowBase
-    xmlns:snet="https://shunnet.top"
+    xmlns:snet="https://snet.cn"
     snet:ResxLocalizationProvider.DefaultAssembly="MyApp"
     snet:ResxLocalizationProvider.DefaultDictionary="Language"
     ...>
@@ -485,7 +487,7 @@ partial class MainViewModel : BindNotify
 ### 配置对象
 
 ```csharp
-using Snet.Windows.Controls.property.wpf.PropertyGrid;
+using Snet.Windows.Controls.property.wpf;   // 命名空间无 .PropertyGrid 后缀
 
 // 属性对象
 public class DeviceSettings
@@ -598,8 +600,8 @@ var dragAnimate = new DragControlsAnimate(
 // 注册拖拉源控件
 dragAnimate.Insert(sourceControl);
 
-// 拖拽回调 — 返回新控件实例
-dragAnimate.dragEvenTrigger = () =>
+// 拖拽回调 — 返回新控件实例（字段名 DragEvenTrigger 大写 D；委托要求一个 FrameworkElement 参数）
+dragAnimate.DragEvenTrigger = (showControl) =>
 {
     var newControl = new Button { Content = "新控件" };
     return (newControl, IsMove: true, IsDragSize: true);
@@ -618,6 +620,12 @@ dragAnimate.Remove(sourceControl);
 ```csharp
 using Snet.Windows.Controls.message;
 using Snet.Windows.Controls.@enum;
+// ⚠️ 注意：WPF 项目通常有 `using System.Windows;`，`MessageBox`/`MessageBoxButton`/`MessageBoxImage`
+// 会与 System.Windows 的同名类型产生歧义（CS0104）。建议使用别名：
+//   using SnetMessageBox = Snet.Windows.Controls.message.MessageBox;
+//   using SnetMessageBoxButton = Snet.Windows.Controls.@enum.MessageBoxButton;
+//   using SnetMessageBoxImage = Snet.Windows.Controls.@enum.MessageBoxImage;
+// 以下示例省略别名写法，实际代码请按上述别名（或全限定名）使用。
 
 // OK — 仅确认
 bool ok = await MessageBox.Show("操作成功", "提示");
@@ -657,38 +665,60 @@ bool yesNo = await MessageBox.Show("是否保存？", "提示",
 
 ### NotifyIcon 托盘图标
 
+`NotifyIcon` 是 XAML 元素（继承 `FrameworkElement`），在 XAML 中声明，代码中注册事件。
+
+**MainWindow.xaml：**
+```xml
+<snet:NotifyIcon
+    x:Name="TrayIcon"
+    FocusOnLeftClick="True"
+    Icon="/icon.ico"
+    LeftClick="TrayIcon_LeftClick"
+    MenuOnRightClick="True"
+    TooltipText="我的应用">
+    <snet:NotifyIcon.Menu>
+        <ContextMenu>
+            <MenuItem Header="显示主窗口" Click="OnShowMainWindow" />
+            <MenuItem Header="退出" Click="OnExitApp" />
+        </ContextMenu>
+    </snet:NotifyIcon.Menu>
+</snet:NotifyIcon>
+```
+
+**MainWindow.xaml.cs：**
 ```csharp
-using Snet.Windows.Controls.tray;
-using System.Windows.Media.Imaging;
+using System.Windows;
+using Snet.Windows.Controls.tray.Controls;
 
-// 创建托盘管理
-var trayManager = new TrayManager();
-
-// 添加托盘图标
-var notifyIcon = trayManager.AddIcon("MyAppTray", () =>
+// 左键点击恢复窗口
+private void TrayIcon_LeftClick(NotifyIcon sender, RoutedEventArgs e)
 {
-    // 点击图标时恢复窗口
     this.Show();
     this.WindowState = WindowState.Normal;
     this.Activate();
-});
+}
 
-// 设置图标（必须在显示后设置）
-notifyIcon.Show();
-notifyIcon.Icon = new BitmapImage(new Uri("pack://application:,,,/Icon.ico"));
-
-// 设置托盘提示文字
-notifyIcon.ToolTipText = "我的应用";
-
-// 隐藏窗口到托盘
-notifyIcon.OnMinimiseToTray = () =>
+// 窗口关闭时隐藏到托盘（而非退出）
+protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
 {
-    this.Hide();
-};
+    if (!_isExiting)
+    {
+        e.Cancel = true;      // 取消关闭
+        this.Hide();          // 隐藏到托盘
+    }
+    base.OnClosing(e);
+}
 
-// 清理
-trayManager.RemoveIcon("MyAppTray");
+// 托盘菜单退出
+private void OnExitApp(object sender, RoutedEventArgs e)
+{
+    _isExiting = true;
+    TrayIcon.Unregister();    // 注销托盘图标
+    Application.Current.Shutdown();
+}
 ```
+
+> **说明：** `NotifyIcon` 提供 `Register()`/`Unregister()` 方法（XAML 声明后通常无需手动调用）和 `LeftClick`/`RightClick`/`LeftDoubleClick` 等 6 个点击事件，以及 `TooltipText`/`Icon`/`Menu`/`FocusOnLeftClick`/`MenuOnRightClick` 依赖属性。`TrayManager` 是 internal 静态类，用户代码不可直接访问。
 
 ---
 
@@ -722,10 +752,10 @@ public partial class MonitorViewModel : BindNotify
     // 初始化
     public MonitorViewModel()
     {
-        SetProperty(() => DeviceName, "S7-1200-01", null);
-        SetProperty(() => PageSize, 20, null);
-        SetProperty(() => LedColor, Colors.Green, null);
-        SetProperty(() => Settings, new DeviceSettings(), null);
+        SetProperty(() => DeviceName, "S7-1200-01");
+        SetProperty(() => PageSize, 20);
+        SetProperty(() => LedColor, Colors.Green);
+        SetProperty(() => Settings, new DeviceSettings());
     }
 
     // 连接命令
@@ -734,7 +764,7 @@ public partial class MonitorViewModel : BindNotify
     {
         SetProperty(() => IsConnected, true, old =>
         {
-            SetProperty(() => LedColor, Colors.Red, null);
+            SetProperty(() => LedColor, Colors.Red);
         });
         await LoadDataAsync();
     }
@@ -743,15 +773,15 @@ public partial class MonitorViewModel : BindNotify
     [RelayCommand]
     private void Disconnect()
     {
-        SetProperty(() => IsConnected, false, null);
-        SetProperty(() => LedColor, Colors.Gray, null);
+        SetProperty(() => IsConnected, false);
+        SetProperty(() => LedColor, Colors.Gray);
     }
 
     // 搜索命令
     [RelayCommand]
     private async Task SearchAsync(string keyword)
     {
-        SetProperty(() => PageIndex, 1, null);
+        SetProperty(() => PageIndex, 1);
         await LoadDataAsync(keyword);
     }
 
@@ -762,7 +792,7 @@ public partial class MonitorViewModel : BindNotify
         Devices.Clear();
         for (int i = 0; i < PageSize; i++)
             Devices.Add(new DeviceModel { Id = i + 1, Name = $"点位 {i + 1}" });
-        SetProperty(() => Total, 200, null);
+        SetProperty(() => Total, 200);
     }
 }
 
@@ -801,7 +831,7 @@ public class DeviceSettings
     x:Class="MyApp.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:snet="https://shunnet.top"
+    xmlns:snet="https://snet.cn"
     xmlns:uis="http://schemas.lepo.co/wpfui/2022/xaml"
     xmlns:local="clr-namespace:MyApp"
     Title="{snet:Loc AppTitle}"
@@ -888,7 +918,7 @@ public class DeviceSettings
 ### XML 命名空间
 
 ```xml
-xmlns:snet="https://shunnet.top"
+xmlns:snet="https://snet.cn"
 ```
 
 ### 控件命名空间映射
@@ -982,7 +1012,7 @@ public class MyControlViewModel : BindNotify
     [RelayCommand]
     private void Increment()
     {
-        SetProperty(() => Count, Count + 1, null);
+        SetProperty(() => Count, Count + 1);
     }
 }
 ```
@@ -993,7 +1023,7 @@ public class MyControlViewModel : BindNotify
 
 | 问题 | 原因 | 解决 |
 |:---|:---|:---|
-| 窗口最大化有白色边框 | GlassFrameThickness 溢出 | 设置 `MaximizeBorderThickness` 属性 |
+| 窗口最大化有白色边框 | GlassFrameThickness 溢出 | 无需处理——`WindowBase` 在 `SourceInitialized` 时基于系统边框指标与 DPI **自动计算** `MaximizeBorderThickness` 并覆盖手动赋值 |
 | 皮肤切换后图标不变色 | 图标未使用 DynamicResource | 使用 `{DynamicResource ImageColor}` 作为图标颜色 |
 | 语言切换后文本不刷新 | 绑定未使用 LocExtension | 使用 `{snet:Loc Key}` 代替硬编码文本 |
 | 拖拽控件位置漂移 | 父容器不是 Grid | 确保 LlayoutContainer 为 Grid（拖拽使用 Margin） |
@@ -1130,7 +1160,7 @@ public static NavigationViewItem CreationControl(
     string name,                    // 显示名称（多语言 Key）
     SymbolRegular symbol,           // WPF-UI 内置图标
     Type type,                      // 目标 View 类型
-    bool isNavigationCache,         // 是否缓存页面
+    bool multilingual,              // 是否多语言（第 4 参是 multilingual 非 isNavigationCache）
     LanguageModel model)            // 语言模型
 ```
 
@@ -1195,7 +1225,7 @@ Daq 大规模使用 **DataTemplate + ViewModel 继承链** 模式：共享 UI �
 
 ```xml
 <UserControl x:Class="Daq.view.SiemensView"
-    xmlns:snet="https://shunnet.top"
+    xmlns:snet="https://snet.cn"
     xmlns:ui="http://materialdesigninxaml.net/winfx/xaml/themes"
     xmlns:vm="clr-namespace:Daq.viewModel"
     snet:ResxLocalizationProvider.DefaultAssembly="Daq"
@@ -1231,7 +1261,7 @@ public class SiemensViewModel : DaqTemplateViewModel<Basics>
         Daq = SiemensOperate.Instance(BasicsData);
         GetAutoAllocatingParamVisibility = Daq.ExistsAutoAllocatingParam().Status
             ? Visibility.Visible : Visibility.Collapsed;
-        Key = Daq.GetParam()?.GetSource<ParamModel>()?.Name;
+        Key = Daq.GetArgs()?.GetSource<ParamModel>()?.Name;
     }
 }
 ```
@@ -1252,7 +1282,7 @@ public class MqttClientViewModel : MqTemplateViewModel<Basics>
         BasicsData = new Basics();
         FileName = typeof(MqttClientData).Name;
         Mq = MqttClientOperate.Instance(BasicsData);
-        Key = Mq.GetParam()?.GetSource<ParamModel>()?.Name;
+        Key = Mq.GetArgs()?.GetSource<ParamModel>()?.Name;
     }
 }
 ```
@@ -1357,14 +1387,15 @@ public partial class App : Application
         // 构建完整错误消息
         string msg = $"{e.Source}\r\n{e.Message}\r\n\r\n{e.StackTrace}";
 
-        // 弹出错误对话框
+        // 弹出错误对话框（⚠️ 需 using Snet.Windows.Controls.message 并用别名避免与 System.Windows.MessageBox 歧义，见 §8）
         await Application.Current.Dispatcher.InvokeAsync(async () =>
         {
-            await MessageBox.Show(msg, "全局异常捕获",
-                MessageBoxButton.OK, MessageBoxImage.Exclamation);
+            await SnetMessageBox.Show(msg, "全局异常捕获",
+                SnetMessageBoxButton.OK, SnetMessageBoxImage.Exclamation);
         }, DispatcherPriority.Loaded);
 
-        // 写入本地日志文件
+        // 写入本地日志文件（第 2 参为 foldername：支持文件名/子文件夹，PascalCase 自动转小写点分隔；
+        // 默认路径 {BaseDirectory}/logs/{yyyy-MM-dd}/app.log，可用 LogHelper.Set(new LogModel{...}) 自定义）
         LogHelper.Error(msg, "App.log", e);
     }
 }
@@ -1471,10 +1502,12 @@ public class LogPipeline
 
 ```csharp
 // ViewModel 中：TextChanged 触发 ScrollToEnd
+// ⚠️ 需 using Snet.Utility;（GetSource<T> 是 object 扩展方法）；类型不匹配时 GetSource 返回 null，需判空
 public IAsyncRelayCommand InfoEventTextChanged =>
     new AsyncRelayCommand<TextChangedEventArgs>(e =>
     {
         var tb = e.Source.GetSource<TextBox>();
+        if (tb == null) return Task.CompletedTask;
         tb.SelectionStart = tb.Text.Length;
         tb.ScrollToEnd();
         return Task.CompletedTask;
@@ -1492,22 +1525,20 @@ public IAsyncRelayCommand InfoEventTextChanged =>
 ```csharp
 using Snet.Windows.Controls.handler;
 
-// 单文件选择
+// 选择文件（第二参 selectFolder=false 表示选文件，返回 string，取消时返回 string.Empty）
 var filters = new Dictionary<string, string>
 {
     { "JSON 文件 (*.json)", "*.json" },
     { "所有文件 (*.*)", "*.*" },
 };
-string? filePath = Win32Handler.Select("请选择文件", false, filters);
-
-// 多文件选择
-string? filePath = Win32Handler.Select("请选择文件", true, filters);
+string filePath = Win32Handler.Select("请选择文件", selectFolder: false, filters);
+// 注意：仅单文件选择，不支持多选
 ```
 
 ### 选择文件夹
 
 ```csharp
-string? folderPath = Win32Handler.Select("请选择文件夹", isFolder: true);
+string folderPath = Win32Handler.Select("请选择文件夹", selectFolder: true);
 ```
 
 ### 导入/导出模式示例
@@ -1516,7 +1547,7 @@ string? folderPath = Win32Handler.Select("请选择文件夹", isFolder: true);
 // 导出 JSON 配置
 public async Task ExportAsync()
 {
-    string path = Win32Handler.Select("请选择保存目录", isFolder: true);
+    string path = Win32Handler.Select("请选择保存目录", selectFolder: true);
     if (!string.IsNullOrEmpty(path))
     {
         string file = Path.Combine(path,
@@ -1549,7 +1580,7 @@ public async Task ImportAsync()
 ### 使用方式
 
 ```csharp
-using Daq.handler;
+using Snet.Iot.Debug.handler;   // GifHandler 位于 Snet.Iot.Debug 应用项目，非 WpfMUI 库
 
 var gifHandler = GifHandler.Instance();
 
@@ -1920,15 +1951,15 @@ public class ItemsControlBody : BindNotify
 ### 插件契约
 
 ```csharp
-// DAQ 采集插件 — 必须实现 IDaq 接口
+// DAQ 采集插件 — 必须实现 IDaq 接口（Snet.Model/interface/IDaq.cs，16 子接口）
 public interface IDaq : IOn, IOff, IRead, IWrite, ISubscribe,
-    IGetStatus, IEvent, IGetParam, ICreateInstance, ILog,
-    IWA, IGetObject, ILanguage, IDisposable, IAsyncDisposable { }
+    IStatus, IEvent, IArgs, IInstance, ILog,
+    IWA, IObject, ILanguage, IClone, IDisposable, IAsyncDisposable { }
 
-// MQ 消息插件 — 必须实现 IMq 接口
+// MQ 消息插件 — 必须实现 IMq 接口（Snet.Model/interface/IMq.cs，13 子接口）
 public interface IMq : IOn, IOff, IProducer, IConsumer,
-    IGetStatus, IEvent, IGetParam, ICreateInstance, ILog,
-    ILanguage, IDisposable, IAsyncDisposable { }
+    IStatus, IEvent, IArgs, IInstance, ILog,
+    ILanguage, IClone, IDisposable, IAsyncDisposable { }
 ```
 
 ### PluginHandlerCore 核心 API
@@ -2015,7 +2046,7 @@ MainChart.ScrollData(pressureSeries, DateTime.Now, 1.2);
 ### SystemMonitoring 核心
 
 ```csharp
-// F:/Snet/Daq/Snet.Iot.Daq/utility/SystemMonitoring.cs
+// F:/Snet/KMSim/Snet.Windows.KMSim/utility/SystemMonitoring.cs（KMSim 应用代码，非 WpfMUI 库）
 public class SystemMonitoring : IDisposable
 {
     public float CpuLoad { get; private set; }        // CPU 使用率 (%)
@@ -2113,7 +2144,7 @@ var effect = new SnowflakeEffect(SnowCanvas, count: 200);
 // 皮肤切换时同步颜色
 SkinHandler.OnSkinEvent += (sender, e) =>
 {
-    effect.UpdateColor(e.SkinType == SkinType.Dark
+    effect.UpdateColor(e.Skin == SkinType.Dark
         ? Colors.White : Colors.DarkGray);
 };
 ```
@@ -2317,4 +2348,5 @@ public class AutoPackHandler
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.0.8 | 2026-08-02 | 全面核对源码修正：XAML xmlns `https://shunnet.top`→`https://snet.cn`（5 处）；删除虚构 `GetSkinAsync`（仅同步 GetSkin）；托盘章节重写（NotifyIcon 是 XAML 元素 + Register/Unregister/点击事件，TrayManager 为 internal 不可访问）；`Win32Handler.Select` 参数 `isFolder`→`selectFolder`（且不支持多选）；`dragEvenTrigger`→`DragEvenTrigger`（委托带参）；PropertyGrid using 去 `.PropertyGrid` 后缀；事件参数 `e.SkinType`→`e.Skin`；`SetProperty(expr,val,null)` 三参歧义→两参；`CreationControl` 第 4 参 `multilingual`；GifHandler 命名空间 `Snet.Iot.Debug.handler`；SystemMonitoring 路径修正；NuGet 版本 1.0.0.1→26.214.1 |
 | 1.0.0.7 | 2026-07-14 | 初始版本：WindowBase、6 大控件、MVVM、主题、多语言、拖拽、托盘、PropertyGrid、NavigationView、模板视图架构、全局异常处理、异步日志、文件对话框、GIF/SVG 转换、OPC UA 节点浏览、完整架构实战、Daq 插件热插拔、ScottPlot 图表、系统监控、雪花特效、单实例保护、Console 控制台、地址字节级解析器（共 29 章） |

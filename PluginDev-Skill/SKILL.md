@@ -1,22 +1,26 @@
 ---
 name: plugindev-skill
-description: Snet.Iot.Daq 插件开发技能。严格定义插件开发契约：必须实现的抽象方法、必须遵循的返回类型、必须使用的数据标注、必须调用的框架方法。AI 自行决定采集方式（TCP/HTTP/文件/串口），但必须遵守契约。
-version: 1.0.0.7
+description: Snet.Iot.Daq 插件开发技能，覆盖 IDaq（数据采集）与 IMq（消息中间件）两类插件开发。严格定义插件开发契约：必须实现的抽象方法、必须遵循的返回类型、必须使用的数据标注、必须调用的框架方法。AI 自行决定采集方式（TCP/HTTP/文件/串口）或消息收发方式，但必须遵守契约。
+version: 1.0.0.8
 metadata:
   hermes:
-    tags: [plugin-development, daq, iot, dotnet, contract, code-generation]
-    related_skills: [daq-skill]
+    tags: [plugin-development, daq, iot, dotnet, contract, code-generation, mq, middleware]
+    related_skills: [daq-skill, mq-skill]
     homepage: https://shunnet.top
 ---
 
-# PluginDev-Skill — Snet Daq 插件开发契约
+# PluginDev-Skill — Snet Daq 插件开发契约（IDaq + IMq）
 
 > **运行环境：** .NET 10.0 SDK，插件引用 `Snet.Core` NuGet 包
 
 ## 核心原则
 
-> **采集什么、用什么方式采集 —— 由 AI 根据用户描述自行决定。**
+> **采集什么/怎么采集、发什么/怎么发 —— 由 AI 根据用户描述自行决定。**
 > **但数据如何封装、方法返回什么类型、生命周期如何管理 —— 这是硬性契约，必须严格遵守。**
+>
+> **本技能覆盖两类插件：**
+> - **IDAq 插件**（第 1-7 章）：数据采集，继承 `DaqAbstract<O,D>`，实现 8 个抽象方法
+> - **IMq 插件**（第 8 章）：消息中间件，继承 `MqAbstract<O,D>`，实现 6 个抽象方法
 
 ---
 
@@ -32,7 +36,7 @@ metadata:
 
 ```bash
 # ✅ 正确：指定版本号
-dotnet add package Snet.Core -v 1.0.0.1
+dotnet add package Snet.Core -v 26.214.1
 
 # ❌ 错误：不带版本号（使用 * 通配符，运行时报错）
 dotnet add package Snet.Core
@@ -115,9 +119,32 @@ public class XxxOperate : DaqAbstract<XxxOperate, XxxData.Basics>, IDaq
         new propertie { PropertyName = "ServiceName", Description = "命名空间", Default = this.GetType().FullName }
     };
 
-    // ============ 构造函数（必须调用 LanguageHandler）============
+    // ============ 构造函数 ============
     public XxxOperate() : base() { LanguageHandler(); }
     public XxxOperate(XxxData.Basics basics) : base(basics) { LanguageHandler(); }
+
+    // ============ LanguageHandler（必须自实现！基类无此方法）============
+    // 注册语言切换事件：UI 中英文热切换时刷新插件内部字符串资源
+    // 参考真实插件实现（如 Snet.Beckhoff/BeckhoffOperate.cs:1191）：
+    private void LanguageHandler()
+    {
+        OnLanguageEventAsync -= LanguageEventAsync;
+        OnLanguageEventAsync += LanguageEventAsync;
+    }
+
+    private Task LanguageEventAsync(object? sender, EventLanguageResult e)
+    {
+        switch (e.Language ??= Snet.Model.@enum.LanguageType.zh)
+        {
+            case Snet.Model.@enum.LanguageType.zh:
+                StringResources.SetLanguageChinese();      // 你的中文资源切换逻辑
+                break;
+            case Snet.Model.@enum.LanguageType.en:
+                StringResources.SeteLanguageEnglish();     // 你的英文资源切换逻辑
+                break;
+        }
+        return Task.CompletedTask;
+    }
 
     // ============ 8 个抽象异步方法（核心实现）============
     public override async Task<OperateResult> OnAsync(CancellationToken token = default) { ... }
@@ -220,14 +247,14 @@ public override async Task<OperateResult> OffAsync(bool hardClose = false, Cance
 | Status=true | 已连接 |
 | Status=false | 未连接 |
 | try/catch | **禁止**（简单状态判断，无需异常捕获） |
-| consoleOutput | 建议 `false`（避免高频日志刷屏） |
+| logOutput | 建议 `false`（真实驱动 KafkaOperate.cs:498 即用 logOutput:false 静默——文件日志也不写；`consoleOutput:false` 只静默控制台，文件日志仍写） |
 
 ```csharp
 public override async Task<OperateResult> GetStatusAsync(CancellationToken token = default)
 {
     await BegOperateAsync(token);
     // AI 判断连接状态，直接返回
-    return await EndOperateAsync(/* 已连接? */, consoleOutput: false, token: token);
+    return await EndOperateAsync(/* 已连接? */, logOutput: false, token: token);
 }
 ```
 
@@ -362,7 +389,7 @@ public override async Task<OperateResult> WriteAsync(
 |------|-----|
 | 返回类型 | `Task<OperateResult>` |
 | 前置检查 | GetStatusAsync + `address.CheckAddress()` |
-| 必须创建 | `SubscribeOperate.InstanceAsync(basics)` 管理订阅生命周期 |
+| 必须创建 | `await SubscribeOperate.InstanceAsync(new SubscribeData.Basics { ..., FunctionAsync = ReadAsync })`（必须传 SubscribeData.Basics 并绑定读取函数）管理订阅生命周期 |
 | 数据事件 | 通过 `OnDataEvent?.Invoke` / `OnDataEventAsync?.Invoke` 推送 |
 | try/catch | **必须** |
 
@@ -379,29 +406,21 @@ public override async Task<OperateResult> SubscribeAsync(Address address, Cancel
         if (!address.CheckAddress())
             return await EndOperateAsync(false, "存在无效点位数据，操作失败", token);
 
-        subscribeToken = new CancellationTokenSource();
-        subscribeOperate = SubscribeOperate.InstanceAsync(basics);
-        await subscribeOperate.OnAsync(token);
-
-        _ = Task.Run(async () =>
+        // 创建 SubscribeOperate（必须传 SubscribeData.Basics + 绑定 FunctionAsync = ReadAsync）
+        // SubscribeOperate 自带轮询（HandleInterval 周期调用 FunctionAsync），无需自写 Task.Run 循环！
+        subscribeOperate = await SubscribeOperate.InstanceAsync(new SubscribeData.Basics()
         {
-            while (!subscribeToken.Token.IsCancellationRequested)
-            {
-                OperateResult r = await ReadAsync(address, subscribeToken.Token);
-                if (r.Status)
-                {
-                    var e = new EventDataResult(true, "订阅数据", r.ResultData);
-                    OnDataEvent?.Invoke(this, e);
-                    if (OnDataEventAsync != null)
-                        await OnDataEventAsync.Invoke(this, e);
-                }
-                await Task.Delay(
-                    basics.HandleInterval > 0 ? basics.HandleInterval : 1000,
-                    subscribeToken.Token);
-            }
-        }, subscribeToken.Token);
-
-        return await EndOperateAsync(true, token: token);
+            Address = address,
+            ChangeOut = basics.ChangeOut,
+            FunctionAsync = ReadAsync,
+            AllOut = basics.AllOut,
+            HandleInterval = basics.HandleInterval,
+            SN = basics.SN,
+            TaskNumber = basics.TaskNumber
+        });
+        subscribeOperate.OnDataEventAsync += OnDataEventHandlerAsync;
+        subscribeOperate.OnInfoEventAsync += OnInfoEventHandlerAsync;
+        return await EndOperateAsync(await subscribeOperate.OnAsync(token), token: token);
     }
     catch (Exception ex)
     {
@@ -469,7 +488,7 @@ operate.OnDataEventAsync += async (sender, e) =>
 | 事件 | 触发时机 | 数据类型 | 适用场景 |
 |------|----------|----------|----------|
 | `OnDataEvent` | 订阅数据到达时 | `EventDataResult` | 同步处理（日志/打印/内存操作） |
-| `OnInfoEvent` | 状态变化/告警时 | `EventDataResult` | 连接状态监控 |
+| `OnInfoEvent` | 状态变化/告警时 | `EventInfoResult` | 连接状态监控 |
 | `OnDataEventAsync` | 订阅数据到达时 | `EventDataResult` | 异步 I/O（数据库写入/HTTP 转发） |
 
 ---
@@ -539,7 +558,7 @@ public class XxxData
 |-----------|------|------|
 | `[Category("分类")]` | Daq UI 分组 | `[Category("基础数据")]` |
 | `[Description("描述")]` | 字段标签+提示 | `[Description("Ip地址")]` |
-| `[Display(show,use,edit,cate)]` | UI 显示控制 | `[Display(true,true,true,text)]` |
+| `[Display(use, show, mustFillIn, cate)]` | UI 显示控制（**参数顺序：Use, Show, MustFillIn, DataCate**） | `[Display(true,true,true,text)]` |
 | `[Unit("单位")]` | 字段单位 | `[Unit("ms")]` |
 | `[Verify(@"正则","提示")]` | 输入验证 | `[Verify(@"^\d+$","必须为数字")]` |
 | `[AutoAllocatingTag(typeof(Enum))]` | 协议类型标记 | 仅 ProtocolType 用 |
@@ -555,9 +574,20 @@ public class XxxData
 ```csharp
 private SubscribeOperate? subscribeOperate;
 
-// 异步启动订阅时
-subscribeOperate = SubscribeOperate.InstanceAsync(basics);
-await subscribeOperate.OnAsync();
+// 异步启动订阅时（⚠️ 必须传 SubscribeData.Basics 并绑定 FunctionAsync，不能传插件 Basics！）
+subscribeOperate = await SubscribeOperate.InstanceAsync(new SubscribeData.Basics()
+{
+    Address = address,
+    ChangeOut = basics.ChangeOut,
+    FunctionAsync = ReadAsync,       // 把插件的 ReadAsync 绑定为轮询读取函数
+    AllOut = basics.AllOut,
+    HandleInterval = basics.HandleInterval,
+    SN = basics.SN,
+    TaskNumber = basics.TaskNumber
+});
+subscribeOperate.OnDataEventAsync += OnDataEventHandlerAsync;
+subscribeOperate.OnInfoEventAsync += OnInfoEventHandlerAsync;
+await subscribeOperate.OnAsync();   // SubscribeOperate 自带轮询循环，无需自写 Task.Run
 
 // 停止订阅时
 subscribeOperate?.Off();
@@ -598,11 +628,11 @@ if (VAM.IsVirtualAddress(addressName))
 |------|------|
 | `BegOperateAsync(token)` | 每个异步方法首行调用，初始化操作上下文 |
 | `BegOperate()` | 同步版本（同步封装方法使用） |
-| `EndOperateAsync(bool status, string? message=null, object? resultData=null, Exception? exception=null, bool logOutput=true, bool consoleOutput=true, CancellationToken token=default)` | 异步统一返回 OperateResult，自动记录耗时和日志。`consoleOutput: false` 可静默调用（如 GetStatusAsync 高频检查）。**重载：** `EndOperateAsync(OperateResult result, token)` 传递已有结果 |
+| `EndOperateAsync(bool status, string? message=null, object? resultData=null, Exception? exception=null, bool logOutput=true, bool consoleOutput=true, CancellationToken token=default, [CallerFilePath] filePath="", [CallerMemberName] methodName="", [CallerLineNumber] lineNumber=0)` | 异步统一返回 OperateResult，自动记录耗时和日志。`logOutput: false` 完全静默（真实驱动 GetStatusAsync 即用此）；`consoleOutput: false` 仅静默控制台、文件日志仍写。末尾 3 个 `[Caller*]` 参数由编译器自动填充，无需手动传入。**重载：** `EndOperateAsync(OperateResult result, token)` 传递已有结果 |
 | `EndOperate(...)` | 同步版本（同步封装方法使用） |
 | `Instance(basics)` | 单例模式获取实例 |
 | `CreateInstance(basics)` | 创建新实例 |
-| `GetParam()` | 获取配置参数（自动反射读取所有属性） |
+| `GetArgs()` / `GetArgsAsync(bool getBasicsParam = false)` | 获取配置参数（自动反射读取所有属性） |
 | `GetSource<T>()` | 从 OperateResult 获取泛型结果数据 |
 | `WAOn(WAModel)` | 启动内置 WebApi |
 | `WAOff()` | 停止内置 WebApi |
@@ -718,18 +748,27 @@ share.Dispose();
 
 ```csharp
 using Snet.Core.handler;
-using static Snet.Core.handler.BytesHandler;
 
-// BytesHandler 自动根据 AddressDetails 中的配置（DataType, Length, DataFormat）解析字节
-// 在 Read 方法中使用：
-byte[] response = /* 从设备收到的原始字节 */;
-Address address = /* 用户配置的地址 */;
+// BytesHandler 按 BytesModel 映射把原始字节解析为 ConcurrentDictionary<string, AddressValue>
+// 用法 1：从 AddressValue 拆包（自动读取 OriginalValue + AddressExtendParam 中的 List<BytesModel>）
+//   —— 适用于读取"地址自动组包"批次后的拆包解析
+using var bytesHandler = BytesHandler.Instance(Guid.NewGuid().ToString());
+var unpacked = await bytesHandler.TransformAsync(addressValue);   // addressValue.OriginalValue 携带批次字节
+var values = unpacked.GetSource<ConcurrentDictionary<string, AddressValue>>();
 
-// BytesHandler 内部会遍历 address.AddressArray，按每个 item 的配置解析 response
-// 返回 ConcurrentDictionary<string, AddressValue>
-// 注意：BytesHandler.Execute 是同步处理器，在 ReadAsync 异步方法内部同步调用
-var result = BytesHandler.Execute(address, response);
+// 用法 2：低层重载 — 显式传入字节 + 时间 + BytesModel 映射表
+var result = await bytesHandler.TransformAsync(response, DateTime.Now, bytesModels);
+if (result.Status)
+{
+    var dict = result.GetSource<ConcurrentDictionary<string, AddressValue>>();
+    foreach (var kv in dict)
+        Console.WriteLine($"{kv.Key} = {kv.Value.ResultValue}");
+}
+// 注意：BytesHandler 只有 TransformAsync（异步），没有同步 Execute 方法；
+// 需要在同步上下文使用时用 .GetAwaiter().GetResult() 或改用 BytesTransformHandler 的 Trans* 方法
 ```
+
+**BytesModel 映射配置：** `new BytesModel(string Address, string Describe, int StartBit, ushort Length, DataType DataType, EncodingType EncodingType = UTF8, DataFormat DataFormat = ABCD, int BoolIndex = -1)` — `StartBit` 为字节偏移，`BoolIndex` 用于位类型取值。
 
 **BytesTransformHandler** 提供底层的字节↔值转换：
 - 支持 ABCD/BADC/CDAB/DCBA 四种字节序
@@ -886,8 +925,8 @@ ReflectionData.Basics
 | `RegisterEvent(sn, register, P1?, P2?, ..., P6?)` | 注册(`true`)/注销(`false`) 事件处理器（sn = EventData.SN），P1~P6 对应 1~6 个参数的 Action |
 | `GetStatus()` | 反射是否已初始化（返回 `bool`，非 `OperateResult`） |
 | `ReflectionInstance(sn)` | 获取指定 SN 的实例对象 |
-| `GetMethod(sn?)` | 获取所有方法或指定 SN 的方法 |
-| `GetEvent(sn?)` | 获取所有事件或指定 SN 的事件 |
+| `GetMethods()` | 获取全部方法；`GetMethod(string SN)` 获取指定 SN 的方法 |
+| `GetEvents()` | 获取全部事件；`GetEvent(string SN)` 获取指定 SN 的事件 |
 | `Dispose()` | 释放资源 |
 
 **在 Read 方法中使用反射：**
@@ -949,6 +988,22 @@ namespace XxxNamespace
         public XxxOperate() : base() { LanguageHandler(); }
         public XxxOperate(Basics basics) : base(basics) { LanguageHandler(); }
 
+        // ═══ LanguageHandler（必须自实现！见第 1 章示例）═══
+        private void LanguageHandler()
+        {
+            OnLanguageEventAsync -= LanguageEventAsync;
+            OnLanguageEventAsync += LanguageEventAsync;
+        }
+        private Task LanguageEventAsync(object? sender, EventLanguageResult e)
+        {
+            switch (e.Language ??= Snet.Model.@enum.LanguageType.zh)
+            {
+                case Snet.Model.@enum.LanguageType.zh: /* 中文资源切换 */ break;
+                case Snet.Model.@enum.LanguageType.en: /* 英文资源切换 */ break;
+            }
+            return Task.CompletedTask;
+        }
+
         // ═══ 内部字段 ═══
         private SubscribeOperate? subscribeOperate;
         private VirtualAddressManage VAM = new();
@@ -1008,12 +1063,12 @@ namespace XxxNamespace
             }
         }
 
-        // ═══ GetStatusAsync — 禁止 try/catch，consoleOutput: false ═══
+        // ═══ GetStatusAsync — 禁止 try/catch，logOutput: false 静默 ═══
         public override async Task<OperateResult> GetStatusAsync(CancellationToken token = default)
         {
             await BegOperateAsync(token);
             // 【AI 判断连接状态】
-            return await EndOperateAsync(/* 已连接? */, consoleOutput: false, token: token);
+            return await EndOperateAsync(/* 已连接? */, logOutput: false, token: token);
         }
 
         // ═══ GetBaseObjectAsync — 禁止 try/catch，必须先 GetStatusAsync ═══
@@ -1119,29 +1174,23 @@ namespace XxxNamespace
                 if (!address.CheckAddress())
                     return await EndOperateAsync(false, "存在无效点位数据，操作失败", token);
 
-                subscribeToken = new CancellationTokenSource();
-                subscribeOperate = SubscribeOperate.InstanceAsync(basics);
-                await subscribeOperate.OnAsync(token);
-
-                _ = Task.Run(async () =>
+                // 创建 SubscribeOperate（必须传 SubscribeData.Basics，并绑定 FunctionAsync = ReadAsync）
+                // SubscribeOperate 自带轮询循环（按 HandleInterval 周期调用 FunctionAsync），无需自写 Task.Run！
+                // 参考真实驱动：Snet.Siemens/SiemensOperate.cs:1970
+                subscribeOperate = await SubscribeOperate.InstanceAsync(new SubscribeData.Basics()
                 {
-                    while (!subscribeToken.Token.IsCancellationRequested)
-                    {
-                        OperateResult r = await ReadAsync(address, subscribeToken.Token);
-                        if (r.Status)
-                        {
-                            var e = new EventDataResult(true, "订阅数据", r.ResultData);
-                            OnDataEvent?.Invoke(this, e);
-                            if (OnDataEventAsync != null)
-                                await OnDataEventAsync.Invoke(this, e);
-                        }
-                        await Task.Delay(
-                            basics.HandleInterval > 0 ? basics.HandleInterval : 1000,
-                            subscribeToken.Token);
-                    }
-                }, subscribeToken.Token);
-
-                return await EndOperateAsync(true, token: token);
+                    Address = address,
+                    ChangeOut = basics.ChangeOut,
+                    FunctionAsync = ReadAsync,          // ← 关键：把本插件的 ReadAsync 绑定为读取函数
+                    AllOut = basics.AllOut,
+                    HandleInterval = basics.HandleInterval,
+                    SN = basics.SN,
+                    TaskNumber = basics.TaskNumber
+                });
+                // 订阅事件转发到本插件的数据/信息事件
+                subscribeOperate.OnDataEventAsync += OnDataEventHandlerAsync;
+                subscribeOperate.OnInfoEventAsync += OnInfoEventHandlerAsync;
+                return await EndOperateAsync(await subscribeOperate.OnAsync(token), token: token);
             }
             catch (Exception ex)
             {
@@ -1159,11 +1208,10 @@ namespace XxxNamespace
                 if (!status.GetDetails(out string? message))
                     return await EndOperateAsync(false, message, token);
 
-                subscribeToken?.Cancel();
                 if (subscribeOperate != null)
                 {
-                    await subscribeOperate.OffAsync(token);
-                    subscribeOperate = null;
+                    // 调 SubscribeOperate.UnSubscribeAsync 精确取消（参考 SiemensOperate.cs:1999）
+                    return await EndOperateAsync(await subscribeOperate.UnSubscribeAsync(address, token), token: token);
                 }
                 return await EndOperateAsync(true, token: token);
             }
@@ -1178,7 +1226,496 @@ namespace XxxNamespace
 
 ---
 
-## 8. 打包为 Daq ZIP 插件
+## 8. IMq 插件开发契约（消息中间件插件）
+
+> **Daq 工具支持两类插件（`PluginType` 枚举，Snet.Model/enum/PluginType.cs）：**
+> - `Daq` — 数据采集插件（第 1-7 章，继承 `DaqAbstract`）
+> - `Mq` — **消息队列传输插件（本章，继承 `MqAbstract`）**
+
+### 8.1 继承链契约
+
+```
+你的 Mq Operate 类
+  └─ 必须继承 MqAbstract<你的Operate类, 你的MqData.Basics>
+       └─ MqAbstract 继承 CoreUnify（自动提供：单例、事件、日志、多语言、参数、WebApi）
+            └─ 必须实现 6 个抽象异步方法 + 3 个属性
+            └─ 同步方法（On/Off/GetStatus/Produce×2/Consume/UnConsume）是基类薄封装，自动继承
+```
+
+```csharp
+public class XxxMqOperate : MqAbstract<XxxMqOperate, XxxMqData.Basics>, IMq
+{
+    // ============ 3 个必须属性 ============
+    protected override string CN => "中文名称";
+    protected override string CD => "中文描述";
+    protected override List<propertie> AP => new List<propertie>
+    {
+        new propertie { PropertyName = "ServiceName", Description = "命名空间", Default = this.GetType().FullName }
+    };
+
+    // ============ 构造函数（LanguageHandler 必须自实现，见第 1 章）============
+    public XxxMqOperate() : base() { LanguageHandler(); }
+    public XxxMqOperate(XxxMqData.Basics basics) : base(basics) { LanguageHandler(); }
+
+    // ============ 6 个抽象异步方法（核心实现）============
+    public override async Task<OperateResult> OnAsync(CancellationToken token = default) { ... }
+    public override async Task<OperateResult> OffAsync(bool hardClose = false, CancellationToken token = default) { ... }
+    public override async Task<OperateResult> GetStatusAsync(CancellationToken token = default) { ... }
+    public override async Task<OperateResult> ProduceAsync(string topic, byte[] content, CancellationToken token = default) { ... }
+    public override async Task<OperateResult> ConsumeAsync(string topic, CancellationToken token = default) { ... }
+    public override async Task<OperateResult> UnConsumeAsync(string topic, CancellationToken token = default) { ... }
+
+    // ProduceAsync(string, string, Encoding?) 是 virtual，基类默认转 UTF8 字节后调用 byte[] 版，
+    // 可直接继承（无特殊编码需求时无需覆写）
+}
+```
+
+### 8.2 IMq 接口
+
+```csharp
+// Snet.Model/interface/IMq.cs — 13 个子接口
+public interface IMq : IOn, IOff, IProducer, IConsumer, IStatus,
+    IEvent, IArgs, IInstance, ILog, ILanguage, IClone, IDisposable, IAsyncDisposable { }
+```
+
+| 接口 | 方法 |
+|------|------|
+| `IProducer` | `Produce(topic, string content, Encoding? = null)` / `Produce(topic, byte[] content)` + Async |
+| `IConsumer` | `Consume(topic)` / `UnConsume(topic)` + Async；消费数据经 `OnDataEventAsync` 推送 |
+
+### 8.3 方法契约详解
+
+> **核心约束（与 DAQ 插件一致）：** 所有异步方法 `await BegOperateAsync → try → await GetStatusAsync检查 → 实现 → catch`；`GetStatusAsync` 禁止 try/catch。
+
+#### 8.3.1 OnAsync — 连接 Broker
+
+| 约束 | 值 |
+|------|-----|
+| 返回类型 | `Task<OperateResult>` |
+| 状态检查 | 已连接则返回失败 |
+| 失败处理 | **必须在 catch 中调用 `await OffAsync(true, token)` 清理** |
+| try/catch | **必须** |
+
+```csharp
+public override async Task<OperateResult> OnAsync(CancellationToken token = default)
+{
+    await BegOperateAsync(token);
+    try
+    {
+        var status = await GetStatusAsync(token);
+        if (status.GetDetails(out string? message))
+            return await EndOperateAsync(false, message, token);  // 已连接，返回失败
+
+        // AI 自行实现：连接 Broker（创建生产者/消费者客户端）
+
+        return await EndOperateAsync(true, token: token);
+    }
+    catch (Exception ex)
+    {
+        await OffAsync(true, token);   // ← 必须：失败时清理
+        return await EndOperateAsync(false, ex.Message, exception: ex, token: token);
+    }
+}
+```
+
+#### 8.3.2 OffAsync(bool hardClose) — 关闭连接
+
+| 约束 | 值 |
+|------|-----|
+| hardClose=false | 未连接则返回失败 |
+| hardClose=true | 跳过状态检查，强制关闭 |
+| 必须释放 | 生产者、消费者、底层客户端 |
+| try/catch | **必须** |
+
+```csharp
+public override async Task<OperateResult> OffAsync(bool hardClose = false, CancellationToken token = default)
+{
+    await BegOperateAsync(token);
+    try
+    {
+        if (!hardClose)
+        {
+            var status = await GetStatusAsync(token);
+            if (!status.GetDetails(out string? message))
+                return await EndOperateAsync(false, message, token);
+        }
+
+        // 释放顺序：消费者 → 生产者 → 底层客户端
+        consumer?.Dispose();
+        producer?.Dispose();
+
+        return await EndOperateAsync(true, token: token);
+    }
+    catch (Exception ex)
+    {
+        return await EndOperateAsync(false, ex.Message, exception: ex, token: token);
+    }
+}
+```
+
+#### 8.3.3 GetStatusAsync — 获取状态
+
+| 约束 | 值 |
+|------|-----|
+| 返回类型 | `Task<OperateResult>` |
+| Status=true | 已连接 |
+| Status=false | 未连接 |
+| try/catch | **禁止**（简单状态判断） |
+| logOutput | 建议 `false`（真实驱动 KafkaOperate.cs:498 即用 logOutput:false 静默——文件日志也不写；`consoleOutput:false` 只静默控制台，文件日志仍写） |
+
+```csharp
+public override async Task<OperateResult> GetStatusAsync(CancellationToken token = default)
+{
+    await BegOperateAsync(token);
+    // AI 判断连接状态，直接返回
+    return await EndOperateAsync(/* 已连接? */, logOutput: false, token: token);
+}
+```
+
+#### 8.3.4 ProduceAsync — 生产消息（核心）
+
+| 约束 | 值 |
+|------|-----|
+| 签名 | `Task<OperateResult> ProduceAsync(string topic, byte[] content, CancellationToken token = default)` |
+| 前置检查 | GetStatusAsync |
+| 返回 | `EndOperateAsync(true, resultData: message)` 携带发送结果 |
+| try/catch | **必须** |
+
+```csharp
+public override async Task<OperateResult> ProduceAsync(string topic, byte[] content, CancellationToken token = default)
+{
+    await BegOperateAsync(token);
+    try
+    {
+        var status = await GetStatusAsync(token);
+        if (!status.GetDetails(out string? message))
+            return await EndOperateAsync(false, message, token);
+
+        // AI 自行实现：向 topic 发布 content
+
+        return await EndOperateAsync(true, resultData: /* 发送结果 */, token: token);
+    }
+    catch (Exception ex)
+    {
+        return await EndOperateAsync(false, ex.Message, exception: ex, token: token);
+    }
+}
+```
+
+> **注意：** `ProduceAsync(string topic, string content, Encoding? encoding = null)` 是基类 `virtual` 方法，默认将字符串按指定编码（缺省 UTF-8）转字节后调用 byte[] 版——**无特殊需求时直接继承即可，无需覆写**。
+
+#### 8.3.5 ConsumeAsync — 消费消息（核心）
+
+| 约束 | 值 |
+|------|-----|
+| 签名 | `Task<OperateResult> ConsumeAsync(string topic, CancellationToken token = default)` |
+| 前置检查 | GetStatusAsync |
+| 消费推送 | **必须经 `OnDataEventHandlerAsync(this, new EventDataResult(...))` 推送**，外部经 `OnDataEventAsync` 订阅接收 |
+| resultData 约定 | `string`（默认）/ `byte[]`（ResponseType.Bytes）/ `ResponseModel(Topic, Content)`（ContentWithTopic） |
+| try/catch | **必须** |
+
+```csharp
+public override async Task<OperateResult> ConsumeAsync(string topic, CancellationToken token = default)
+{
+    await BegOperateAsync(token);
+    try
+    {
+        var status = await GetStatusAsync(token);
+        if (!status.GetDetails(out string? message))
+            return await EndOperateAsync(false, message, token);
+
+        // AI 自行实现：订阅 topic，启动后台消费循环
+        _ = Task.Run(async () =>
+        {
+            while (!consumeToken.Token.IsCancellationRequested)
+            {
+                // 收到消息后，按 ResponseType 约定推送（参考 Snet.Kafka/KafkaOperate.cs:131-137）
+                byte[] content = /* 收到的消息字节 */;
+                await OnDataEventHandlerAsync(this, new EventDataResult(true, $"接收到 ( {topic} ) 主题消息", content));
+                // 或推送字符串: new EventDataResult(true, message, Encoding.UTF8.GetString(content))
+                // 或推送带主题: new EventDataResult(true, message, new ResponseModel(topic, Encoding.UTF8.GetString(content)))
+            }
+        }, consumeToken.Token);
+
+        return await EndOperateAsync(true, token: token);
+    }
+    catch (Exception ex)
+    {
+        return await EndOperateAsync(false, ex.Message, exception: ex, token: token);
+    }
+}
+```
+
+#### 8.3.6 UnConsumeAsync — 取消消费
+
+| 约束 | 值 |
+|------|-----|
+| 前置检查 | GetStatusAsync |
+| 必须操作 | 取消 Token，停止消费循环，释放消费者 |
+| try/catch | **必须** |
+
+```csharp
+public override async Task<OperateResult> UnConsumeAsync(string topic, CancellationToken token = default)
+{
+    await BegOperateAsync(token);
+    try
+    {
+        var status = await GetStatusAsync(token);
+        if (!status.GetDetails(out string? message))
+            return await EndOperateAsync(false, message, token);
+
+        consumeToken?.Cancel();
+        consumer?.Dispose();
+        consumer = null;
+        return await EndOperateAsync(true, token: token);
+    }
+    catch (Exception ex)
+    {
+        return await EndOperateAsync(false, ex.Message, exception: ex, token: token);
+    }
+}
+```
+
+### 8.4 数据类契约
+
+```csharp
+public class XxxMqData
+{
+    public class Basics   // 注意：MQ 插件 Basics 是独立类（非 SubscribeData.SCData），无 HandleInterval/ChangeOut 等订阅字段
+    {
+        [Category("基础数据")]
+        [Description("唯一标识符")]
+        public string SN { get; set; } = Guid.NewGuid().ToUpperNString();   // 必须：用于 ISns 匹配/config 文件名
+
+        [Description("Broker 地址")]
+        [Verify(@"正则", "提示")]
+        public string? IpAddress { get; set; } = "127.0.0.1";
+
+        [Description("端口")]
+        public int Port { get; set; } = 6688;
+
+        // ── 必须：协议类型 ──
+        [Description("协议类型")]
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        [AutoAllocatingTag(typeof(ProtocolType))]
+        [Display(true, true, true, ParamModel.dataCate.select)]
+        public ProtocolType ProtocolType { get; set; } = ProtocolType.XxxProtocol;
+    }
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum ProtocolType
+    {
+        [Description("协议中文描述")]
+        [AutoAllocating(new string[] {
+            "SN",        // 必须
+            "IpAddress", // 连接参数
+            "Port",      // 连接参数
+            // ... AI 定义的连接参数
+        })]
+        XxxProtocol,
+    }
+}
+```
+
+### 8.5 完整 IMq 插件模板（AI 填写连接/收发逻辑）
+
+```csharp
+using Snet.Core.@abstract;
+using Snet.Log;
+using Snet.Model.data;
+using Snet.Model.@enum;
+using Snet.Model.@interface;
+using Snet.Utility;
+using System.ComponentModel;           // [Category] / [Description]
+using System.Text;
+using System.Text.Json.Serialization;  // [JsonConverter] / JsonStringEnumConverter
+using static XxxNamespace.XxxMqData;
+using static Snet.Model.data.ParamModel;   // propertie 类
+
+namespace XxxNamespace
+{
+    public class XxxMqOperate : MqAbstract<XxxMqOperate, Basics>, IMq
+    {
+        protected override string CN => "【AI 填写中文名称】";
+        protected override string CD => "【AI 填写中文描述】";
+        protected override List<propertie> AP => new List<propertie>
+        {
+            new propertie { PropertyName = "ServiceName", Description = "命名空间", Default = this.GetType().FullName }
+        };
+
+        public XxxMqOperate() : base() { LanguageHandler(); }
+        public XxxMqOperate(Basics basics) : base(basics) { LanguageHandler(); }
+
+        private void LanguageHandler()
+        {
+            OnLanguageEventAsync -= LanguageEventAsync;
+            OnLanguageEventAsync += LanguageEventAsync;
+        }
+        private Task LanguageEventAsync(object? sender, EventLanguageResult e)
+        {
+            switch (e.Language ??= Snet.Model.@enum.LanguageType.zh)
+            {
+                case Snet.Model.@enum.LanguageType.zh: /* 中文资源切换 */ break;
+                case Snet.Model.@enum.LanguageType.en: /* 英文资源切换 */ break;
+            }
+            return Task.CompletedTask;
+        }
+
+        // ═══ 内部字段 ═══
+        private object? producer;        // 【AI：生产者客户端】
+        private object? consumer;        // 【AI：消费者客户端】
+        private CancellationTokenSource? consumeToken;
+
+        public override async Task<OperateResult> OnAsync(CancellationToken token = default)
+        {
+            await BegOperateAsync(token);
+            try
+            {
+                var status = await GetStatusAsync(token);
+                if (status.GetDetails(out string? message))
+                    return await EndOperateAsync(false, message, token);
+
+                // 【AI 在此实现连接 Broker】
+
+                return await EndOperateAsync(true, token: token);
+            }
+            catch (Exception ex)
+            {
+                await OffAsync(true, token);
+                return await EndOperateAsync(false, ex.Message, exception: ex, token: token);
+            }
+        }
+
+        public override async Task<OperateResult> OffAsync(bool hardClose = false, CancellationToken token = default)
+        {
+            await BegOperateAsync(token);
+            try
+            {
+                if (!hardClose)
+                {
+                    var status = await GetStatusAsync(token);
+                    if (!status.GetDetails(out string? message))
+                        return await EndOperateAsync(false, message, token);
+                }
+                consumeToken?.Cancel(); consumeToken?.Dispose();
+                consumer?.Dispose();
+                producer?.Dispose();
+
+                // 【AI 在此实现断开逻辑】
+
+                return await EndOperateAsync(true, token: token);
+            }
+            catch (Exception ex)
+            {
+                return await EndOperateAsync(false, ex.Message, exception: ex, token: token);
+            }
+        }
+
+        public override async Task<OperateResult> GetStatusAsync(CancellationToken token = default)
+        {
+            await BegOperateAsync(token);
+            // 【AI 判断连接状态】
+            return await EndOperateAsync(/* 已连接? */, logOutput: false, token: token);
+        }
+
+        public override async Task<OperateResult> ProduceAsync(string topic, byte[] content, CancellationToken token = default)
+        {
+            await BegOperateAsync(token);
+            try
+            {
+                var status = await GetStatusAsync(token);
+                if (!status.GetDetails(out string? message))
+                    return await EndOperateAsync(false, message, token);
+
+                // 【AI 在此实现：向 topic 发布 content】
+
+                return await EndOperateAsync(true, resultData: /* 发送结果 */, token: token);
+            }
+            catch (Exception ex)
+            {
+                return await EndOperateAsync(false, ex.Message, exception: ex, token: token);
+            }
+        }
+
+        public override async Task<OperateResult> ConsumeAsync(string topic, CancellationToken token = default)
+        {
+            await BegOperateAsync(token);
+            try
+            {
+                var status = await GetStatusAsync(token);
+                if (!status.GetDetails(out string? message))
+                    return await EndOperateAsync(false, message, token);
+
+                consumeToken = new CancellationTokenSource();
+                _ = Task.Run(async () =>
+                {
+                    while (!consumeToken.Token.IsCancellationRequested)
+                    {
+                        // 【AI：收到消息后经事件推送】
+                        // await OnDataEventHandlerAsync(this, new EventDataResult(true, $"接收到 ( {topic} ) 主题消息", content));
+                    }
+                }, consumeToken.Token);
+
+                return await EndOperateAsync(true, token: token);
+            }
+            catch (Exception ex)
+            {
+                return await EndOperateAsync(false, ex.Message, exception: ex, token: token);
+            }
+        }
+
+        public override async Task<OperateResult> UnConsumeAsync(string topic, CancellationToken token = default)
+        {
+            await BegOperateAsync(token);
+            try
+            {
+                var status = await GetStatusAsync(token);
+                if (!status.GetDetails(out string? message))
+                    return await EndOperateAsync(false, message, token);
+
+                consumeToken?.Cancel();
+                if (consumer != null) { consumer?.Dispose(); consumer = null; }
+                return await EndOperateAsync(true, token: token);
+            }
+            catch (Exception ex)
+            {
+                return await EndOperateAsync(false, ex.Message, exception: ex, token: token);
+            }
+        }
+    }
+}
+```
+
+### 8.6 MQ 插件打包与部署
+
+**打包（与 DAQ 插件相同）：**
+
+```bash
+dotnet publish -c Release -o ./publish
+Compress-Archive -Path ./publish/* -DestinationPath MyMqPlugin.zip
+# → Daq 工具 → 插件设置 → 上传 ZIP
+```
+
+**部署后配置注册（关键！）：**
+
+> MQ 插件的实例**不是**由用户代码 `new` 创建，而是由 Daq 工具读取 **`config/mq/` 目录下的配置文件**自动加载（`MqOperate` 监听目录，`pluginOperate.CreateAsync<IMq>(..., PluginType.Mq)` 创建，见 Snet.Core/mq/MqOperate.Monitor.cs:315）。这也是 `AddressMqParam.ISns` 自动转发的匹配前提（详见 DAQ-Skill §1.1）。
+
+```json
+// config/mq/{完整命名空间}.{类名}.{SN}.Mq.Config.json
+// 示例：config/mq/XxxNamespace.XxxMqOperate.my-mq.Mq.Config.json
+{
+  "SN": "my-mq",
+  "IpAddress": "127.0.0.1",
+  "Port": 6688,
+  "ProtocolType": "XxxProtocol"
+}
+```
+
+配置文件内容 = Basics 的 JSON 序列化（属性名与 Basics 一致）。文件放入 Daq 工具运行目录的 `config/mq/` 后自动加载并启动；修改文件热更新。
+
+---
+
+## 9. 打包为 Daq ZIP 插件
 
 ```bash
 dotnet publish -c Release -o ./publish
@@ -1186,17 +1723,27 @@ Compress-Archive -Path ./publish/* -DestinationPath MyPlugin.zip
 # → Daq 工具 → 插件设置 → 上传 ZIP
 ```
 
+> **DAQ 插件**（第 1-7 章）与 **MQ 插件**（第 8 章）打包方式相同；MQ 插件部署后还需 `config/mq/` 配置文件注册（见 8.6）。
+
+> **⚠️ 部署隐含约束（违反任一即静默失败）：**
+> - **DLL 命名**：程序集文件名必须为 `Snet.*.dll` 前缀（如 `Snet.MyPlugin.dll`），否则插件扫描不识别。
+> - **MQ 插件位置**：DLL 需在 `AppContext.BaseDirectory/lib/mq/` 目录（`config/mq/` 配置才能解析到程序集）。
+> - **单例池上限**：框架单例池硬上限 **255 实例**（`maxInstanceCount = byte.MaxValue`），超出抛异常。
+> - **IMq 插件无虚拟地址**：`MqAbstract` 不提供 `VirtualAddressManage`（VAM 仅 DAQ 插件可用）。
+> - **配置文件命名**：`config/mq/` 文件名必须含 `.Mq.Config.json` 且中间段含类名（`{命名空间}.{类名}.{SN}.Mq.Config.json`），解析失败会静默跳过。
+
 ---
 
-## 9. 内置通信类（TCP/UDP/WebSocket/Serial/HTTP）
+## 10. 内置通信类（TCP/UDP/WebSocket/Serial/HTTP）
 
 Snet.Core 提供 5 种内置通信类，实现了 `ICommunication` 接口。**开发插件时应使用这些类，不要自己写 Socket。**
 
-### 9.1 统一接口
+### 10.1 统一接口
 
 ```csharp
-// 所有通信类共享的接口
-public interface ICommunication : IOn, IOff, ISend, ISendWait, IGetObject, IGetStatus, IEvent, ...
+// 所有通信类共享的接口（Snet.Model/interface/ICommunication.cs）
+public interface ICommunication : IOn, IOff, ISend, ISendWait, IObject, IStatus,
+    IEvent, IInstance, ILog, IArgs, ILanguage, IClone, IDisposable, IAsyncDisposable { }
 ```
 
 | 方法 | 说明 | 适用 |
@@ -1210,22 +1757,24 @@ public interface ICommunication : IOn, IOff, ISend, ISendWait, IGetObject, IGetS
 | `OnDataEvent` / `OnDataEventAsync` | 收到数据触发 → `e.GetSource<byte[]>()` | TCP/Serial/UDP/WS |
 | `OnInfoEvent` | 状态变化触发 | 全部 |
 
-### 9.2 通信类速查
+### 10.2 通信类速查
 
 | 类 | 命名空间 | Config | 连接参数 | 特殊属性 |
 |----|---------|--------|----------|----------|
 | `TcpClientOperate` | `Snet.Core.communication.net.tcp.client` | `TcpClientData.Basics` | `IpAddress`, `Port`, `Timeout` | `InterruptReconnection`, `ReconnectionInterval`, `SendWaitInterval`, `MaxChunkSize`, `RetrySendCount`, `BufferSize` |
 | `TcpServiceOperate` | `Snet.Core.communication.net.tcp.service` | `TcpServiceData.Basics` | `IpAddress`, `Port` | 多客户端管理，`Send(byte[], string[])` 定向/广播发送 |
-| `UdpOperate` | `Snet.Core.communication.net.udp` | `UdpData.Basics` | `IpAddress`, `Port` | 支持广播模式、远程定向模式 |
+| `UdpClientOperate` | `Snet.Core.communication.net.udp.unicast.client` | `UdpClientData.Basics` | `IpAddress`, `Port` | 单播客户端 |
+| `UdpBroadcastOperate` | `Snet.Core.communication.net.udp.broadcast` | `UdpBroadcastData.Basics` | `Port`, `BroadcastAddress`, `BroadcastPort` | 广播发送 |
+| `UdpMulticastOperate` | `Snet.Core.communication.net.udp.multicast` | `UdpMulticastData.Basics` | `IpAddress`, `Port` | 组播 |
 | `SerialOperate` | `Snet.Core.communication.serial` | `SerialData.Basics` | `PortName`, `BaudRate`, `ParityBit`, `DataBit`, `StopBit` | `WriteTimeout`, `ReadTimeout`, `ReceivedBytesThreshold`, `SendWaitInterval`, `MaxChunkSize`, `RetrySendCount`, `BufferSize` |
-| `WsClientOperate` | `Snet.Core.communication.net.ws.client` | `WsClientData.Basics` | `Url`（`"ws://IP:Port/path"`） | 支持断线重连 |
-| `WsServiceOperate` | `Snet.Core.communication.net.ws.service` | `WsServiceData.Basics` | `Port` | WebSocket 服务端，管理多客户端连接 |
+| `WsClientOperate` | `Snet.Core.communication.net.ws.client` | `WsClientData.Basics` | `Host`（如 `"ws://127.0.0.1:6688/"`） | `InterruptReconnection`, `ReconnectionInterval`, `Timeout` |
+| `WsServiceOperate` | `Snet.Core.communication.net.ws.service` | `WsServiceData.Basics` | `Host`（如 `"ws://127.0.0.1:6688/"`） | WebSocket 服务端，管理多客户端连接 |
 | `HttpClientOperate` | `Snet.Core.communication.net.http.client` | `HttpClientData.Basics` | 无连接，每次 `RequestAsync(RequestData, token)` | 支持 FormData/Raw/Cookie/Proxy |
 | `HttpServiceOperate` | `Snet.Core.communication.net.http.service` | `HttpServiceData.Basics` | `Port` | REST API 服务端，支持 CORS、路由注册 |
 
 > **注意：** `SerialData.Basics` 使用独立属性（`PortName`/`BaudRate`/`ParityBit`/`DataBit`/`StopBit`），不是 `SerialPortInfo` 字符串格式。串口驱动库（如 Snet.Modbus 的 ModbusRtu）使用 `SerialPortInfo` 字符串（`"COM3-9600-8-N-1"`），但内置通信类 `SerialOperate` 使用独立属性。
 
-### 9.3 使用模板（TCP/Serial/UDP/WebSocket）
+### 10.3 使用模板（TCP/Serial/UDP/WebSocket）
 
 ```csharp
 using Snet.Core.communication.net.tcp.client;  // 按需替换命名空间
@@ -1305,7 +1854,7 @@ public class MyPluginOperate : DaqAbstract<MyPluginOperate, MyPluginData.Basics>
 }
 ```
 
-### 9.4 HTTP 模式
+### 10.4 HTTP 模式
 
 ```csharp
 using Snet.Core.communication.net.http.client;
@@ -1318,7 +1867,8 @@ public override async Task<OperateResult> ReadAsync(Address address, Cancellatio
     var result = await http.RequestAsync(new RequestData
     {
         Url = basics.ApiUrl, Method = "GET",
-        BType = BType.Json,
+        BodyType = BType.Raw,               // 枚举只有 FormData/Raw/None，无 Json 值
+        ContentType = "application/json",   // JSON 请求体用 Raw + 显式 ContentType
     }, token);
     if (!result.Status) return await EndOperateAsync(false, result.Message, token);
     string json = result.GetSource<string>();
@@ -1328,7 +1878,9 @@ public override async Task<OperateResult> ReadAsync(Address address, Cancellatio
 
 ---
 
-## 10. 已有实现参考
+## 11. 已有实现参考
+
+### 11.1 DAQ 插件（第 1-7 章）
 
 | 插件 | 数据源 | Read 采集方式 | 通信层 |
 |------|--------|---------------|--------|
@@ -1343,5 +1895,23 @@ public override async Task<OperateResult> ReadAsync(Address address, Cancellatio
 | `Snet.Sim` | 内存 | 虚拟地址随机/序列 | 无 |
 | `Snet.TEP` | TCP | 私有协议握手→认证→数据流 | 内置 TcpServiceOperate |
 | `Snet.PQDIF` | TCP/串口 | DLT645/DLT698/CJT188 帧 | Driver.PipeTcpNet |
-| `Snet.Mqtt` | TCP | MQTT 协议（Client/Service/WS） | MQTTnet |
-| `Snet.Kafka` | TCP | Kafka 协议（Producer/Consumer） | Confluent.Kafka |
+
+### 11.2 IMq 插件（第 8 章，继承 MqAbstract）
+
+| 插件 | 连接 | Produce/Consume 实现 | 底层库 |
+|------|------|---------------------|--------|
+| `Snet.Mqtt` | TCP | MQTT Client/Service/WS 生产消费 | MQTTnet |
+| `Snet.Kafka` | TCP | Kafka Producer/Consumer（SASL 认证） | Confluent.Kafka |
+| `Snet.RabbitMQ` | TCP | AMQP 生产消费（4 种 Exchange） | RabbitMQ.Client |
+| `Snet.NetMQ` | TCP | ZeroMQ Pub/Sub 生产消费 | NetMQ |
+| `Snet.Netty` | TCP | DotNetty 自定义帧生产消费 | DotNetty |
+
+---
+
+## 📅 版本历史
+
+| 版本 | 日期 | 变更 |
+|:---|:---|:---|
+| 1.0.0.8 | 2026-08-02 | **新增第 8 章 IMq 插件开发契约**（MqAbstract 继承链/6 方法契约详解/数据类契约/完整模板/config 配置注册），技能现同时覆盖 IDaq 与 IMq 两类插件开发；参考表拆分为 10.1 DAQ / 10.2 IMq |
+| 1.0.0.8 | 2026-08-02 | 全面核对源码修正：`BytesHandler.Execute`→`TransformAsync` 两重载用法；`LanguageHandler()` 说明需自实现（附真实插件示例）；`SubscribeOperate.InstanceAsync` 补 await（3 处）；`UdpOperate`→UdpClient/UdpBroadcast/UdpMulticast 三真实类；WsClient/WsService 用 `Host`（非 Url/Port）；HTTP 模板 `BType`→`BodyType`（无 Json 值）；`GetParam()`→`GetArgs()`；ICommunication 接口名 `IGetObject/IGetStatus`→`IObject/IStatus`；OnInfoEvent→`EventInfoResult`；Display 参数语义（Use/Show/MustFillIn）；GetMethod/GetEvent 拆分说明；EndOperateAsync 补 Caller* 参数 |
+| 1.0.0.7 | 2026-07-14 | 初始版本 |

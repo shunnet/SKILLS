@@ -12,8 +12,8 @@
 
   <img src="https://img.shields.io/badge/.NET-10.0%2B-purple.svg"/>
   <img src="https://img.shields.io/badge/license-MIT-green"/>
-  <img src="https://img.shields.io/badge/version-1.0.0.7-blue"/>
-  <img src="https://img.shields.io/badge/skills-3-orange"/>
+  <img src="https://img.shields.io/badge/version-1.0.0.8-blue"/>
+  <img src="https://img.shields.io/badge/skills-4-orange"/>
   <img src="https://img.shields.io/github/stars/shunnet/SKILLS?style=social"/>
 
 </p>
@@ -36,7 +36,8 @@
 | 技能 | 目录 | 定位 | 🗣️ 用户说一句话 → |
 |------|------|------|------|
 | **🔌 DAQ-Skill** | `DAQ-Skill/` | 🏭 使用库 — 数据采集与转发 | "连接西门子S7-1500，IP 192.168.0.1，读取DB1.0，MQTT转发到broker" |
-| **🧩 PluginDev-Skill** | `PluginDev-Skill/` | ⚙️ 开发插件 — 自定义协议对接 Daq 工具 | "开发一个温湿度传感器插件，TCP发送 01 03 00 00 00 02，解析响应字节" |
+| **📡 MQ-Skill** | `MQ-Skill/` | 📨 使用库 — 消息中间件收发 | "通过MQTT连接 127.0.0.1:1883，订阅 factory/line1 并打印消息" |
+| **🧩 PluginDev-Skill** | `PluginDev-Skill/` | ⚙️ 开发插件 — 自定义 IDaq/IMq 插件对接 Daq 工具 | "开发一个温湿度传感器插件，TCP发送 01 03 00 00 00 02，解析响应字节" |
 | **🖥️ WpfUI-Skill** | `WpfUI-Skill/` | 🪟 界面开发 — WPF 桌面应用 | "创建一个监控面板，深色主题，中英文切换，LED状态灯，属性编辑器" |
 
 
@@ -70,27 +71,59 @@
 
 AI 先用大白话问用户（🏷️ 牌子型号、🔌 怎么连的、📍 IP多少、📊 读什么数据、📨 发到哪里），确认后再生成代码。
 
-**📄 文件：** `SKILL.md`（55KB，14章）
+**📄 文件：** `SKILL.md`（55KB，15章）
 
 
 
-## 🧩 PluginDev-Skill — Daq 工具插件开发
+## 📡 MQ-Skill — 消息中间件应用
+
+> **一句话：** 用户描述消息需求 → AI 自动生成完整可运行的中间件收发代码
+
+### 🎯 用途
+
+帮助用户直接使用 Snet 框架完成消息生产与消费，覆盖 5 种主流消息中间件。
+
+### ✨ 能力
+
+- 📨 **5 种消息中间件** — MQTT（Client/Broker/WebSocket）、Kafka、RabbitMQ、NetMQ、Netty
+- 🔗 **统一 IMq 接口** — Produce/Consume/OnDataEventAsync 用法一致，切换中间件不改业务逻辑
+- 🔄 **与 DAQ 联动** — `AddressMqParam` 配置 + `config/mq/` 注册，采集数据自动转发
+- 🛠️ **故障排查** — 端口/认证/ResponseType/实例注册等常见问题速查
+
+### 💬 场景示例
+
+```
+🗣️ "MQTT 连接 127.0.0.1:1883，订阅 factory/line1 打印消息"
+🗣️ "Kafka 发送 JSON 到集群 192.168.0.1:9092，topic 为 sensors"
+🗣️ "RabbitMQ 用 topic 交换机收发消息"
+🗣️ "NetMQ 做发布订阅，地址 tcp://127.0.0.1:8866"
+```
+
+### 🗣️ 交互流程
+
+AI 先用大白话问用户（📨 用什么中间件、📍 Broker 地址、🔑 认证、📬 主题、📤 发还是收），确认后再生成代码。
+
+**📄 文件：** `SKILL.md`（9 章）
+
+
+
+## 🧩 PluginDev-Skill — 插件开发
 
 > **一句话：** 用户描述设备 → AI 按契约生成插件代码 → 打包 ZIP 上传 Daq 工具
 
 ### 🎯 用途
 
-帮助用户开发自定义协议插件，部署到 [Snet.Iot.Daq](https://github.com/shunnet/Daq) 工具中使用。
+帮助用户开发自定义协议插件，部署到 [Snet.Iot.Daq](https://github.com/shunnet/Daq) 工具中使用。**覆盖 IDaq（数据采集）与 IMq（消息中间件）两类插件。**
 
 ### ✨ 能力
 
-- 📋 **严格插件契约** — 8 个抽象方法 + 3 个必须属性
+- 📋 **严格插件契约** — IDaq 8 个抽象方法 / IMq 6 个抽象方法 + 3 个必须属性
 - 📡 **5 种内置通信类** — TCP/UDP/WebSocket/Serial/HTTP
 - 💾 **数据缓存** — 进程缓存 `ProcessCacheOperate` + 跨进程共享缓存 `ShareCacheOperate`
 - 🔍 **反射调用** — `ReflectionOperate` 动态加载外部 DLL、调用方法、注册事件
-- 📐 **数据类规范** — Basics 继承 SCData、ProtocolType 枚举、Attribute 标注
+- 📐 **数据类规范** — Basics 继承 SCData（DAQ）/独立类（MQ）、ProtocolType 枚举、Attribute 标注
 - 🔄 **核心数据链** — `采集原始数据 → AddressHandler.ExecuteDispose → 自动类型转换+反射解析+MQ转发`
-- 📦 **打包热插拔** — ZIP → 上传 Daq 工具 → 运行时加载/卸载
+- 📦 **打包热插拔** — ZIP → 上传 Daq 工具 → 运行时加载/卸载（MQ 插件需 `config/mq/` 配置注册）
 
 ### 🔑 核心原则
 
@@ -110,7 +143,7 @@ AI 先用大白话问用户（🏷️ 牌子型号、🔌 怎么连的、📍 IP
 
 AI 先用大白话问用户（🏷️ 设备是什么、🔌 怎么连的、📋 协议规矩是什么、📊 数据长什么样），确认后再生成代码。
 
-**📄 文件：** `SKILL.md`（41KB，10章）
+**📄 文件：** `SKILL.md`（41KB，12章）
 
 
 
@@ -147,7 +180,7 @@ AI 先用大白话问用户（🏷️ 设备是什么、🔌 怎么连的、📋
 
 AI 先用大白话问用户（🏷️ 窗口需求、🎨 主题偏好、🌍 语言需求、🎛️ 需要哪些控件、📊 数据绑定结构），确认后生成完整 XAML + C# 代码。
 
-**📄 文件：** `SKILL.md`（13章）
+**📄 文件：** `SKILL.md`（29章）
 
 
 
@@ -159,11 +192,20 @@ AI 先用大白话问用户（🏷️ 窗口需求、🎨 主题偏好、🌍 �
 │  → 配置连接参数 + 地址 → 采集 → 订阅 → 自动转发      │
 └───────────────────────┬───────────────────────────────┘
                         │
-                        │ ⬇️ 如果现成协议不满足需求...
+                        │ ⬇️ 数据转发目标（AddressMqParam）
+                        ↓
+┌─ 📡 MQ-Skill ────────────────────────────────────────┐
+│  使用现成消息中间件（MQTT / Kafka / RabbitMQ /        │
+│   NetMQ / Netty）→ 生产/消费 → 统一 IMq 接口          │
+└───────────────────────┬───────────────────────────────┘
+                        │
+                        │ ⬇️ 如果现成协议/中间件不满足需求...
                         ↓
 ┌─ 🧩 PluginDev-Skill ─────────────────────────────────┐
-│  开发自定义插件（继承 DaqAbstract，实现 8 个方法）     │
-│  → 用内置通信类(TcpClientOperate等) → Read/Write     │
+│  开发自定义插件：IDaq 插件（继承 DaqAbstract，         │
+│   实现 8 个方法）+ IMq 插件（继承 MqAbstract，         │
+│   实现 6 个方法）                                     │
+│  → 用内置通信类(TcpClientOperate等) → Read/Write      │
 │  → 数据经 ExecuteDispose 处理 → 自动类型转换+转发     │
 │  → 打包 ZIP → 上传 Daq 工具 → 热插拔加载             │
 └───────────────────────┬───────────────────────────────┘
@@ -180,7 +222,7 @@ AI 先用大白话问用户（🏷️ 窗口需求、🎨 主题偏好、🌍 �
 └───────────────────────────────────────────────────────┘
 ```
 
-**💡 一句话总结：** DAQ-Skill 用好现成协议，PluginDev-Skill 开发新协议，WpfUI-Skill 构建管理界面——覆盖从数据采集到人机交互的完整链路。
+**💡 一句话总结：** DAQ-Skill 用好现成协议，MQ-Skill 用好现成中间件，PluginDev-Skill 开发新协议/新中间件插件，WpfUI-Skill 构建管理界面——覆盖从数据采集、消息传输到人机交互的完整链路。
 
 
 ## 🌍 相关链接

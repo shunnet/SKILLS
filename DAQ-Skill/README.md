@@ -1,6 +1,6 @@
 # DAQ-Skill — 工业物联网数据采集技能
 
-**版本:** 1.0.0.7  
+**版本:** 1.0.0.8  
 **作者:** Shun  
 **许可证:** MIT  
 **框架:** .NET 10.0
@@ -42,7 +42,7 @@
 | `Snet.Utility` | 工具集（字节 · 枚举 · 文件 · 字符串 · JSON · XML · Protobuf · FTP） |
 | `Snet.Driver` | 底层硬件通信驱动 |
 
-## 采集协议一览（35+ 种协议，150+ ProtocolType）
+## 采集协议一览（36 种协议，150+ ProtocolType）
 
 | 包名 | 协议 | Operate 类 | ProtocolType 数量 |
 |------|------|-----------|-------------------|
@@ -104,9 +104,11 @@
 ```
 
 **用户只需三步：**
-1. 创建 MQ 实例并设置 `Basics.SN`
+1. **通过 `config/mq/` 配置文件注册 MQ 实例**（⚠️ 关键前提，见下方说明）
 2. 在 `AddressDetails.AddressMqParam` 中配置 `ISns`（指向 MQ 的 SN）、`Topic`、`ContentFormat`
 3. 启动订阅 → 数据自动转发
+
+> **⚠️ 自动转发前提（重要）：** 转发机制只识别 `config/mq/` 目录下 `{完整命名空间}.{类名}.{SN}.Mq.Config.json` 配置文件加载的 MQ 实例（`MqOperate.InstanceIoc` 注册表）。用户代码 `new` 创建的实例不注册，转发会报 "实例未找到"。配置文件内容 = MQ Basics 的 JSON 序列化（详见 SKILL.md §1.1 的 JSON 示例）。**替代方案：** 不用配置文件时，在订阅数据事件 `OnDataEventAsync` 中手动调用 `mqClient.ProduceAsync(topic, content)`。
 
 ## 关键注意事项
 
@@ -129,8 +131,8 @@ dotnet new console -n DaqDemo && cd DaqDemo
 # ⚠️ 必须指定版本号！到 nuget.org 查找最新版本：
 #   https://www.nuget.org/packages/Snet.Siemens
 #   https://www.nuget.org/packages/Snet.Mqtt
-dotnet add package Snet.Siemens -v 1.0.0.1
-dotnet add package Snet.Mqtt -v 1.0.0.1
+dotnet add package Snet.Siemens -v 26.214.1
+dotnet add package Snet.Mqtt -v 26.214.1
 
 # 电力协议示例
 # dotnet add package Snet.PQDIF -v <最新版本>

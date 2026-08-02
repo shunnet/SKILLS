@@ -1,7 +1,7 @@
 ---
 name: daq-skill
 description: 工业物联网数据采集通信库，基于 Snet 框架，支持 PLC/工控/电力/机器人 等 30+ 种工业协议的数据读取、写入、订阅、状态获取，以及 Kafka/MQTT/RabbitMQ/NetMQ/Netty 消息中间件转发。所有采集库通过 ProtocolType 枚举自动选择底层驱动。支持"一句话"完成采集+转发。
-version: 1.0.0.7
+version: 1.0.0.8
 metadata:
   hermes:
     tags: [daq, iot, plc, industrial-automation, modbus, siemens, opc-ua, mqtt, kafka]
@@ -92,8 +92,8 @@ operate.Off();
 
 ```bash
 # ✅ 正确：指定版本号
-dotnet add package Snet.Siemens -v 1.0.0.1
-dotnet add package Snet.Mqtt -v 1.0.0.1
+dotnet add package Snet.Siemens -v 26.214.1
+dotnet add package Snet.Mqtt -v 26.214.1
 
 # ❌ 错误：不带版本号（使用 * 通配符，运行时报错）
 dotnet add package Snet.Siemens
@@ -114,16 +114,16 @@ dotnet add package Snet.Mqtt
 
 ```bash
 # ✅ 正确：只引用驱动包 + MQ 包
-dotnet add package Snet.Siemens -v 1.0.0.1
-dotnet add package Snet.Mqtt -v 1.0.0.1
+dotnet add package Snet.Siemens -v 26.214.1
+dotnet add package Snet.Mqtt -v 26.214.1
 
 # ❌ 错误：多引用了传递依赖包
-dotnet add package Snet.Siemens -v 1.0.0.1
-dotnet add package Snet.Mqtt -v 1.0.0.1
-dotnet add package Snet.Core -v 1.0.0.1      # 不需要！
-dotnet add package Snet.Model -v 1.0.0.1     # 不需要！
-dotnet add package Snet.Log -v 1.0.0.1       # 不需要！
-dotnet add package Snet.Utility -v 1.0.0.1   # 不需要！
+dotnet add package Snet.Siemens -v 26.214.1
+dotnet add package Snet.Mqtt -v 26.214.1
+dotnet add package Snet.Core -v 26.214.1      # 不需要！
+dotnet add package Snet.Model -v 26.214.1     # 不需要！
+dotnet add package Snet.Log -v 26.214.1       # 不需要！
+dotnet add package Snet.Utility -v 26.214.1   # 不需要！
 ```
 
 ### using 语句 vs NuGet 引用
@@ -203,8 +203,46 @@ using Snet.Utility;          // ← 来自传递依赖 Snet.Utility
 
 **框架自动完成转发，用户只需：**
 1. 启动 DAQ 并订阅地址
-2. 启动 MQ 客户端（设置好 SN）
+2. **通过 `config/mq/` 配置文件注册 MQ 实例（关键前提！见下方说明）**
 3. 在 AddressDetails 中配置 AddressMqParam（指定 ISns、Topic、ContentFormat）
+
+> **⚠️ 自动转发前提（重要）：**
+> 转发机制内部使用 `MqOperate` 的单例注册表（`MqOperate.InstanceIoc`），该注册表**只识别 `config/mq/` 目录下 `{完整命名空间}.{类名}.{SN}.Mq.Config.json` 配置文件加载的 MQ 实例**。用户代码中 `new MqttClientOperate(...)` + `OnAsync()` 创建的实例**不会注册进该表**——按此流程运行自动转发会报 "实例未找到"。
+>
+> **正确做法（两步缺一不可）：**
+>
+> **第 1 步：MQ 驱动 DLL 放入 `lib/mq/` 目录。** 配置文件能被识别的前提是插件程序集已注册（`PluginOperate` 扫描 `AppContext.BaseDirectory/lib/mq/` 下的 `Snet.*.dll`）。纯 console app 的 DLL 在 bin 根目录**不在 lib/mq** → 报"对应的程序集不存在，无法创建实例"。需把 MQ 包 DLL（如 Snet.Mqtt.dll 及其依赖）复制到 `lib/mq/`。
+>
+> **第 2 步：创建 `config/mq/` 配置文件**（文件名 = 命名空间.类名.SN.Mq.Config.json，内容 = Basics 的 JSON），如：
+> ```json
+> // config/mq/Snet.Mqtt.client.MqttClientOperate.mqtt-target.Mq.Config.json
+> {
+>   "SN": "mqtt-target",
+>   "IpAddress": "127.0.0.1",
+>   "Port": 1883,
+>   "UserName": "shunnet",
+>   "Password": "shunnet",
+>   "ClientID": null,
+>   "MessageExpirationTime": 86400000,
+>   "QualityOfServiceLevel": "AtMostOnce",
+>   "ResponseType": "Content"
+> }
+> ```
+> MqOperate 启动后自动监听该目录并加载实例（config 变化热更新）。之后 `AddressMqParam.ISns = "Snet.Mqtt.client.MqttClientOperate.mqtt-target"` 即可匹配。
+>
+> **失败排查提示：** 实例缺失时错误消息为"所有指定的实例均不存在"或"消息已入队，但有 N 个实例未找到"（Status=true）；该日志 `consoleShow:false`，控制台无输出——需查看 `logs/` 目录日志文件或订阅 `OnInfoEventAsync` 才能发现。
+>
+> **替代方案：** 若不想用配置文件，可放弃自动转发，在订阅数据事件 `OnDataEventAsync` 中手动调用 `mqClient.ProduceAsync(topic, content)`（此时 MQ 实例用 `new` + `OnAsync` 即可）。
+
+> **📌 转发时序说明（重要）：**
+> - **"订阅"是轮询不是推送**：`SubscribeOperate` 按 `HandleInterval`（默认 1000ms）周期调用 `ReadAsync` → `ExecuteDispose` → **无条件 Produce**（与 `ChangeOut` 无关——`ChangeOut` 只 gate `OnDataEvent` 事件，不 gate MQ 转发）。默认配置下 MQTT 每 1 秒收到全量值，无论数据是否变化。
+> - **`ReadAsync` 本身也会触发 MQ 转发**（`ExecuteDispose` 内 Produce）。先 Read 后 Subscribe 会产生重复转发——如需一次性读取，先移除 `AddressMqParam` 或改为手动 Produce。
+> - 如需"仅变化才发"，需在 `OnDataEventAsync` 中自行过滤（比较新旧值），或去掉 `AddressMqParam` 改手动 Produce。
+
+> **📌 单例池使用须知（重要）：**
+> - `InstanceAsync` 按 Basics 深比较（含 SN）返回**共享实例**——同一配置两次调用得到同一对象；`Basics.SN` 默认随机 GUID，未显式设置时每次调用都新建实例。
+> - **`using var` 的 Dispose 会硬关连接（Off(true)）并移出单例池**——一处释放即对所有持有者断连；之后同配置重建会得到新实例，**旧实例上注册的 `OnDataEventAsync`/`OnInfoEventAsync` 处理器静默丢失**。
+> - 推荐：实例在应用生命周期内创建一次并复用（不 Dispose）；或每次重建后**重新注册事件处理器**。
 
 ### 1.2 ProtocolType 驱动机制
 
@@ -222,6 +260,8 @@ XxxData.Basics.ProtocolType → switch-case → 自动实例化对应底层驱�
 
 **生成代码：**
 
+> **⚠️ 自动转发前提：** 下方代码中的 `AddressMqParam.ISns` 要生效，必须先创建 `config/mq/Snet.Mqtt.client.MqttClientOperate.mqtt-target.Mq.Config.json` 配置文件（内容见 §1.1 的 JSON 示例）**并把 MQ 驱动 DLL 放入 `lib/mq/`**，MqOperate 才会加载该实例。否则转发报 "实例未找到"——此时请改用下方步骤 4 事件中 `mqClient` 的手动 ProduceAsync（已给出示例代码）。
+
 > **📌 生成代码前，先创建项目并安装 NuGet 包（版本号到 nuget.org 查询）：**
 > ```bash
 > dotnet new console -n DaqDemo && cd DaqDemo
@@ -236,6 +276,7 @@ XxxData.Basics.ProtocolType → switch-case → 自动实例化对应底层驱�
 using System.Collections.Concurrent;
 using Snet.Siemens;
 using Snet.Mqtt.client;
+using MQTTnet.Protocol;   // MqttQualityOfServiceLevel 枚举所在命名空间
 using Snet.Model.data;
 using Snet.Model.@enum;
 using Snet.Log;
@@ -254,13 +295,13 @@ var mqConfig = new MqttClientData.Basics
     SN = "mqtt-target",              // 重要：设置 SN 用于 AddressMqParam.ISns 匹配
     IpAddress = "127.0.0.1",
     Port = 1883,                      // 库默认 6688，需改标准端口
-    UserName = null,                   // 默认 "sample"，不需要认证时设 null
-    Password = null,                   // 默认 "sample"，不需要认证时设 null
+    UserName = null,                   // 默认 "shunnet"，不需要认证时设 null
+    Password = null,                   // 默认 "shunnet"，不需要认证时设 null
     ClientID = null,                   // 客户端ID，null 则自动生成随机
     MessageExpirationTime = 86400000,  // 消息过期时间(ms)，默认 24h
     QualityOfServiceLevel = MqttQualityOfServiceLevel.AtMostOnce, // QoS: AtMostOnce/AtLeastOnce/ExactlyOnce
 };
-using var mqClient = new MqttClientOperate(mqConfig);
+using var mqClient = await MqttClientOperate.InstanceAsync(mqConfig);
 var mqResult = await mqClient.OnAsync();
 if (!mqResult.Status)
 {
@@ -282,7 +323,7 @@ var daqConfig = new SiemensData.Basics
     ReceiveTimeOut = 3000,
 };
 
-using var siemens = new SiemensOperate(daqConfig);
+using var siemens = await SiemensOperate.InstanceAsync(daqConfig);
 var daqResult = await siemens.OnAsync();
 if (!daqResult.Status)
 {
@@ -352,6 +393,9 @@ siemens.OnDataEventAsync += async (sender, e) =>
         {
             if (kv.Value.Quality == QualityType.Normal)
                 LogHelper.Info($"📡 {kv.Key} = {kv.Value.ResultValue}");
+
+            // 【手动转发替代方案】未配置 config/mq 注册时，可在此手动生产：
+            // await mqClient.ProduceAsync("factory/siemens", $"{kv.Key} = {kv.Value.ResultValue}");
         }
     }
     await Task.CompletedTask;
@@ -396,20 +440,20 @@ using Snet.Model.@enum;
 using Snet.Log;
 using Snet.Utility;
 
-using var mq1 = new MqttClientOperate(new MqttClientData.Basics
+using var mq1 = await MqttClientOperate.InstanceAsync(new MqttClientData.Basics
 {
     SN = "broker1", IpAddress = "192.168.0.10", Port = 1883,
 });
 await mq1.OnAsync();
 
-using var mq2 = new MqttClientOperate(new MqttClientData.Basics
+using var mq2 = await MqttClientOperate.InstanceAsync(new MqttClientData.Basics
 {
     SN = "broker2", IpAddress = "192.168.0.11", Port = 1883,
 });
 await mq2.OnAsync();
 
 // Modbus 配置
-using var modbus = new ModbusOperate(new ModbusData.Basics
+using var modbus = await ModbusOperate.InstanceAsync(new ModbusData.Basics
 {
     IpAddress = "192.168.0.2", Port = 502,
     ProtocolType = ModbusData.ProtocolType.ModbusTcpNet,
@@ -467,7 +511,8 @@ await modbus.OffAsync();
 ```csharp
 AddressMqParam = new AddressMq
 {
-    // ISns 留空 → 广播到所有 MQ 实例
+    // ISns 留空 → 广播给所有「经 config/mq 注册且已打开」的 MQ 实例（InstanceIoc 中的实例）
+    // ⚠️ 代码 new + OnAsync 创建的实例不在 InstanceIoc 中，不会收到广播
     ISns = null,
     Topic = "broadcast/all",
 }
@@ -589,7 +634,7 @@ AddressValueSimplify sim = av.GetSimplify();
 ```csharp
 new AddressDetails
 {
-    SN = "唯一标识",                // 机台号/组名/车间/厂
+    SN = "唯一标识",                // 机台号/组名/车间/厂（不设置则默认随机 GUID）
     AddressName = "DB1.0",           // PLC 地址（必填！）
     AddressDataType = DataType.Int32,// 数据类型
     AddressType = AddressType.Reality, // Reality=实际, VirtualStatic/DynamicRandom...
@@ -778,7 +823,7 @@ DataFormat.DCBA  // 完全反转
 | **安川** | `CpuFrom`, `CpuTo`, `DataFormat` | `YaskawaData.cs` |
 | **西蒙** | `FrameNo` | `CimonData.cs` |
 | **发那科** | `StringEncoding` | `FanucData.cs` |
-| **永宏** | `Station`, `DataFormat` | `FatekData.cs` |
+| **永宏** | `Station` | `FatekData.cs` |
 | **富士** | `ConnectionID`, `DataFormat`, `DataSwap`, `Station` | `FujiData.cs` |
 | **LS产电** | `SlotNo`, `CpuType`, `CompanyID`, `Station` | `LSisData.cs` |
 | **理化** | `Station` | `RKCData.cs` |
@@ -793,7 +838,11 @@ DataFormat.DCBA  // 完全反转
 | **PQDIF（电力）** | `StationStr`, `EnableCodeFE`, `UseSecurityResquest`, `CA`, `Password`, `OpCode`, `CheckDataId`, `InstrumentType`, `AddressStartWithZero`, `IsStringReverse`, `Crc16CheckEnable` | `PQDIFData.cs` |
 | **自由协议** | `DataFormat`, `IsStringReverseByteWord` | `FreedomData.cs` |
 
-**公共属性（所有协议共有）：** `IpAddress`, `Port`, `ConnectTimeOut`, `ReceiveTimeOut`, `SleepTime`, `SocketKeepAliveTime`, `IsPersistentConnection`, `SerialPortInfo`, `RtsEnable`, `DtrEnable`, `ProtocolType`
+**公共属性（所有协议共有）：** `IpAddress`(默认 "127.0.0.1"), `Port`(默认 **6688**，务必按协议改标准端口), `ConnectTimeOut`(1000ms), `ReceiveTimeOut`(1000ms), `SleepTime`(0), `SocketKeepAliveTime`(-1), `IsPersistentConnection`(true), `SerialPortInfo`("COM3-9600-8-N-1"), `RtsEnable`(false), `DtrEnable`(false), `ProtocolType`
+
+> **⚠️ 关键默认值：** `ProtocolType` 各协议有默认值但**不同**——如西门子默认 `SiemensPPIOverTcp`（忘设就按 PPI 连 S7-1500 会失败！），Modbus 默认 `ModbusTcpNet`。**务必显式设置 `ProtocolType`** 为实际设备型号。
+>
+> **订阅字段默认值（SCData）：** `HandleInterval`=1000ms（轮询周期）、`ChangeOut`=**true**（仅变化时触发 OnDataEvent 事件——默认下"没变化就不通知"，勿误判为没数据）、`AllOut`=false、`TaskNumber`=5。
 
 ---
 
@@ -845,7 +894,7 @@ var config = new SiemensData.Basics
     ConnectTimeOut = 3000,
     ReceiveTimeOut = 3000,
 };
-using var operate = new SiemensOperate(config);
+using var operate = await SiemensOperate.InstanceAsync(config);
 await operate.OnAsync();
 // 地址: DB1.0, M0.0, I0.0, Q0.0, MW0, IW0 等
 // 读取: await operate.ReadAsync(address);
@@ -871,7 +920,7 @@ var config = new ModbusData.Basics
 // ModbusRtu 用 SerialPortInfo 替代 IpAddress/Port
 // ModbusRtuOverTcp 用 IpAddress/Port
 // ModbusUdpNet 用 IpAddress/Port
-using var operate = new ModbusOperate(config);
+using var operate = await ModbusOperate.InstanceAsync(config);
 await operate.OnAsync();
 // 读取: await operate.ReadAsync(address);
 ```
@@ -893,7 +942,7 @@ var config = new OpcUaClientData.Basics
     UserName = "user",
     Password = "password",
 };
-using var operate = new OpcUaClientOperate(config);
+using var operate = await OpcUaClientOperate.InstanceAsync(config);
 await operate.OnAsync();
 // 地址: ns=0;i=2258 或 ns=2;s=MyVariable
 // 读取: await operate.ReadAsync(address);
@@ -905,7 +954,7 @@ await operate.OffAsync();
 ```csharp
 using Snet.Opc.ua.service;
 
-using (OpcUaServiceOperate operate = new OpcUaServiceOperate(new OpcUaServiceData.Basics
+using (OpcUaServiceOperate operate = await OpcUaServiceOperate.InstanceAsync(new OpcUaServiceData.Basics
 {
     Port = 6688,
     AType = Snet.Opc.core.Data.AuType.UserName,
@@ -925,9 +974,10 @@ using (OpcUaServiceOperate operate = new OpcUaServiceOperate(new OpcUaServiceDat
 ```csharp
 using Snet.Opc.da.client;
 
-using (OpcDaClientOperate operate = new OpcDaClientOperate(new OpcDaClientData.Basics
+using (OpcDaClientOperate operate = await OpcDaClientOperate.InstanceAsync(new OpcDaClientData.Basics
 {
-    ServerUrl = "opcda://192.168.0.1/OpcDaServer",
+    SName = "Knight.OPC.Server.Demo",   // 服务名（无 ServerUrl 属性）
+    Host = "192.168.0.1",               // 主机（默认 localhost）
 }))
 {
     await operate.OnAsync();
@@ -939,9 +989,11 @@ using (OpcDaClientOperate operate = new OpcDaClientOperate(new OpcDaClientData.B
 ```csharp
 using Snet.Opc.da.http;
 
-using (OpcDaHttpOperate operate = new OpcDaHttpOperate(new OpcDaHttpData.Basics
+using (OpcDaHttpOperate operate = await OpcDaHttpOperate.InstanceAsync(new OpcDaHttpData.Basics
 {
-    ServerUrl = "http://192.168.0.1:8080/opcda",
+    IpAddress = "192.168.0.1",          // 无 ServerUrl 属性
+    Port = 8080,
+    ServerName = "Knight.OPC.Server.Demo",
 }))
 {
     await operate.OnAsync();
@@ -961,7 +1013,7 @@ var config = new MitsubishiData.Basics
     NetworkStationNumber = 0,
     TargetIOStation = 1023,
 };
-using var operate = new MitsubishiOperate(config);
+using var operate = await MitsubishiOperate.InstanceAsync(config);
 await operate.OnAsync();
 // 读取: await operate.ReadAsync(address);
 ```
@@ -971,7 +1023,7 @@ await operate.OnAsync();
 ```csharp
 using Snet.Sim;
 
-using var operate = new SimOperate(new SimData.Basics { SN = "test" });
+using var operate = await SimOperate.InstanceAsync(new SimData.Basics { SN = "test" });
 await operate.OnAsync();
 // 5 种虚拟地址: VirtualStatic, VirtualDynamic_Random, VirtualDynamic_RandomScope,
 //               VirtualDynamic_Order, VirtualDynamic_OrderScope
@@ -980,7 +1032,7 @@ Address address = new Address(new AddressDetails
     SN = "v1", AddressName = "SimVal{1000,1^100}", AddressDataType = DataType.Int32,
     AddressType = AddressType.VirtualDynamic_RandomScope,
     // 虚拟地址可在 AddressName 中嵌入参数：
-    // {间隔} / {间隔,最小值^最大值} / {间隔,增长比例} / {间隔,增长比例,最小值^最大值}
+    // {间隔} / {间隔,最小值^最大值} / {间隔,步长} / {间隔,步长,最小值^最大值}
 });
 var result = await operate.ReadAsync(address);
 await operate.OffAsync();
@@ -1002,7 +1054,7 @@ using Snet.Model.@enum;
 using Snet.Log;
 using Snet.Utility;
 
-using (DBOperate operate = new DBOperate(new DBData.Basics
+using (DBOperate operate = await DBOperate.InstanceAsync(new DBData.Basics
 {
     // 数据库类型
     DBType = DBData.DBType.SqlServer,  // 或 MySql / Oracle / SQLite
@@ -1081,7 +1133,7 @@ using (DBOperate operate = new DBOperate(new DBData.Basics
 **Default 模式（增删改查）：**
 
 ```csharp
-using (DBOperate operate = new DBOperate(new DBData.Basics
+using (DBOperate operate = await DBOperate.InstanceAsync(new DBData.Basics
 {
     DBType = DBData.DBType.SqlServer,
     ConnectStr = "Server=192.168.0.100;Database=IoTData;User Id=sa;Password=xxx;",
@@ -1131,7 +1183,7 @@ using Snet.Utility;
 using System.Collections.Concurrent;
 
 // TepMasterOperate 实现了 IDaq，用法与西门子/Modbus 完全一致
-using (TepMasterOperate operate = new TepMasterOperate(new TepMasterData.Basics
+using (TepMasterOperate operate = await TepMasterOperate.InstanceAsync(new TepMasterData.Basics
 {
     IpAddress = "0.0.0.0",
     Port = 6688,
@@ -1230,7 +1282,7 @@ TepSlaveOperate clientOperate = TepSlaveOperate.Instance(new TepSlaveData.Basics
     DevID = "10086",            // 设备 ID
     UserName = "samples",       // 认证账号（与 Master 一致）
     Password = "samples",       // 认证密码
-    ViolenceUpload = false,     // false=等待响应, true=只上传不等结果
+    // 注意：无 ViolenceUpload 属性（Basics 仅 DevName/DevID/UserName/Password + TCP 参数）
 });
 
 // 设置设备状态回调（Master 查询设备状态时触发）
@@ -1307,14 +1359,14 @@ using System.Collections.Concurrent;
 using static Snet.PQDIF.PQDIFData;
 
 // MQTT 客户端
-var mq = new MqttClientOperate(new MqttClientData.Basics
+var mq = await MqttClientOperate.InstanceAsync(new MqttClientData.Basics
 {
     SN = "power-mqtt", IpAddress = "127.0.0.1", Port = 1883,
 });
 await mq.OnAsync();
 
 // PQDIF 电表 — DLT645-2007 TCP
-using var meter = new PQDIFOperate(new Basics
+using var meter = await PQDIFOperate.InstanceAsync(new Basics
 {
     IpAddress = "192.168.0.100",
     Port = 2404,                       // DLT645 常用端口
@@ -1387,7 +1439,7 @@ var config = new KossiData.Basics
     ConnectTimeOut = 3000,
     ReceiveTimeOut = 3000,
 };
-using var operate = new KossiOperate(config);
+using var operate = await KossiOperate.InstanceAsync(config);
 await operate.OnAsync();
 // 地址: 参考欧姆龙 CIP Tag 格式
 ```
@@ -1411,7 +1463,7 @@ var config = new OrientalMotorData.Basics
     ConnectTimeOut = 3000,
     ReceiveTimeOut = 3000,
 };
-using var operate = new OrientalMotorOperate(config);
+using var operate = await OrientalMotorOperate.InstanceAsync(config);
 await operate.OnAsync();
 // 读取: await operate.ReadAsync(address);
 ```
@@ -1432,7 +1484,7 @@ var config = new YuDianData.Basics
     Station = 1,
     ReceiveTimeOut = 1000,
 };
-using var operate = new YuDianOperate(config);
+using var operate = await YuDianOperate.InstanceAsync(config);
 await operate.OnAsync();
 // 读取: await operate.ReadAsync(address);
 ```
@@ -1465,20 +1517,22 @@ await operate.OnAsync();
 
 ```csharp
 using Snet.Mqtt.client;
+using MQTTnet.Protocol;   // MqttQualityOfServiceLevel 枚举所在命名空间
+using Snet.Model.@enum;   // ResponseType 枚举
 
 var config = new MqttClientData.Basics
 {
     SN = "my-mqtt",              // 重要：用于 ISns 匹配
     IpAddress = "127.0.0.1",     // ← 属性名是 IpAddress，不是 Ip！
     Port = 1883,                  // 库默认 6688，需改标准端口
-    UserName = "admin",           // 默认 "sample"
-    Password = "password",        // 默认 "sample"
+    UserName = "admin",           // 默认 "shunnet"
+    Password = "password",        // 默认 "shunnet"
     ClientID = null,              // 客户端ID，null 则自动生成随机
     MessageExpirationTime = 86400000,  // 消息过期时间(ms)，默认 24h
     QualityOfServiceLevel = MqttQualityOfServiceLevel.AtMostOnce, // QoS: AtMostOnce/AtLeastOnce/ExactlyOnce
     ResponseType = ResponseType.Content,  // Content/Bytes/ContentWithTopic
 };
-using var mq = new MqttClientOperate(config);
+using var mq = await MqttClientOperate.InstanceAsync(config);
 await mq.OnAsync();
 
 // 生产
@@ -1508,7 +1562,7 @@ var config = new MqttServiceData.Basics
     Port = 6688,
     MaxNumber = 10000,    // 最大客户端连接数
 };
-using (MqttServiceOperate mqttService = new MqttServiceOperate(config))
+using (MqttServiceOperate mqttService = await MqttServiceOperate.InstanceAsync(config))
 {
     await mqttService.OnAsync();
     // 内置 MQTT Broker 已启动，客户端可连接 mqtt://127.0.0.1:6688
@@ -1525,7 +1579,7 @@ var config = new MqttWebSocketServiceData.Basics
     Port = 6688,          // MQTT 端口
     WsPort = 8866,        // WebSocket 端口
 };
-using (MqttWebSocketServiceOperate wsService = new MqttWebSocketServiceOperate(config))
+using (MqttWebSocketServiceOperate wsService = await MqttWebSocketServiceOperate.InstanceAsync(config))
 {
     await wsService.OnAsync();
     // 浏览器可通过 ws://127.0.0.1:8866 连接
@@ -1573,8 +1627,8 @@ using (MqttWebSocketServiceOperate wsService = new MqttWebSocketServiceOperate(c
 ```csharp
 // 程序启动时一次性配置
 LogHelper.Get().FolderName = "./logs";    // 日志文件目录
-LogHelper.Get().ConsoleOut = true;        // 控制台输出（默认 false）
-LogHelper.Get().FileOut = true;           // 文件输出
+LogHelper.Get().ConsoleOut = true;        // 控制台输出（默认 null=跟随全局）
+LogHelper.Get().Out = true;               // 日志总开关（默认 true；注意无 FileOut 属性）
 
 // 日志级别
 LogHelper.Verbose("详细调试");
@@ -1594,7 +1648,7 @@ LogHelper.Fatal("致命");
 ### 10.1 启动 WebAPI
 
 ```csharp
-using (var operate = new XxxOperate(config))
+using (var operate = await XxxOperate.InstanceAsync(config))
 {
     await operate.OnAsync();
     
@@ -1651,7 +1705,7 @@ Task<OperateResult> WARequestExampleAsync(CancellationToken token = default);
 | 错误 | 正确写法 |
 |------|----------|
 | `result.IsSuccess` | `result.Status` ✅ |
-| `Write(dict<string, object>)` | `Write(dict<string, (object, EncodingType?)>)` ✅ |
+| `Write(dict<string, (object, EncodingType?)>)` 签名 | 3 个重载都合法：`(object, EncodingType?)` / `object` / `WriteModel` ✅ |
 | MQTT `.Ip = ""` | `.IpAddress = ""` ✅ |
 | 缺少 `using System.Collections.Concurrent;` | 添加到文件顶部 ✅ |
 | 缺少 `using Snet.Driver.Core;` (DataFormat) | 添加到文件顶部 ✅ |
@@ -1681,7 +1735,7 @@ Task<OperateResult> WARequestExampleAsync(CancellationToken token = default);
 | 同步事件 | 异步事件 | 触发时机 | 数据类型 |
 |----------|----------|----------|----------|
 | `OnDataEvent` | `OnDataEventAsync` | 订阅数据到达时 | `EventDataResult` |
-| `OnInfoEvent` | `OnInfoEventAsync` | 状态变化/告警时 | `EventDataResult` |
+| `OnInfoEvent` | `OnInfoEventAsync` | 状态变化/告警时 | `EventInfoResult` |
 | `OnLanguageEvent` | `OnLanguageEventAsync` | 语言切换时 | `EventLanguageResult` |
 
 > **推荐：** 同步事件用于简单日志/打印，异步事件用于数据库写入、HTTP 转发等 I/O 操作。
@@ -1772,7 +1826,7 @@ siemens.OnInfoEvent += (sender, e) =>
 ### 13.1 错误处理模板
 
 ```csharp
-using var operate = new XxxOperate(config);
+using var operate = await XxxOperate.InstanceAsync(config);
 OperateResult result = await operate.OnAsync();
 if (!result.Status)
 {
@@ -1839,3 +1893,12 @@ DAQ → Netty:   "Snet.Netty.client.NettyClientOperate.{SN}"
 > **已覆盖 NuGet 包：** 西门子/Modbus/三菱/欧姆龙/东方马达/汇川/OPC UA Client+Server/OPC DA/罗克韦尔/台达/基恩士/科伺(Kossi)/松下/倍福/GE/安川/英威腾/麦格米特/宇电(YuDian)/数据库/TEP/自由协议/模拟库/PQDIF(电力电表：DLT645/DLT698/CJT188/DTSU6606)。
 >
 > **Snet.Driver 内置（无独立 NuGet 包）：** Knx(楼宇自动化)/OpenProtocol(拧紧枪)/Sick(条码扫描)/Geniitek(振动传感器)/IDCard(身份证读卡器)/Toledo(称重)/IEC104(电力远动)/ShineIn Light(光源)/DAM3601(温控)。**不在列表中？** PluginDev-Skill 定义插件开发契约，AI 根据协议描述自动生成插件代码。
+
+---
+
+## 📅 版本历史
+
+| 版本 | 日期 | 变更 |
+|:---|:---|:---|
+| 1.0.0.8 | 2026-08-02 | 全面核对源码修正：`FileOut`→`Out`；OPC DA Client/HTTP 用 `SName`/`IpAddress`（无 ServerUrl）；TEP Slave 删除虚构 `ViolenceUpload`；24 处构造统一 `await XxxOperate.InstanceAsync()` 单例池；补充 `config/mq/` 配置文件自动转发前提（MqOperate.InstanceIoc 机制）；NuGet 版本号 1.0.0.1→26.214.1；MQTT 默认账号 sample→shunnet；补 `using MQTTnet.Protocol;`；Fatek 删除虚构 DataFormat；OnInfoEvent 类型→EventInfoResult；Write 三重载说明修正；虚拟地址参数"增长比例"→"步长" |
+| 1.0.0.7 | 2026-07-14 | 初始版本 |
