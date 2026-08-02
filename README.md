@@ -23,7 +23,7 @@
 </p>
 
 <p align="center">
-  <a href="https://shunnet.top"><b>🌐 官方网站</b></a> ·
+  <a href="https://snet.cn"><b>🌐 官方网站</b></a> ·
   <a href="https://www.nuget.org/profiles/shun"><b>📚 NuGet</b></a> ·
   <a href="https://github.com/shunnet"><b>💻 GitHub</b></a> ·
   <a href="https://github.com/shunnet/Daq"><b>🔌 Daq 工具</b></a>
@@ -187,11 +187,11 @@ AI 先用大白话问用户（🏷️ 窗口需求、🎨 主题偏好、🌍 �
 
 | 🔗 | 链接 | 说明 |
 |---|---|---|
-| 🌐 | [官网](https://shunnet.top) | 官方网站 |
+| 🌐 | [官网](https://snet.cn) | 官方网站 |
 | 📚 | [NuGet](https://www.nuget.org/profiles/shun) | NuGet 包仓库 |
 | 💻 | [GitHub](https://github.com/shunnet) | 源代码仓库 |
 | 🔌 | [Daq 工具](https://github.com/shunnet/Daq) | 插件化数采工具 |
-| 📝 | [博客](https://blog.shunnet.top) | 技术博客 |
+| 📝 | [博客](https://blog.snet.cn) | 技术博客 |
 
 
 
