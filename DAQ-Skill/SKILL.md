@@ -1,7 +1,7 @@
 ---
 name: daq-skill
 description: 工业物联网数据采集通信库，基于 Snet 框架，支持 PLC/工控/电力/机器人 等 30+ 种工业协议的数据读取、写入、订阅、状态获取，以及 Kafka/MQTT/RabbitMQ/NetMQ/Netty 消息中间件转发。所有采集库通过 ProtocolType 枚举自动选择底层驱动。支持"一句话"完成采集+转发。
-version: 1.0.0.8
+version: 1.0.0.9
 metadata:
   hermes:
     tags: [daq, iot, plc, industrial-automation, modbus, siemens, opc-ua, mqtt, kafka]
@@ -92,8 +92,8 @@ operate.Off();
 
 ```bash
 # ✅ 正确：指定版本号
-dotnet add package Snet.Siemens -v 26.214.1
-dotnet add package Snet.Mqtt -v 26.214.1
+dotnet add package Snet.Siemens -v 26.222.1
+dotnet add package Snet.Mqtt -v 26.222.1
 
 # ❌ 错误：不带版本号（使用 * 通配符，运行时报错）
 dotnet add package Snet.Siemens
@@ -114,16 +114,16 @@ dotnet add package Snet.Mqtt
 
 ```bash
 # ✅ 正确：只引用驱动包 + MQ 包
-dotnet add package Snet.Siemens -v 26.214.1
-dotnet add package Snet.Mqtt -v 26.214.1
+dotnet add package Snet.Siemens -v 26.222.1
+dotnet add package Snet.Mqtt -v 26.222.1
 
 # ❌ 错误：多引用了传递依赖包
-dotnet add package Snet.Siemens -v 26.214.1
-dotnet add package Snet.Mqtt -v 26.214.1
-dotnet add package Snet.Core -v 26.214.1      # 不需要！
-dotnet add package Snet.Model -v 26.214.1     # 不需要！
-dotnet add package Snet.Log -v 26.214.1       # 不需要！
-dotnet add package Snet.Utility -v 26.214.1   # 不需要！
+dotnet add package Snet.Siemens -v 26.222.1
+dotnet add package Snet.Mqtt -v 26.222.1
+dotnet add package Snet.Core -v 26.222.1      # 不需要！
+dotnet add package Snet.Model -v 26.222.1     # 不需要！
+dotnet add package Snet.Log -v 26.222.1       # 不需要！
+dotnet add package Snet.Utility -v 26.222.1   # 不需要！
 ```
 
 ### using 语句 vs NuGet 引用
@@ -235,7 +235,7 @@ using Snet.Utility;          // ← 来自传递依赖 Snet.Utility
 > **替代方案：** 若不想用配置文件，可放弃自动转发，在订阅数据事件 `OnDataEventAsync` 中手动调用 `mqClient.ProduceAsync(topic, content)`（此时 MQ 实例用 `new` + `OnAsync` 即可）。
 
 > **📌 转发时序说明（重要）：**
-> - **"订阅"是轮询不是推送**：`SubscribeOperate` 按 `HandleInterval`（默认 1000ms）周期调用 `ReadAsync` → `ExecuteDispose` → **无条件 Produce**（与 `ChangeOut` 无关——`ChangeOut` 只 gate `OnDataEvent` 事件，不 gate MQ 转发）。默认配置下 MQTT 每 1 秒收到全量值，无论数据是否变化。
+> - **"订阅"是轮询不是推送**：`SubscribeOperate` 按 `HandleInterval`（默认 1000ms）周期调用 `ReadAsync` → `ExecuteDispose` → **Quality 为 Normal/ParseUnknown 时 Produce**（与 `ChangeOut` 无关——`ChangeOut` 只 gate `OnDataEvent` 事件，不 gate MQ 转发）。默认配置下 MQTT 每 1 秒收到全量值，无论数据是否变化；**异常质量（Exception/DataTypeError/ParseError）的点不会转发**。
 > - **`ReadAsync` 本身也会触发 MQ 转发**（`ExecuteDispose` 内 Produce）。先 Read 后 Subscribe 会产生重复转发——如需一次性读取，先移除 `AddressMqParam` 或改为手动 Produce。
 > - 如需"仅变化才发"，需在 `OnDataEventAsync` 中自行过滤（比较新旧值），或去掉 `AddressMqParam` 改手动 Produce。
 
@@ -249,6 +249,42 @@ using Snet.Utility;          // ← 来自传递依赖 Snet.Utility
 ```
 XxxData.Basics.ProtocolType → switch-case → 自动实例化对应底层驱动
 ```
+
+> **📌 ProtocolType 是各厂商 Data 类的嵌套枚举**（如 `ModbusData.ProtocolType`），不在 `Snet.Model/@enum`。`Snet.Model/@enum` 只有 8 个通用枚举（AddressType/DataFormat/DataType/EncodingType/LanguageType/PluginType/QualityType/ResponseType）。
+
+### 1.3 地址自动组包（PackerAsync / UnPackerAsync）
+
+**IDaq 内置 IPacker 契约**（v26.222.1 起所有采集协议可用）：把分散的批量地址自动合并为最小批次读取（N 次往返 → 约 1 次），读回后一键拆包还原。
+
+```csharp
+// 组包 → 读取 → 解包（三步）
+var packed = await op.PackerAsync(address, basics.ProtocolType.ToString());  // 组包
+var batch = (await op.ReadAsync(packed.GetSource<Address>()))
+    .GetSource<ConcurrentDictionary<string, AddressValue>>();
+var values = (await op.UnPackerAsync(batch))
+    .GetSource<List<ConcurrentDictionary<string, AddressValue>>>();          // 还原为逐地址结果
+```
+
+**关键约定：**
+- `protocolTypeKey` = `Basics.ProtocolType.ToString()`（如 `"SiemensS7Net_S1200"`、`"ModbusTcpNet"`）
+- 注册表共 **19 个协议族**：Siemens / Modbus / Mitsubishi / Omron / Fuji / Keyence / Yokogawa / Panasonic / Yaskawa / GE / Fatek / Fanuc / LSis / Cimon / XinJE / Vigor / Toyota / AllenBradley / MitsubishiFx
+- **标签访问类协议不支持组包，自动原样返回（不报错）**：`SiemensS7Plus` / `MelsecCipNet` / `OmronCipNet` / `KeyenceKvOld` / `KeyenceNanoSerial` / `PanasonicMcNet` / `LSFastEnet` / `AllenBradleyNet` 等
+- 组包批次点 `AddressDescribe` 以 `"packer"` 前缀标记，`AddressExtendParam` 携带 `List<BytesModel>`（批内偏移）；跨区类型（位区 Word / 字区 Bool）自动降级原样保留；超长地址按 `PhysicalMaxBytes=131070` 自动分帧
+- 查询支持组包的协议清单：`PackerHandler.GetSupportAutoPackDeviceTypes()` / `CanAutoPack(typeName)`
+
+### 1.4 克隆与参数更新（IClone / IArgs）
+
+**所有 Operate 实例（IDaq/IMq）均可：**
+
+| 方法 | 用途 |
+|:---|:---|
+| `CloneThis()` / `CloneThisAsync(token)` | 克隆新实例（**不入单例池**，独立连接） |
+| `UpdateArgs<T>(T basics)` / `UpdateArgsAsync<T>` | 运行期替换单例对象的基础参数（单例池原子换键，失败回滚） |
+| `UpdateArgs(json)` / `UpdateArgsAsync(json)` | JSON 字符串重载（反序列化为 D 再走泛型版） |
+| `GetBasicsArgs()` / `GetArgs(getBasicsParam)` | 获取当前基础参数 / 全部参数 |
+| `GetAutoAllocatingArgs()` / `ExistsAutoAllocatingArgs()` | 获取/查询带 `AutoAllocating` 标注的自动分配属性 |
+
+> **⚠️ 已知缺陷：** `UpdateArgsAsync<T>` 成功路径返回 `Status=false`（底层 `EndOperateAsync(false, "参数修改成功")`，Snet.Core/extend/CoreUnify.cs:871）——判断结果请用 `GetDetails` 消息内容，不要只看 `Status`。
 
 ---
 
@@ -665,7 +701,7 @@ new AddressDetails
 | `UInt64`/`Ulong` | `UInt64Array`/`UlongArray` | `ulong` | 8 |
 | `Float`/`Single` | `FloatArray`/`SingleArray` | `float` | 4 |
 | `Double` | `DoubleArray` | `double` | 8 |
-| `String` | — | `string` | n×2 |
+| `String` | — | `string` | n×编码宽（ANSI/ASCII=1、Unicode=2、UTF32=4；默认 UTF8=1） |
 | `ByteArray` | — | `byte[]` | n |
 | `Char` | — | `char` | 2 |
 | `Date` / `Time` / `DateTime` | — | `DateTime` | — |
@@ -806,21 +842,22 @@ DataFormat.DCBA  // 完全反转
 | 协议 | 关键属性（除公共属性外） | 源码文件 |
 |------|------------------------|----------|
 | **西门子** | `Rack`, `Slot`, `PDULength`, `LocalTSAP` | `SiemensData.cs` |
-| **Modbus** | `Station`, `DataFormat`, `AddressStartWithZero`, `IsCheckMessageId` | `ModbusData.cs` |
+| **Modbus** | `Station`, `DataFormat`, `AddressStartWithZero`, `IsCheckMessageId`, `Crc16CheckEnable`, `IsClearCacheBeforeRead`, `StationCheckMatch`, `IsStringReverse` | `ModbusData.cs` |
 | **三菱** | `Slot`, `NetworkNumber`, `NetworkStationNumber`, `EnableWriteBitToWordRegister` | `MitsubishiData.cs` |
-| **欧姆龙** | `OmronPlcType`, `SA1`, `DA1`, `DA2`, `GCT`, `DataFormat` | `OmronData.cs` |
+| **欧姆龙** | `OmronPlcType`, `SA1`, `DA1`, `DA2`, `GCT`, `DataFormat`, `IsStringReverseByteWord` | `OmronData.cs` |
 | **东方马达** | `RunIdleHeader`, `RPITime`, `ActualTimeout`（EIP 协议） | `OrientalMotorData.cs` |
 | **汇川** | `Station`, `InovanceSeries`(AM/AC/H3U/H5U), `DataFormat`, `AddressStartWithZero` | `InovanceData.cs` |
-| **OPC UA** | `ServerUrl`(代替Ip+Port), `AType`(认证方式), `SamplingInterval`, `PublishingInterval` | `OpcUaClientData.cs` |
-| **罗克韦尔** | `Slot`, `ReadArrayUseSegment`, `ContextCheck`, `DstNode` | `AllenBradleyData.cs` |
+| **OPC UA** | `ServerUrl`(代替Ip+Port), `AType`(认证方式: Anonymous/UserName/**Certificate**), `Cer`, `SecreKey`（证书认证时使用）, `SamplingInterval`, `PublishingInterval` | `OpcUaClientData.cs` |
+| **罗克韦尔** | `Slot`, `ContextCheck`, `DstNode`, `SrcNode`, `Station`（`ReadArrayUseSegment` 为只读属性恒 true，勿在初始化器赋值——CS0200） | `AllenBradleyData.cs` |
 | **台达** | `Station`, `DeltaSeries` | `DeltaData.cs` |
 | **基恩士** | `UseStation`, `Station`, `EnableWriteBitToWordRegister` | `KeyenceData.cs` |
 | **科伺（Kossi）** | `Slot`（Kossi PLC 使用欧姆龙 CIP 协议） | `KossiData.cs` |
 | **松下** | `Station` | `PanasonicData.cs` |
 | **麦格米特** | `Station`, `DataFormat`, `AddressStartWithZero` | `MegMeetData.cs` |
 | **英威腾** | `Station`, `DataFormat`, `StationCheckMatch`, `AddressStartWithZero` | `InvtData.cs` |
-| **倍福** | `SenderAMSNetId`, `TargetAMSNetId`, `UseAutoAmsNetID`, `UseTagCache` | `BeckhoffData.cs` |
+| **倍福** | `SenderAMSNetId`, `TargetAMSNetId`, `UseAutoAmsNetID`, `UseTagCache`, `UseServerActivePush`（默认 true，服务端主动推送） | `BeckhoffData.cs` |
 | **安川** | `CpuFrom`, `CpuTo`, `DataFormat` | `YaskawaData.cs` |
+| **通用电气** | 无特殊属性 | `GEData.cs` |
 | **西蒙** | `FrameNo` | `CimonData.cs` |
 | **发那科** | `StringEncoding` | `FanucData.cs` |
 | **永宏** | `Station` | `FatekData.cs` |
@@ -838,11 +875,11 @@ DataFormat.DCBA  // 完全反转
 | **PQDIF（电力）** | `StationStr`, `EnableCodeFE`, `UseSecurityResquest`, `CA`, `Password`, `OpCode`, `CheckDataId`, `InstrumentType`, `AddressStartWithZero`, `IsStringReverse`, `Crc16CheckEnable` | `PQDIFData.cs` |
 | **自由协议** | `DataFormat`, `IsStringReverseByteWord` | `FreedomData.cs` |
 
-**公共属性（所有协议共有）：** `IpAddress`(默认 "127.0.0.1"), `Port`(默认 **6688**，务必按协议改标准端口), `ConnectTimeOut`(1000ms), `ReceiveTimeOut`(1000ms), `SleepTime`(0), `SocketKeepAliveTime`(-1), `IsPersistentConnection`(true), `SerialPortInfo`("COM3-9600-8-N-1"), `RtsEnable`(false), `DtrEnable`(false), `ProtocolType`
+**公共属性（各厂商 `XxxData.Basics` 统一声明；Basics 均继承 SCData 获得订阅字段）：** `IpAddress`(默认 "127.0.0.1"), `Port`(默认 **6688**，务必按协议改标准端口), `ConnectTimeOut`(1000ms), `ReceiveTimeOut`(1000ms), `SleepTime`(0), `SocketKeepAliveTime`(-1), `IsPersistentConnection`(true), `SerialPortInfo`("COM3-9600-8-N-1"), `RtsEnable`(false), `DtrEnable`(false), `ProtocolType`
 
 > **⚠️ 关键默认值：** `ProtocolType` 各协议有默认值但**不同**——如西门子默认 `SiemensPPIOverTcp`（忘设就按 PPI 连 S7-1500 会失败！），Modbus 默认 `ModbusTcpNet`。**务必显式设置 `ProtocolType`** 为实际设备型号。
 >
-> **订阅字段默认值（SCData）：** `HandleInterval`=1000ms（轮询周期）、`ChangeOut`=**true**（仅变化时触发 OnDataEvent 事件——默认下"没变化就不通知"，勿误判为没数据）、`AllOut`=false、`TaskNumber`=5。
+> **订阅字段默认值（SCData，位于 `Snet.Core.subscription.SubscribeData.SCData`）：** `HandleInterval`=1000ms（轮询周期，**已改为 `virtual` 可被协议包/外部重写**——如 DB 采集覆写为 10000ms）、`ChangeOut`=**true**（仅变化时触发 OnDataEvent 事件——默认下"没变化就不通知"，勿误判为没数据）、`AllOut`=false、`TaskNumber`=5。
 
 ---
 
@@ -949,6 +986,20 @@ await operate.OnAsync();
 await operate.OffAsync();
 ```
 
+**OPC UA 证书认证（v26.222.1+，AType.Certificate）：**
+
+```csharp
+var config = new OpcUaClientData.Basics
+{
+    ServerUrl = "opc.tcp://192.168.0.1:4840",
+    AType = Snet.Opc.core.Data.AuType.Certificate,  // 证书认证模式
+    Cer = @"C:\certs\client.pfx",   // 客户端证书 PFX 路径
+    SecreKey = "123456",            // PFX 私钥密码（与 Cer 成对）
+};
+```
+
+> **证书认证要点：** 应用证书链自动 `SetAutoAcceptUntrustedCertificates(true)`（信任服务端证书）；客户端证书经 `new UserIdentity(new X509Certificate2(Cer, SecreKey, MachineKeySet|Exportable))` 提交。`OpcUaClientOperate` 额外实现 `IOu` 接口（继承 IDaq），提供节点浏览 API：`GetNodeID` / `GetAllNode` / `DetailedReadAllNodeData` / `GetAccessLevel` / `GetNodeValueType` 等。
+
 **OPC UA Server（提供 OPC UA 服务端）：**
 
 ```csharp
@@ -962,12 +1013,18 @@ using (OpcUaServiceOperate operate = await OpcUaServiceOperate.InstanceAsync(new
     Password = "password",
     AutoCreateAddress = true,   // 自动创建地址空间
     AddressSpaceName = "Snet",  // 地址空间名称
+    // 证书认证（可选，不配 Cer 则自动生成应用证书）：
+    Cer = @"C:\certs\server.pfx",        // 服务端应用证书 PFX 路径
+    SecreKey = "123456",                 // PFX 私钥密码（必须与 Cer 成对）
+    TrustedUserPath = @"C:\certs\trusted", // 受信任用户证书目录（默认 base/cer/trusted）
 }))
 {
     await operate.OnAsync();
     // 客户端可连接 opc.tcp://127.0.0.1:6688/Opc.Ua.Service
 }
 ```
+
+> **⚠️ 注意：** `OpcUaServiceOperate` 不是 IDaq（仅 IOn/IOff/IRead/IWrite/IStatus，无订阅能力）。服务端校验用户证书时 `AutoAcceptUntrustedCertificates=false`（严格校验），未受信任的用户证书会在会话验证阶段被拒绝。
 
 **OPC DA Client（COM/DCOM，传统 OPC DA 服务器）：**
 
@@ -1043,7 +1100,9 @@ await operate.OffAsync();
 > NuGet: `dotnet add package Snet.DB -v <最新版本>`
 > Operate: `DBOperate` | Config: `DBData.Basics`
 > 地址: SQL 查询语句 | DBType: SqlServer / MySql / Oracle / SQLite
-> HandlerType: Daq（采集，用 Dapper）/ Default（增删改查，用 SqlSugar）
+> HandlerType: Daq（采集，用 Dapper）/ Default（增删改查，用内嵌 **Snet.DB.sugar**——SqlSugar 源码已内嵌进包，不再依赖外部 SqlSugarCore NuGet）
+
+> **📌 v26.222.1 DB 采集修复：** `HandleInterval` 已改为 `virtual` 并被 DBData.Basics 覆写为默认 **10000ms（10 秒采集一次）**；查询结果转换改用 `ToNJson` 修复值解析异常。下方示例中的 `HandleInterval = 5000` 显式覆盖了默认值。
 
 **场景：从数据库查询数据并转发到 MQTT**
 
@@ -1142,10 +1201,10 @@ using (DBOperate operate = await DBOperate.InstanceAsync(new DBData.Basics
 {
     await operate.OnAsync();
 
-    // 查询（Dapper）
+    // 查询（Snet.DB.sugar 内嵌 ORM）
     var list = await operate.QueryAsync<SensorData>("SELECT * FROM SensorData WHERE DeviceId='D001'");
 
-    // 增删改（Dapper）
+    // 增删改（Snet.DB.sugar 内嵌 ORM）
     await operate.ExecuteAsync("INSERT INTO SensorData (DeviceId, Temperature) VALUES (@DId, @Temp)",
         new { DId = "D001", Temp = 25.6 });
 
@@ -1268,6 +1327,8 @@ using (TepMasterOperate operate = await TepMasterOperate.InstanceAsync(new TepMa
 
 #### 7.7.2 TEP Slave（客户端 — 设备端上报数据）
 
+> **⚠️ OnAsync 前置条件（强制）：** 必须先调用 `SetBaseStateFunc(Func<bool>)` 与 `SetBaseWriteFunc(Func<List<CoreBasicsData.KeyValue>, OperateResult>)`，否则 `OnAsync()` 直接失败（错误："请通过 [ SetBaseStateFunc ] 传入对应的 Func"）。`TepSlaveOperate` 不是 IDaq（仅 IOn/IOff/IStatus + Func 注入模式），无 Read/Subscribe。
+
 ```csharp
 using Snet.TEP.slave;
 using Snet.TEP.core;
@@ -1345,7 +1406,9 @@ await clientOperate.OffAsync();
 | "CJT188" "户表" "188协议 TCP" | `CJT188OverTcp` | 串口转网口透传 |
 | "DTSU6606" "德力西" "Modbus电表" | `DTSU6606Serial` | 串口(Modbus-RTU) |
 
-**关键属性（除公共属性外）：** `StationStr`(站号，字符串), `EnableCodeFE`, `UseSecurityResquest`, `CA`(客户机地址), `Password`, `OpCode`, `CheckDataId`, `InstrumentType`, `AddressStartWithZero`, `IsStringReverse`
+**关键属性（除公共属性外）：** `StationStr`(站号，字符串), `EnableCodeFE`, `UseSecurityResquest`, `CA`(客户机地址), `Password`, `OpCode`, `CheckDataId`, `InstrumentType`, `AddressStartWithZero`, `IsStringReverse`, `Crc16CheckEnable`
+
+> **⚠️ 地址类型限制：** PQDIF / Freedom（自由协议）的读取**不支持 `DataType.Byte`**（返回"不支持 'Byte' 类型读取"），最小支持类型为 `Bool` / `Int16` / `Float` 等。
 
 **示例：读取 DLT645-2007 电表数据并转发 MQTT**
 
@@ -1890,7 +1953,7 @@ DAQ → Netty:   "Snet.Netty.client.NettyClientOperate.{SN}"
 
 > **本技能覆盖不了的协议？** → 用 [PluginDev-Skill](../PluginDev-Skill) 开发自定义插件，打包 ZIP 上传 Daq 工具热插拔加载。
 >
-> **已覆盖 NuGet 包：** 西门子/Modbus/三菱/欧姆龙/东方马达/汇川/OPC UA Client+Server/OPC DA/罗克韦尔/台达/基恩士/科伺(Kossi)/松下/倍福/GE/安川/英威腾/麦格米特/宇电(YuDian)/数据库/TEP/自由协议/模拟库/PQDIF(电力电表：DLT645/DLT698/CJT188/DTSU6606)。
+> **已覆盖 NuGet 包：** 西门子/Modbus/三菱/欧姆龙/东方马达/汇川/OPC UA Client+Server/OPC DA/罗克韦尔/台达/基恩士/科伺(Kossi)/松下/倍福/GE/安川/英威腾/麦格米特/宇电(YuDian)/西蒙(Cimon)/发那科(Fanuc)/永宏(Fatek)/富士(Fuji)/LS产电(LSis)/理化(RKC)/丰田(Toyota)/图尔克(Turck)/丰炜(Vigor)/维控(WeCon)/信捷(XinJE)/山武(Yamatake)/横河(Yokogawa)/数据库/TEP/自由协议/模拟库/PQDIF(电力电表：DLT645/DLT698/CJT188/DTSU6606)。
 >
 > **Snet.Driver 内置（无独立 NuGet 包）：** Knx(楼宇自动化)/OpenProtocol(拧紧枪)/Sick(条码扫描)/Geniitek(振动传感器)/IDCard(身份证读卡器)/Toledo(称重)/IEC104(电力远动)/ShineIn Light(光源)/DAM3601(温控)。**不在列表中？** PluginDev-Skill 定义插件开发契约，AI 根据协议描述自动生成插件代码。
 
@@ -1900,5 +1963,6 @@ DAQ → Netty:   "Snet.Netty.client.NettyClientOperate.{SN}"
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.0.9 | 2026-08-11 | 对照源码全面升级：NuGet 版本 26.214.1→**26.222.1**（Snet.Opc 单独标注 26.223.1）；新增 §1.3 地址自动组包（IPacker：PackerAsync/UnPackerAsync、19 协议族注册表、标签类协议自动降级原样返回）与 §1.4 克隆/参数更新（IClone：CloneThis；IArgs：UpdateArgs/GetBasicsArgs，含 UpdateArgsAsync Status=false 已知缺陷提示）；§7.3 OPC UA 证书认证（AType.Certificate + Cer/SecreKey/TrustedUserPath，服务端非 IDaq 提示，IOu 节点浏览 API）；§5.3 修正：SCData 位置与 HandleInterval 改 virtual 可重写、Modbus 补 Crc16CheckEnable/IsClearCacheBeforeRead/StationCheckMatch、倍福补 UseServerActivePush、罗克韦尔补 SrcNode/Station、补 GE 行；§7.6 DB 采集修复说明（默认 10 秒、ToNJson、SqlSugar 内嵌为 Snet.DB.sugar）；code-review 修正：§1.1 "无条件 Produce"→Quality 门（Normal/ParseUnknown）、§4.5 String 字节宽随编码、§5.3 罗克韦尔 ReadArrayUseSegment 只读注记/欧姆龙补 IsStringReverseByteWord/公共属性来源更正为各厂商 Basics 声明；§7.7.2 TEP Slave 前置条件警告；§7.8 PQDIF/Freedom 不支持 Byte 类型；§14 覆盖列表补全 13 个协议包；ProtocolType 为厂商嵌套枚举说明 |
 | 1.0.0.8 | 2026-08-02 | 全面核对源码修正：`FileOut`→`Out`；OPC DA Client/HTTP 用 `SName`/`IpAddress`（无 ServerUrl）；TEP Slave 删除虚构 `ViolenceUpload`；24 处构造统一 `await XxxOperate.InstanceAsync()` 单例池；补充 `config/mq/` 配置文件自动转发前提（MqOperate.InstanceIoc 机制）；NuGet 版本号 1.0.0.1→26.214.1；MQTT 默认账号 sample→shunnet；补 `using MQTTnet.Protocol;`；Fatek 删除虚构 DataFormat；OnInfoEvent 类型→EventInfoResult；Write 三重载说明修正；虚拟地址参数"增长比例"→"步长" |
 | 1.0.0.7 | 2026-07-14 | 初始版本 |

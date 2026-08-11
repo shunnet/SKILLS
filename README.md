@@ -12,7 +12,7 @@
 
   <img src="https://img.shields.io/badge/.NET-10.0%2B-purple.svg"/>
   <img src="https://img.shields.io/badge/license-MIT-green"/>
-  <img src="https://img.shields.io/badge/version-1.0.0.8-blue"/>
+  <img src="https://img.shields.io/badge/version-1.0.0.9-blue"/>
   <img src="https://img.shields.io/badge/skills-4-orange"/>
   <img src="https://img.shields.io/github/stars/shunnet/SKILLS?style=social"/>
 
@@ -52,7 +52,7 @@
 
 ### ✨ 能力
 
-- 🏭 **30+ 种工业协议** — 西门子/Modbus/三菱/欧姆龙/OPC UA/罗克韦尔/台达/基恩士/松下/倍福/汇川/英威腾/麦格米特
+- 🏭 **35+ 种工业协议** — 西门子/Modbus/三菱/欧姆龙/OPC UA/罗克韦尔/台达/基恩士/松下/倍福/汇川/英威腾/麦格米特/科伺/东方马达/宇电
 - 🗄️ **数据库采集** — SqlServer/MySQL/Oracle/SQLite + TEP 非标设备
 - 📡 **5 种消息中间件转发** — MQTT/Kafka/RabbitMQ/NetMQ/Netty
 - 🎮 **内置模拟库** — 无需真实 PLC 即可测试

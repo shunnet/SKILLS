@@ -1,7 +1,7 @@
 ---
 name: mq-skill
 description: Snet 消息中间件应用技能，覆盖 MQTT（Client/Service/WebSocket）、Kafka、RabbitMQ、NetMQ、Netty 五种 IMq 传输协议的消息生产、消费、统一 API 与数据转发。支持"一句话"完成消息收发配置。配合 PluginDev-Skill 开发自定义 IMq 插件。
-version: 1.0.0.8
+version: 1.0.0.9
 metadata:
   hermes:
     tags: [mq, middleware, mqtt, kafka, rabbitmq, netmq, netty, iot, dotnet, message-queue]
@@ -43,6 +43,11 @@ public interface IMq : IOn, IOff, IProducer, IConsumer, IStatus,
 | 生产(字节) | `mq.Produce(topic, bytes)` | `await mq.ProduceAsync(topic, bytes)` | 发布字节消息 |
 | 消费 | `mq.Consume(topic)` | `await mq.ConsumeAsync(topic)` | 订阅主题 |
 | 取消消费 | `mq.UnConsume(topic)` | `await mq.UnConsumeAsync(topic)` | 取消订阅 |
+| 获取参数 | `mq.GetBasicsArgs()` | `await mq.GetBasicsArgsAsync()` | 获取当前 Basics 配置 |
+| 更新参数 | `mq.UpdateArgs(config)` | `await mq.UpdateArgsAsync(config)` | 运行期替换单例参数（原子换键，失败回滚） |
+| 克隆实例 | `mq.CloneThis()` | `await mq.CloneThisAsync()` | 克隆新实例（不入单例池，独立连接） |
+
+> **⚠️ 已知缺陷（v26.222.1）：** `UpdateArgsAsync` 成功路径返回 `Status=false`（底层 `EndOperateAsync(false, "参数修改成功")`）——判断结果请用 `GetDetails` 消息内容；`Off(true)` 同步版不透传 `hardClose`（未连接时仍报"未连接"），强制关闭请用 `await OffAsync(true)`。
 
 ### 消费数据接收（统一事件）
 
@@ -75,11 +80,11 @@ await mq.ConsumeAsync("my/topic");
 
 ### 版本号：必须指定
 
-所有 `dotnet add package` 命令**必须**带 `-v` 版本号（当前统一版本 **26.214.1**），**禁止使用 `*` 通配符**。安装前到 nuget.org 确认最新版本。
+所有 `dotnet add package` 命令**必须**带 `-v` 版本号（当前统一版本 **26.222.1**），**禁止使用 `*` 通配符**。安装前到 nuget.org 确认最新版本。
 
 ```bash
 # ✅ 正确：指定版本号
-dotnet add package Snet.Mqtt -v 26.214.1
+dotnet add package Snet.Mqtt -v 26.222.1
 
 # ❌ 错误：不带版本号（使用 * 通配符，运行时报错）
 dotnet add package Snet.Mqtt
@@ -96,7 +101,7 @@ dotnet add package Snet.Mqtt
 
 ```bash
 # ✅ 正确：只引用中间件包
-dotnet add package Snet.Mqtt -v 26.214.1
+dotnet add package Snet.Mqtt -v 26.222.1
 ```
 
 ### using 语句 vs NuGet 引用
@@ -138,7 +143,7 @@ using Snet.Model.@enum;              // ← ResponseType 等
 
 ## 1. MQTT — 最常用的轻量消息协议
 
-> NuGet: `dotnet add package Snet.Mqtt -v 26.214.1`
+> NuGet: `dotnet add package Snet.Mqtt -v 26.222.1`
 > 三种操作类：`MqttClientOperate`（连接外部 Broker，继承 MqAbstract）/ `MqttServiceOperate`（内置 Broker）/ `MqttWebSocketServiceOperate`（浏览器 WebSocket）
 
 ### 1.1 MQTT Client（连接外部 Broker）
@@ -146,6 +151,7 @@ using Snet.Model.@enum;              // ← ResponseType 等
 ```csharp
 using Snet.Mqtt.client;
 using MQTTnet.Protocol;   // MqttQualityOfServiceLevel 枚举所在命名空间
+using Snet.Model.@enum;  // ResponseType 枚举
 
 var config = new MqttClientData.Basics
 {
@@ -190,7 +196,7 @@ using Snet.Mqtt.service;
 var config = new MqttServiceData.Basics
 {
     Port = 6688,          // 监听端口
-    MaxNumber = 10000,    // 最大客户端连接数
+    MaxNumber = 10000,    // TCP 连接积压数（backlog，非客户端数量上限）
 };
 using (var mqttService = await MqttServiceOperate.InstanceAsync(config))
 {
@@ -214,9 +220,12 @@ var config = new MqttWebSocketServiceData.Basics
 using (var wsService = await MqttWebSocketServiceOperate.InstanceAsync(config))
 {
     await wsService.OnAsync();
-    // 浏览器可通过 ws://127.0.0.1:8866 连接
+    // 浏览器连接地址: ws://127.0.0.1:8866/shun（Uri 默认 "shun"）
 }
 ```
+
+> **📌 WebSocket 连接路径：** `MqttWebSocketServiceData.Basics.Uri` 默认 `"shun"`，浏览器必须连 `ws://{IpAddress}:{WsPort}/{Uri}`（如 `ws://127.0.0.1:8866/shun`），连根路径会 404。
+> **⚠️ 单实例限制：** 该类配置为静态字段，多个实例会互相覆盖——一个进程内只能创建一个 WebSocket Broker。
 
 ### 1.4 MQTT 配置速查
 
@@ -231,11 +240,9 @@ using (var wsService = await MqttWebSocketServiceOperate.InstanceAsync(config))
 | `QualityOfServiceLevel` | `MqttQualityOfServiceLevel` | `AtMostOnce` | ⚠️ 仅用于**遗嘱(Will)消息** QoS；IMq 生产/消费固定 QoS0（源码硬编码），设 QoS2 对收发无效果 |
 | `ResponseType` | `ResponseType` | `Content` | 消费数据格式 |
 
----
+> **需要 QoS1/2 的订阅？** IMq 的 `ConsumeAsync` 固定 QoS0，需更高级别时用 `MqttClientOperate` 直连 API：`await mq.AddSubscribeAsync(topic, qosLevel)` / `await mq.RemoveSubscribeAsync(topic)`（QoSLevel 默认 0）。
 
-## 2. Kafka — 高吞吐分布式消息
-
-> NuGet: `dotnet add package Snet.Kafka -v 26.214.1`
+> NuGet: `dotnet add package Snet.Kafka -v 26.222.1`
 > Operate: `KafkaOperate`（继承 MqAbstract）| Config: `KafkaData.Basics`
 > **注意：Kafka 用 `BootstrapServers`（非 IpAddress+Port）**
 
@@ -249,7 +256,7 @@ var config = new KafkaData.Basics
 {
     SN = "my-kafka",
     BootstrapServers = "192.168.0.1:9092",   // ← 属性名是 BootstrapServers，不是 IpAddress！
-    SecurityProtocol = SecurityProtocol.Plaintext,  // Plaintext/SaslSsl/SaslPlaintext
+    SecurityProtocol = SecurityProtocol.Plaintext,  // Plaintext/Ssl/SaslPlaintext/SaslSsl
     // ⚠️ SASL 认证：Basics 只有 SaslMechanism（默认 Gssapi/Kerberos）+ SaslKerberosServiceName（默认 "snet"）
     // 无 SaslUsername/SaslPassword 属性！SASL 用户密码认证当前无法启用（除非源码补属性）。
     // 设 SaslPlaintext/SaslSsl 且不配 Kerberos 环境 → 认证必然失败。
@@ -287,11 +294,27 @@ await kafka.OffAsync();
 | `AutoOffsetReset` | `AutoOffsetReset` | `Latest` | 无 Offset 时从哪开始 |
 | `ResponseType` | `ResponseType` | `Content` | 消费数据格式 |
 
+### Kafka 扩展能力（v26.222.1+）
+
+**带 Key 生产（分区路由）：**
+```csharp
+// 三参重载: ProduceAsync(topic, key, content) — Key 决定消息进入哪个分区
+await kafka.ProduceAsync("factory/line1", "device-001", "{\"temp\":25.6}");
+```
+
+**AdminClient 主题管理（自动建主题）：**
+```csharp
+await kafka.OnAsync();                      // 必须先打开
+var created = await kafka.CreateTopicsAsync(new List<string> { "factory/line1", "factory/line2" });
+// 内部: GetMetadata(5s) 取已有主题求差集 → 仅创建不存在的主题 → Wait(5s)
+// 重复调用幂等，已存在的主题跳过
+```
+
 ---
 
 ## 3. RabbitMQ — AMQP 协议
 
-> NuGet: `dotnet add package Snet.RabbitMQ -v 26.214.1`
+> NuGet: `dotnet add package Snet.RabbitMQ -v 26.222.1`
 > Operate: `RabbitMQOperate`（继承 MqAbstract）| Config: `RabbitMQData.Basics`
 > **注意：RabbitMQ 有 `ExChangeName`（交换机名称）+ `Publish/Consume` 用 `Type` 参数指定交换机类型（direct/topic/fanout/headers）**
 
@@ -345,7 +368,7 @@ await rabbit.OffAsync();
 
 ## 4. NetMQ — ZeroMQ 无 Broker 模式
 
-> NuGet: `dotnet add package Snet.NetMQ -v 26.214.1`
+> NuGet: `dotnet add package Snet.NetMQ -v 26.222.1`
 > Operate: `NetMQOperate`（继承 MqAbstract）| Config: `NetMQData.Basics`
 > **注意：NetMQ 用 `Address`（ZMQ 地址格式）+ `UModel`（PubModel/SubModel）**
 
@@ -354,8 +377,9 @@ using Snet.NetMQ;
 using static Snet.NetMQ.NetMQData;   // UseModel 是 NetMQData 的嵌套枚举，必须 using static 才能裸用
 
 // ⚠️ 一个实例一个角色：PubModel 只能生产，SubModel 只能消费。
-// socket 类型在 OnAsync 时定型，事后改 UModel 会抛 InvalidCastException（需 Off→改→On 重建）。
-// 正确做法：生产/消费各用一个实例。
+// socket 类型在 OnAsync 时定型，事后改 UModel 不会重建 socket：消费路径会空引用崩溃
+// 或静默收不到消息（GetSource<T> 类型不符返回 null，不抛 InvalidCastException）。
+// 正确做法：生产/消费各用一个实例；确需改角色必须 Off→改 UModel→On 重建。
 
 // 发布者（PubModel）
 var pubConfig = new NetMQData.Basics
@@ -398,13 +422,13 @@ await pub.OffAsync();
 | `UModel` | `UseModel` | `PubModel` | `PubModel`=发布 / `SubModel`=订阅 |
 | `TimeOut` | `int` | `1000` | 超时(ms) |
 
-> **注意：** `ConsumeAsync` 要求 `UModel == SubModel`，否则返回"未使用订阅模式"；socket 类型在 `OnAsync` 时定型，事后改 UModel 抛 `InvalidCastException`——**角色切换需 `OffAsync` → 改 UModel → `OnAsync` 重建**，生产/消费建议各用一个实例。
+> **注意：** `ConsumeAsync` 要求 `UModel == SubModel`，否则返回"未使用订阅模式"；socket 类型在 `OnAsync` 时定型，事后改 UModel 不会重建 socket（消费路径空引用崩溃或静默收不到消息）——**角色切换需 `OffAsync` → 改 UModel → `OnAsync` 重建**，生产/消费建议各用一个实例。
 
 ---
 
 ## 5. Netty — 高性能 TCP 框架
 
-> NuGet: `dotnet add package Snet.Netty -v 26.214.1`
+> NuGet: `dotnet add package Snet.Netty -v 26.222.1`
 > 两种操作类：`NettyClientOperate`（客户端，继承 MqAbstract）/ `NettyServiceOperate`（服务端）
 > **注意：Netty 支持 SSL 加密（SslFilePath/SslFilePassword）**
 
@@ -456,10 +480,20 @@ using (var service = await NettyServiceOperate.InstanceAsync(config))
 {
     await service.OnAsync();
     // TCP 服务端已启动
+
+    byte[] bytes = System.Text.Encoding.UTF8.GetBytes("hello");
+
+    // 定向发送给指定客户端（"IP:Port" 标识，不存在则报"终端不存在"）
+    await service.SendAsync(bytes, new[] { "192.168.1.50:5000" });
+    // IpPort 传 null 则群发全部已连接客户端
+    await service.SendAsync(bytes);
+
+    // 带主题的消息重载（内部组织 JSON {T,C} 发送）
+    await service.SendAsync("factory/line1", "hello", new[] { "192.168.1.50:5000" });
 }
 ```
 
-> **注意：** `NettyServiceOperate` 继承 `CoreUnify`（非 MqAbstract），只有 `On/Off/GetStatus`，没有 `Produce/Consume`。
+> **注意：** `NettyServiceOperate` 继承 `CoreUnify`（非 MqAbstract），没有 `Produce/Consume`（IMq 生产/消费），但提供 `SendAsync(byte[] Data, string[]? IpPort = null)` 定向/群发与 `SendAsync(string Topic, string Content, string[]? IpPort)` 带主题重载。
 
 ### 5.3 Netty 配置速查
 
@@ -479,6 +513,8 @@ DAQ 采集的数据可自动转发到任意中间件（**关键机制，详见 D
 ### 6.1 前提：config/mq 配置文件注册实例
 
 > 自动转发只识别 **`config/mq/` 目录下 `{完整命名空间}.{类名}.{SN}.Mq.Config.json` 配置文件加载的实例**（`MqOperate.InstanceIoc` 注册表）。用户代码 `new` 创建的实例不注册，转发会报 "实例未找到"。
+
+> **⚠️ 热加载 key 不一致（已知缺陷，v26.222.1）：** `MqOperate` **启动时扫描**注册的实例 key 与 ISns 格式一致（`命名空间.类名.SN`）；但**运行期间新增/修改**配置文件（watcher 热加载路径）注册的 key 会多保留 `.Mq.Config` 后缀，此时 ISns 定向转发仍报"实例未找到"。**规避：** 在 MqOperate 启动前放好配置文件；运行期动态加 MQ 实例后请重启应用或改用 §6.2 事件内手动 `ProduceAsync`。
 
 ```json
 // config/mq/Snet.Mqtt.client.MqttClientOperate.mqtt-target.Mq.Config.json
@@ -538,6 +574,10 @@ new AddressDetails
 | 新订阅者立即收到旧消息 | MQTT 生产默认 `Retain=true`（IMq ProduceAsync 硬编码）| 需精确控制时用 `PublishAsync(topic, content, Retain: false)` 直连 API |
 | RabbitMQ 取消订阅后数据丢失 | `UnConsumeAsync` 会**删除队列**（QueueDeleteAsync）| 取消订阅前确认队列中无未消费消息 |
 | 一处 `using var` 释放后全局断连 | `InstanceAsync` 同 SN/配置返回**共享实例**，Dispose 即 Off+出池 | 勿在多处 using 同一实例；确认无其他持有者再释放 |
+| Kafka 断线重连后收不到旧消息 | 每次 `OnAsync` 生成**新消费组**（GroupId 随机 GUID），Offset 从 `AutoOffsetReset`（默认 Latest）开始，断开期间的消息被跳过 | 需续传时在 Off 前自行记录/提交 Offset；或用外部持久化消费组 |
+| `Off(true)` 未连接时仍报"未连接" | 基类同步 `Off(bool)` 不透传 `hardClose`（MqAbstract.cs:34，已知缺陷）| 强制关闭用 `await mq.OffAsync(true)` |
+| `UpdateArgsAsync` 返回 Status=false | 底层成功路径误用 `EndOperateAsync(false, "参数修改成功")`（已知缺陷）| 按 `GetDetails` 消息内容判断，勿只看 Status |
+| 运行期新增 config/mq 文件后 ISns 失效 | 热加载注册 key 多保留 `.Mq.Config` 后缀（MqOperate.Monitor.cs，已知缺陷）| 启动前放好配置文件；动态新增后重启（见 §6.1） |
 | 断线后收不到消息 | MQTT 无自动重连 + CleanSession 丢订阅 | 手动 `OnAsync()` 后重新 `ConsumeAsync(topic)` |
 | 消费 handler 异常后消息丢失 | 异常只发 `OnInfoEventAsync`（不落盘）| 订阅 `OnInfoEventAsync` 并在 handler 内 try-catch |
 | 实例重复创建 | 直接 new 绕过单例池 | 用 `await XxxOperate.InstanceAsync(config)` |
@@ -556,4 +596,5 @@ new AddressDetails
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.0.9 | 2026-08-11 | 对照源码升级：NuGet 版本 26.214.1→26.222.1（8 处）；统一 API 对照表补 GetBasicsArgs/UpdateArgs/CloneThis 三行 + 已知缺陷警告（UpdateArgsAsync Status=false、Off(true) 不透传 hardClose）；§1.3 WebSocket 补 Uri 默认 "shun"（连接地址 ws://host:8866/shun）与单实例限制；§2 Kafka 补 AdminClient CreateTopicsAsync 与带 Key 三参 ProduceAsync；§5.2 Netty Service 补 SendAsync 定向/群发；§6.1 补热加载 key 不一致缺陷警告；§7 故障排查表 +3 条；code-review 修正：§1.1 补 using Snet.Model.@enum、§1.4 补 AddSubscribeAsync QoS、§4 NetMQ 改 UModel 不抛 InvalidCastException（空引用/静默）、§5.2 Netty 示例补 bytes 声明、§7 补 Kafka 消费组随机警告、MaxNumber 注释改为 backlog |
 | 1.0.0.8 | 2026-08-02 | 初始版本：MQTT/Kafka/RabbitMQ/NetMQ/Netty 五种中间件完整应用指南（统一 IMq 接口/配置速查/生产消费示例/与 DAQ 联动转发/config 注册前提/故障排查） |

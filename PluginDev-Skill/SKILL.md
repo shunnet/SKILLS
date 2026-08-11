@@ -1,7 +1,7 @@
 ---
 name: plugindev-skill
 description: Snet.Iot.Daq 插件开发技能，覆盖 IDaq（数据采集）与 IMq（消息中间件）两类插件开发。严格定义插件开发契约：必须实现的抽象方法、必须遵循的返回类型、必须使用的数据标注、必须调用的框架方法。AI 自行决定采集方式（TCP/HTTP/文件/串口）或消息收发方式，但必须遵守契约。
-version: 1.0.0.8
+version: 1.0.0.9
 metadata:
   hermes:
     tags: [plugin-development, daq, iot, dotnet, contract, code-generation, mq, middleware]
@@ -36,7 +36,7 @@ metadata:
 
 ```bash
 # ✅ 正确：指定版本号
-dotnet add package Snet.Core -v 26.214.1
+dotnet add package Snet.Core -v 26.222.1
 
 # ❌ 错误：不带版本号（使用 * 通配符，运行时报错）
 dotnet add package Snet.Core
@@ -104,14 +104,21 @@ dotnet add package Snet.Core
 你的 Operate 类
   └─ 必须继承 DaqAbstract<你的Operate类, 你的Data.Basics>
        └─ DaqAbstract 继承 CoreUnify（自动提供：单例、事件、日志、多语言、参数、WebApi）
-            └─ 必须实现 8 个抽象异步方法 + 3 个属性
+            └─ 必须实现 8 个抽象异步方法 + 3 个虚属性（强烈建议重写，否则 UI 显示类型全名/空描述）
             └─ 同步方法是薄封装：`=> XxxAsync().GetAwaiter().GetResult()`，从基类自动继承
 ```
+
+> **✅ 继承即得（v26.222.1+，无需自己实现）：**
+> - **地址自动组包**：`Packer` / `PackerAsync` / `UnPacker` / `UnPackerAsync`（IPacker 契约）——继承 DaqAbstract 即内置，公开字段 `packerHandler` / `bytesHandler` 可直接使用
+> - **WebAPI**：`WAOn` / `WAOff` / `WAStatus` / `WARequestExample`（IWA，6 个 HTTP 端点自动暴露）
+> - **克隆**：`CloneThis` / `CloneThisAsync`（IClone，克隆不入单例池）
+> - **参数更新**：`UpdateArgs<T>` / `UpdateArgsAsync` / `GetBasicsArgs` / `GetAutoAllocatingArgs`（IArgs）
+> - 直接实现 `IDaq`（不继承 DaqAbstract）的插件必须**自己实现全部 6 个组包方法**——继承 DaqAbstract 即可免费获得
 
 ```csharp
 public class XxxOperate : DaqAbstract<XxxOperate, XxxData.Basics>, IDaq
 {
-    // ============ 3 个必须属性 ============
+    // ============ 3 个虚属性（强烈建议重写）============
     protected override string CN => "中文名称";
     protected override string CD => "中文描述";
     protected override List<propertie> AP => new List<propertie>
@@ -123,8 +130,9 @@ public class XxxOperate : DaqAbstract<XxxOperate, XxxData.Basics>, IDaq
     public XxxOperate() : base() { LanguageHandler(); }
     public XxxOperate(XxxData.Basics basics) : base(basics) { LanguageHandler(); }
 
-    // ============ LanguageHandler（必须自实现！基类无此方法）============
+    // ============ LanguageHandler（可选：如需 UI 中英文热切换才实现）============
     // 注册语言切换事件：UI 中英文热切换时刷新插件内部字符串资源
+    // 无需语言资源切换的插件可省略（如 Snet.PerformanceTesting 的构造函数就无此逻辑）
     // 参考真实插件实现（如 Snet.Beckhoff/BeckhoffOperate.cs:1191）：
     private void LanguageHandler()
     {
@@ -165,7 +173,7 @@ public class XxxOperate : DaqAbstract<XxxOperate, XxxData.Basics>, IDaq
 
 ## 2. 方法契约详解
 
-> **核心约束：** 8 个抽象异步方法必须 `await BegOperateAsync → try → await GetStatusAsync检查 → 实现 → catch`，2 个方法禁止 try/catch。
+> **核心约束：** 8 个抽象异步方法必须 `await BegOperateAsync → try → await GetStatusAsync检查 → 实现 → catch`；GetStatusAsync 建议不包 try/catch（简单状态判断），GetBaseObjectAsync 禁止 try/catch。
 
 ### 2.1 OnAsync — 打开连接
 
@@ -254,7 +262,8 @@ public override async Task<OperateResult> GetStatusAsync(CancellationToken token
 {
     await BegOperateAsync(token);
     // AI 判断连接状态，直接返回
-    return await EndOperateAsync(/* 已连接? */, logOutput: false, token: token);
+    bool connected = /* AI：判断连接状态 */ false;
+    return await EndOperateAsync(connected, logOutput: false, token: token);
 }
 ```
 
@@ -285,7 +294,7 @@ public override async Task<OperateResult> GetBaseObjectAsync(CancellationToken t
 |------|-----|
 | 返回类型 | `Task<OperateResult>` |
 | ResultData 类型 | **`ConcurrentDictionary<string, AddressValue>`** |
-| 前置检查 | GetStatusAsync + `address.CheckAddress()` |
+| 前置检查 | GetStatusAsync + `address.CheckAddress()`（部分参考实现省略状态检查，仅限 OnAsync 后订阅模式） |
 | 每个点位 | `AddressHandler.ExecuteDispose(item, rawValue, message)` |
 | 跳过禁用 | `if (!item.IsEnable) continue` |
 | 虚拟地址 | `VAM.InitVirtualAddress(item, out bool IsVA)` |
@@ -388,7 +397,7 @@ public override async Task<OperateResult> WriteAsync(
 | 约束 | 值 |
 |------|-----|
 | 返回类型 | `Task<OperateResult>` |
-| 前置检查 | GetStatusAsync + `address.CheckAddress()` |
+| 前置检查 | GetStatusAsync + `address.CheckAddress()`（部分参考实现省略状态检查，仅限 OnAsync 后订阅模式） |
 | 必须创建 | `await SubscribeOperate.InstanceAsync(new SubscribeData.Basics { ..., FunctionAsync = ReadAsync })`（必须传 SubscribeData.Basics 并绑定读取函数）管理订阅生命周期 |
 | 数据事件 | 通过 `OnDataEvent?.Invoke` / `OnDataEventAsync?.Invoke` 推送 |
 | try/catch | **必须** |
@@ -543,14 +552,21 @@ public class XxxData
 
 ### 3.2 继承得来的字段（无需声明）
 
-`SubscribeData.SCData` 自动提供：
+`SubscribeData.SCData` 自动提供（**位于 `Snet.Core.subscription.SubscribeData.SCData`，不在 Snet.Model**）：
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `HandleInterval` | `int` | 1000 | 订阅轮询间隔(ms) |
+| `HandleInterval` | `int`（**`virtual`**） | 1000 | 订阅轮询间隔(ms)；**已改为 virtual 可被你的 Basics 覆写**（如数据库插件 override 为 10000 实现 10 秒采集一次） |
 | `ChangeOut` | `bool` | true | 仅变化时输出；true=只抛变化项，false=实时全量输出 |
 | `AllOut` | `bool` | false | 变化项与未变项一同抛出；当 ChangeOut 为 true 时生效，确保此批数据完整性 |
 | `TaskNumber` | `int` | 5 | 并行任务数，一个任务属于一个队列 |
+
+**HandleInterval 重写示例（你的 Basics 中）：**
+```csharp
+[Description("采集间隔")]
+[Unit("ms")]
+public override int HandleInterval { get; set; } = 10000;  // 覆写默认 1000ms
+```
 
 ### 3.3 属性标注速查
 
@@ -764,8 +780,9 @@ if (result.Status)
     foreach (var kv in dict)
         Console.WriteLine($"{kv.Key} = {kv.Value.ResultValue}");
 }
-// 注意：BytesHandler 只有 TransformAsync（异步），没有同步 Execute 方法；
-// 需要在同步上下文使用时用 .GetAwaiter().GetResult() 或改用 BytesTransformHandler 的 Trans* 方法
+// BytesHandler 另有同步 Transform 两重载（签名与 Async 一致），
+// 同步上下文可直接调用：
+var valuesSync = bytesHandler.Transform(byteArray, DateTime.Now, bytesModels);
 ```
 
 **BytesModel 映射配置：** `new BytesModel(string Address, string Describe, int StartBit, ushort Length, DataType DataType, EncodingType EncodingType = UTF8, DataFormat DataFormat = ABCD, int BoolIndex = -1)` — `StartBit` 为字节偏移，`BoolIndex` 用于位类型取值。
@@ -976,7 +993,7 @@ namespace XxxNamespace
 {
     public class XxxOperate : DaqAbstract<XxxOperate, Basics>, IDaq
     {
-        // ═══ 3 个必须属性 ═══
+        // ═══ 3 个虚属性（强烈建议重写）═══
         protected override string CN => "【AI 填写中文名称】";
         protected override string CD => "【AI 填写中文描述】";
         protected override List<propertie> AP => new List<propertie>
@@ -988,7 +1005,7 @@ namespace XxxNamespace
         public XxxOperate() : base() { LanguageHandler(); }
         public XxxOperate(Basics basics) : base(basics) { LanguageHandler(); }
 
-        // ═══ LanguageHandler（必须自实现！见第 1 章示例）═══
+        // ═══ LanguageHandler（可选：如需语言热切换才实现，见第 1 章说明）═══
         private void LanguageHandler()
         {
             OnLanguageEventAsync -= LanguageEventAsync;
@@ -1063,12 +1080,12 @@ namespace XxxNamespace
             }
         }
 
-        // ═══ GetStatusAsync — 禁止 try/catch，logOutput: false 静默 ═══
+        // ═══ GetStatusAsync — 建议不包 try/catch（简单状态判断），logOutput: false 静默 ═══
         public override async Task<OperateResult> GetStatusAsync(CancellationToken token = default)
         {
             await BegOperateAsync(token);
-            // 【AI 判断连接状态】
-            return await EndOperateAsync(/* 已连接? */, logOutput: false, token: token);
+            bool connected = /* AI：判断连接状态 */ false;
+            return await EndOperateAsync(connected, logOutput: false, token: token);
         }
 
         // ═══ GetBaseObjectAsync — 禁止 try/catch，必须先 GetStatusAsync ═══
@@ -1237,7 +1254,8 @@ namespace XxxNamespace
 ```
 你的 Mq Operate 类
   └─ 必须继承 MqAbstract<你的Operate类, 你的MqData.Basics>
-       └─ MqAbstract 继承 CoreUnify（自动提供：单例、事件、日志、多语言、参数、WebApi）
+       └─ MqAbstract 继承 CoreUnify（自动提供：单例、事件、日志、多语言、参数、克隆——CloneThis/UpdateArgs/GetBasicsArgs）
+       └─ ⚠️ 无 WebApi：WA* 方法（WAOn/WAOff 等）仅 DaqAbstract 实现，MQ 插件没有 HTTP 接口
             └─ 必须实现 6 个抽象异步方法 + 3 个属性
             └─ 同步方法（On/Off/GetStatus/Produce×2/Consume/UnConsume）是基类薄封装，自动继承
 ```
@@ -1245,7 +1263,7 @@ namespace XxxNamespace
 ```csharp
 public class XxxMqOperate : MqAbstract<XxxMqOperate, XxxMqData.Basics>, IMq
 {
-    // ============ 3 个必须属性 ============
+    // ============ 3 个虚属性（强烈建议重写）============
     protected override string CN => "中文名称";
     protected override string CD => "中文描述";
     protected override List<propertie> AP => new List<propertie>
@@ -1253,7 +1271,7 @@ public class XxxMqOperate : MqAbstract<XxxMqOperate, XxxMqData.Basics>, IMq
         new propertie { PropertyName = "ServiceName", Description = "命名空间", Default = this.GetType().FullName }
     };
 
-    // ============ 构造函数（LanguageHandler 必须自实现，见第 1 章）============
+    // ============ 构造函数（LanguageHandler 可选实现，见第 1 章说明）============
     public XxxMqOperate() : base() { LanguageHandler(); }
     public XxxMqOperate(XxxMqData.Basics basics) : base(basics) { LanguageHandler(); }
 
@@ -1282,10 +1300,14 @@ public interface IMq : IOn, IOff, IProducer, IConsumer, IStatus,
 |------|------|
 | `IProducer` | `Produce(topic, string content, Encoding? = null)` / `Produce(topic, byte[] content)` + Async |
 | `IConsumer` | `Consume(topic)` / `UnConsume(topic)` + Async；消费数据经 `OnDataEventAsync` 推送 |
+| `IClone` | `CloneThis()` / `CloneThisAsync(token)` — 克隆实例（不入单例池），继承 MqAbstract 自动获得 |
+| `IArgs` | `UpdateArgs<T>` / `GetBasicsArgs()` / `GetAutoAllocatingArgs()` — 参数更新/查询，自动获得 |
+
+> **⚠️ 已知缺陷（v26.222.1）：** 基类同步 `Off(bool hardClose)` **不透传 hardClose**（MqAbstract.cs:34 直接调 `OffAsync()`），插件内部强制关闭请直接调用 `await OffAsync(true, token)`；`UpdateArgsAsync` 成功路径返回 `Status=false`（CoreUnify.cs:871），判断用 `GetDetails` 消息。
 
 ### 8.3 方法契约详解
 
-> **核心约束（与 DAQ 插件一致）：** 所有异步方法 `await BegOperateAsync → try → await GetStatusAsync检查 → 实现 → catch`；`GetStatusAsync` 禁止 try/catch。
+> **核心约束（与 DAQ 插件一致）：** 所有异步方法 `await BegOperateAsync → try → await GetStatusAsync检查 → 实现 → catch`；GetStatusAsync 建议不包 try/catch（简单状态判断）。
 
 #### 8.3.1 OnAsync — 连接 Broker
 
@@ -1319,6 +1341,8 @@ public override async Task<OperateResult> OnAsync(CancellationToken token = defa
 ```
 
 #### 8.3.2 OffAsync(bool hardClose) — 关闭连接
+
+> **⚠️ 字段类型注意：** 下方片段中 `consumer` / `producer` 字段的声明见 §8.5 完整模板——**必须声明为具体客户端类型或 `IDisposable?`**，否则 `consumer?.Dispose()` 无法编译（`object` 类型没有 Dispose 成员）。
 
 | 约束 | 值 |
 |------|-----|
@@ -1368,7 +1392,8 @@ public override async Task<OperateResult> GetStatusAsync(CancellationToken token
 {
     await BegOperateAsync(token);
     // AI 判断连接状态，直接返回
-    return await EndOperateAsync(/* 已连接? */, logOutput: false, token: token);
+    bool connected = /* AI：判断连接状态 */ false;
+    return await EndOperateAsync(connected, logOutput: false, token: token);
 }
 ```
 
@@ -1562,8 +1587,9 @@ namespace XxxNamespace
         }
 
         // ═══ 内部字段 ═══
-        private object? producer;        // 【AI：生产者客户端】
-        private object? consumer;        // 【AI：消费者客户端】
+        // 【AI：替换为实际客户端类型（如 IMqttClient/IProducer<Null,string>），object 无法调用其 Dispose】
+        private IDisposable? producer;   // 生产者客户端（基类 IDisposable 保证 OffAsync 中的 Dispose 可编译）
+        private IDisposable? consumer;   // 消费者客户端
         private CancellationTokenSource? consumeToken;
 
         public override async Task<OperateResult> OnAsync(CancellationToken token = default)
@@ -1614,8 +1640,8 @@ namespace XxxNamespace
         public override async Task<OperateResult> GetStatusAsync(CancellationToken token = default)
         {
             await BegOperateAsync(token);
-            // 【AI 判断连接状态】
-            return await EndOperateAsync(/* 已连接? */, logOutput: false, token: token);
+            bool connected = /* AI：判断连接状态 */ false;
+            return await EndOperateAsync(connected, logOutput: false, token: token);
         }
 
         public override async Task<OperateResult> ProduceAsync(string topic, byte[] content, CancellationToken token = default)
@@ -1763,9 +1789,10 @@ public interface ICommunication : IOn, IOff, ISend, ISendWait, IObject, IStatus,
 |----|---------|--------|----------|----------|
 | `TcpClientOperate` | `Snet.Core.communication.net.tcp.client` | `TcpClientData.Basics` | `IpAddress`, `Port`, `Timeout` | `InterruptReconnection`, `ReconnectionInterval`, `SendWaitInterval`, `MaxChunkSize`, `RetrySendCount`, `BufferSize` |
 | `TcpServiceOperate` | `Snet.Core.communication.net.tcp.service` | `TcpServiceData.Basics` | `IpAddress`, `Port` | 多客户端管理，`Send(byte[], string[])` 定向/广播发送 |
-| `UdpClientOperate` | `Snet.Core.communication.net.udp.unicast.client` | `UdpClientData.Basics` | `IpAddress`, `Port` | 单播客户端 |
-| `UdpBroadcastOperate` | `Snet.Core.communication.net.udp.broadcast` | `UdpBroadcastData.Basics` | `Port`, `BroadcastAddress`, `BroadcastPort` | 广播发送 |
-| `UdpMulticastOperate` | `Snet.Core.communication.net.udp.multicast` | `UdpMulticastData.Basics` | `IpAddress`, `Port` | 组播 |
+| `UdpClientOperate` | `Snet.Core.communication.net.udp.unicast.client` | `UdpClientData.Basics` | `IpAddress`, `Port` | 单播客户端；`LocalPort`, `InterruptReconnection`, `ReconnectionInterval`, `SendWaitInterval`, `Timeout`, `MaxChunkSize`（自动分包） |
+| `UdpServiceOperate` | `Snet.Core.communication.net.udp.unicast.service` | `UdpServiceData.Basics` | `IpAddress`, `Port` | **单播服务端（v26.222.1 新增）**；`SendAsync(byte[], string[]?)` 定向/群发、`RemoveAsync(string[])` 移除客户端；OnDataEvent 的 `ResultData` 是 `ClientMessage(Step/IpPort/Bytes)` 而非 byte[] |
+| `UdpBroadcastOperate` | `Snet.Core.communication.net.udp.broadcast` | `UdpBroadcastData.Basics` | `Port`, `BroadcastAddress`, `BroadcastPort` | 广播发送；`Timeout`, `SendWaitInterval`, `MaxChunkSize`, `RetrySendCount`（⚠️ 无 TimeToLive——TTL 仅组播可用） |
+| `UdpMulticastOperate` | `Snet.Core.communication.net.udp.multicast` | `UdpMulticastData.Basics` | `Port`, **`MulticastAddress`**（组播地址，必填，如 `239.0.0.99`）, `MulticastPort` | ⚠️ **无 `IpAddress` 属性**；`TimeToLive`, `Timeout`, `SendWaitInterval`, `MaxChunkSize`, `RetrySendCount`；加入/离开组播组由 `OnAsync`/`OffAsync` 自动处理 |
 | `SerialOperate` | `Snet.Core.communication.serial` | `SerialData.Basics` | `PortName`, `BaudRate`, `ParityBit`, `DataBit`, `StopBit` | `WriteTimeout`, `ReadTimeout`, `ReceivedBytesThreshold`, `SendWaitInterval`, `MaxChunkSize`, `RetrySendCount`, `BufferSize` |
 | `WsClientOperate` | `Snet.Core.communication.net.ws.client` | `WsClientData.Basics` | `Host`（如 `"ws://127.0.0.1:6688/"`） | `InterruptReconnection`, `ReconnectionInterval`, `Timeout` |
 | `WsServiceOperate` | `Snet.Core.communication.net.ws.service` | `WsServiceData.Basics` | `Host`（如 `"ws://127.0.0.1:6688/"`） | WebSocket 服务端，管理多客户端连接 |
@@ -1912,6 +1939,7 @@ public override async Task<OperateResult> ReadAsync(Address address, Cancellatio
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.0.9 | 2026-08-11 | 对照源码升级：NuGet 版本 26.214.1→26.222.1；§1 继承链契约补"继承即得"能力（Packer/UnPacker 组包、WA* WebApi、CloneThis、UpdateArgs，直接实现 IDaq 需自实现 6 方法）；§3.2 SCData 位置更正（Snet.Core.subscription）与 HandleInterval 改 virtual 可重写（附 override 示例）；§6.3 BytesHandler 补同步 Transform 两重载；§8.2 IMq 接口表补 IClone/IArgs 行 + MqAbstract.Off 不透传 hardClose 与 UpdateArgsAsync Status=false 缺陷警告；§10.2 通信类速查：UdpMulticastOperate 属性修正（无 IpAddress，MulticastAddress/MulticastPort/TimeToLive）、新增 UdpServiceOperate 单播服务端行（ClientMessage 事件载荷说明）；code-review 修正：§8.5 模板 producer/consumer 改 IDisposable（object 无 Dispose）、§8.1 MqAbstract 无 WebApi 警示、§3.2 LanguageHandler 改可选、§10.2 UdpBroadcast 删虚构 TimeToLive/UdpMulticast 删内部方法列 RetrySendCount、GetStatusAsync 注释占位符改 bool 变量、CN/CD/AP 改"虚属性"、GetStatusAsync try/catch 软化 |
 | 1.0.0.8 | 2026-08-02 | **新增第 8 章 IMq 插件开发契约**（MqAbstract 继承链/6 方法契约详解/数据类契约/完整模板/config 配置注册），技能现同时覆盖 IDaq 与 IMq 两类插件开发；参考表拆分为 10.1 DAQ / 10.2 IMq |
 | 1.0.0.8 | 2026-08-02 | 全面核对源码修正：`BytesHandler.Execute`→`TransformAsync` 两重载用法；`LanguageHandler()` 说明需自实现（附真实插件示例）；`SubscribeOperate.InstanceAsync` 补 await（3 处）；`UdpOperate`→UdpClient/UdpBroadcast/UdpMulticast 三真实类；WsClient/WsService 用 `Host`（非 Url/Port）；HTTP 模板 `BType`→`BodyType`（无 Json 值）；`GetParam()`→`GetArgs()`；ICommunication 接口名 `IGetObject/IGetStatus`→`IObject/IStatus`；OnInfoEvent→`EventInfoResult`；Display 参数语义（Use/Show/MustFillIn）；GetMethod/GetEvent 拆分说明；EndOperateAsync 补 Caller* 参数 |
 | 1.0.0.7 | 2026-07-14 | 初始版本 |

@@ -1,7 +1,7 @@
 ---
 name: wpfui-skill
 description: WPF 现代化界面开发技能，基于 Snet.Windows.Core 和 Snet.Windows.Controls 库，支持自定义窗口、MVVM 架构、深色/浅色主题切换、中英文多语言、PropertyGrid 属性编辑器、拖拽控件、LED 指示灯、分页栏、系统托盘、消息对话框等完整 WPF 桌面应用开发能力。支持"一句话"生成完整 WPF 界面。
-version: 1.0.0.8
+version: 1.0.0.9
 metadata:
   hermes:
     tags: [wpf, desktop, mvvm, ui, theme, localization, property-grid, drag-drop, dotnet]
@@ -50,22 +50,25 @@ AI 先用大白话问用户：
 
 ```bash
 # 核心库（必装）
-dotnet add package Snet.Windows.Core -v 26.214.1
+dotnet add package Snet.Windows.Core -v 26.222.1
 
 # 控件库（按需）
-dotnet add package Snet.Windows.Controls -v 26.214.1
+dotnet add package Snet.Windows.Controls -v 26.222.1
 ```
 
 ### NuGet 依赖关系
 
 ```
 Snet.Windows.Controls
-  ├── Snet.Windows.Core (>= 26.214.1)
+  ├── Snet.Windows.Core (>= 26.222.1)
   │     ├── MaterialDesignThemes (>= 5.3.2)
   │     ├── WPF-UI (>= 4.3.0)
   │     ├── CommunityToolkit.Mvvm (>= 8.4.2)
-  │     └── Snet.Core (>= 26.214.1)
-  └── AvalonEdit (>= 6.3.1.120)
+  │     ├── Microsoft.Xaml.Behaviors.Wpf（EventCommand/Interaction.Triggers 依赖）
+  │     ├── System.Management (>= 10.0.10)
+  │     ├── System.Drawing.Common (>= 10.0.10)
+  │     └── Snet.Core (>= 26.222.1)
+  └── (v26.222.1 起 AvalonEdit 依赖已移除——代码编辑器源码已内嵌，见"编辑控件"章节)
 ```
 
 ---
@@ -193,9 +196,10 @@ public class MainViewModel : BindNotify
 
 ### EventCommand 行为
 
-将任意 WPF 事件绑定到 ViewModel 中的 ICommand：
+将任意 WPF 事件绑定到 ViewModel 中的 ICommand（`EventCommand : TriggerAction<DependencyObject>`，来自 **Microsoft.Xaml.Behaviors.Wpf** 包——`Snet.Windows.Core` 已传递依赖，使用前需在 XAML 声明 `xmlns:b="http://schemas.microsoft.com/xaml/behaviors"`）：
 
 ```xml
+<!-- 窗口根元素需声明 xmlns:b="http://schemas.microsoft.com/xaml/behaviors" -->
 <snet:TextBoxControl ...>
     <b:Interaction.Triggers>
         <b:EventTrigger EventName="TextChanged">
@@ -303,9 +307,9 @@ using Snet.Model.@enum;
 // 获取当前语言
 LanguageType current = LanguageHandler.GetLanguage();
 
-// 设置语言
-LanguageHandler.SetLanguage(LanguageType.zh);  // 中文
-LanguageHandler.SetLanguage(LanguageType.en);  // 英文
+// 设置语言（⚠️ 语言切换已统一异步化——SetLanguage 是 SetLanguageAsync 的薄封装，新代码优先用异步版）
+await LanguageHandler.SetLanguageAsync(LanguageType.zh);  // 中文
+await LanguageHandler.SetLanguageAsync(LanguageType.en);  // 英文
 
 // 获取翻译文本
 string? text = LanguageHandler.GetLanguageValue("Hello");
@@ -315,6 +319,8 @@ string? text = await LanguageHandler.GetLanguageValueAsync("Hello");
 var model = new LanguageModel("MyApp", "Language", "MyApp.dll");
 string? text = LanguageHandler.GetLanguageValue("Hello", model);
 ```
+
+> **⚠️ 双命名空间歧义（常见坑）：** `Snet.Windows.Core.handler.LanguageHandler` 只是**薄包装**（无事件，仅转发 GetLanguageValue/SetLanguage 等）；语言切换**事件**（`OnLanguageEventAsync`）与 `GetLanguageValueAsync` 的真实实现在 **`Snet.Core.handler.LanguageHandler`**（Snet.Core 包）。同时 `using` 两个命名空间时需全限定或别名，否则编译器报歧义。
 
 ### LocExtension XAML 标记扩展
 
@@ -369,7 +375,7 @@ Language.en.resx      (英文翻译)
     HorizontalAlignment="Center"
     Command="{Binding SaveCommand}"
     Content="{snet:Loc Save}"
-    Icon="{DynamicResource SaveIcon}"
+    Icon="{DynamicResource Save}"
     CornerRadius="8" />
 ```
 
@@ -387,7 +393,7 @@ Language.en.resx      (英文翻译)
     Width="200"
     DisplayMemberPath="Key"
     Hint="请选择..."
-    Icon="{DynamicResource DeviceIcon}"
+    Icon="{DynamicResource ScanCode}"
     ItemsSource="{Binding DeviceList}"
     SelectedItem="{Binding SelectedDevice}" />
 ```
@@ -407,7 +413,7 @@ Language.en.resx      (英文翻译)
     Width="200"
     Hint="请输入名称"
     ClearButtonEnabled="True"
-    Icon="{DynamicResource SearchIcon}"
+    Icon="{DynamicResource Scan}"
     Text="{Binding SearchText}" />
 ```
 
@@ -474,6 +480,24 @@ partial class MainViewModel : BindNotify
 }
 ```
 
+### 编辑控件 — TextEditor / TextEditorControl（代码编辑器）
+
+> **v26.222.1 起 AvalonEdit 依赖已移除，代码编辑器以源码形式内嵌**（命名空间 `Snet.Windows.Controls.edit`，旧 `AvalonEdit.*` 命名空间不再可用）：
+
+```xml
+<!-- XAML: 用 clr-namespace 或 snet: 前缀 -->
+<ctrl:TextEditorControl Height="300" FontFamily="Consolas" />
+```
+
+```csharp
+// 代码方式
+using Snet.Windows.Controls.edit;
+var editor = new TextEditorControl { Height = 300 };
+editor.Text = "var x = 1;";
+```
+
+> 内嵌源码覆盖 AvalonEdit 全套能力：代码高亮（Highlighting）、代码折叠（Folding）、搜索（Search）、自动补全（CodeCompletion）、文档（Document）、代码片段（Snippets）等，`TextEditor` 实现 `ITextEditorComponent`/`IServiceProvider`，深浅色主题随应用主题自动适配。
+
 ---
 
 ## 🔧 第六章：PropertyControl 属性编辑器
@@ -487,7 +511,8 @@ partial class MainViewModel : BindNotify
 ### 配置对象
 
 ```csharp
-using Snet.Windows.Controls.property.wpf;   // 命名空间无 .PropertyGrid 后缀
+using Snet.Windows.Controls.property.core.DataAnnotations;  // 注解所在命名空间（非 property.wpf）
+using System.Windows.Media;   // Color / Colors
 
 // 属性对象
 public class DeviceSettings
@@ -515,12 +540,13 @@ public class DeviceSettings
 
     [DisplayName("协议类型")]
     [Category("连接")]
-    [ItemsSourceProperty(typeof(ProtocolTypes))]
+    [ItemsSourceProperty("ProtocolTypes")]   // ⚠️ 实参是"属性名"字符串，不是 Type！
     public string ProtocolType { get; set; }
+    public string[] ProtocolTypes => new[] { "Modbus", "Siemens", "OPC UA" };  // 数据源属性
 
     [DisplayName("固件文件")]
     [Category("高级")]
-    [InputFilePath("Firmware Files|*.hex;*.bin")]
+    [InputFilePath("hex", "Firmware Files|*.hex;*.bin")]  // 第 1 参 = 默认扩展名（无过滤器的简写 [InputFilePath("hex")]）
     public string FirmwarePath { get; set; }
 
     [Browsable(false)]
@@ -538,16 +564,16 @@ public class DeviceSettings
 | `[Browsable(false)]` | 隐藏属性 |
 | `[ReadOnly(true)]` | 只读属性 |
 | `[Editable(false)]` | 不可编辑 |
-| `[Slidable(min, max)]` | 滑块控件 |
-| `[Spinnable(min, max, step)]` | 数字微调控件 |
+| `[Slidable(min, max[, smallChange, largeChange])]` | 滑块控件 |
+| `[Spinnable(smallChange, largeChange, minimum, maximum)]` | 数字微调控件（**4 参构造**，如 `[Spinnable(1, 1, 0, 65535)]`；无 3 参构造） |
 | `[SelectorStyle(ComboBox)]` | 下拉选择样式 |
-| `[ItemsSourceProperty(typeof(EnumType))]` | 枚举数据源 |
-| `[InputFilePath("filter")]` | 文件输入选择器 |
-| `[OutputFilePath("filter")]` | 文件输出选择器 |
+| `[ItemsSourceProperty("属性名")]` | 数据源（**字符串属性名**，非 Type；属性返回 `IEnumerable`） |
+| `[InputFilePath("默认扩展名")]` | 文件输入选择器（单参=默认扩展名；两参=扩展名+过滤器） |
+| `[OutputFilePath("默认扩展名")]` | 文件输出选择器 |
 | `[DirectoryPath]` | 目录选择器 |
 | `[FontFamilySelector]` | 字体选择器 |
-| `[Width(min, max)]` | 宽度 |
-| `[Height(min, max)]` | 高度 |
+| `[Width(width)]` | 宽度（单参：宽度值） |
+| `[Height(height, minHeight?, maxHeight?)]` | 高度（首参=高度值，后两参可选限制） |
 | `[FormatString("{0:F2}")]` | 格式化字符串 |
 | `[Progress]` | 进度条显示 |
 | `[CheckableItems]` | 可勾选列表 |
@@ -607,9 +633,14 @@ dragAnimate.DragEvenTrigger = (showControl) =>
     return (newControl, IsMove: true, IsDragSize: true);
 };
 
+// 消息回调 — 拖拽过程中传递提示消息（string, FrameworkElement）
+dragAnimate.MessageEvenTrigger = (message, element) => Console.WriteLine($"[拖拽] {message}");
+
 // 移除拖拉源
 dragAnimate.Remove(sourceControl);
 ```
+
+> **补充：** `DragControlsExcessiveAnimate` 与 `DragControlsAnimate` 同构（另一套拖拽创建实现），用法一致。`DragControlsBase` 构造参数序为 `(Controls, LlayoutContainer, Move, DragSize)`。
 
 ---
 
@@ -814,7 +845,7 @@ public class DeviceSettings
 
     [DisplayName("端口")]
     [Category("连接")]
-    [Spinnable(0, 65535, 1)]
+    [Spinnable(1, 1, 0, 65535)]   // 4 参构造（smallChange, largeChange, minimum, maximum）
     public int Port { get; set; } = 502;
 
     [DisplayName("采样间隔")]
@@ -832,7 +863,6 @@ public class DeviceSettings
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:snet="https://snet.cn"
-    xmlns:uis="http://schemas.lepo.co/wpfui/2022/xaml"
     xmlns:local="clr-namespace:MyApp"
     Title="{snet:Loc AppTitle}"
     snet:ResxLocalizationProvider.DefaultAssembly="MyApp"
@@ -869,16 +899,16 @@ public class DeviceSettings
             <snet:ButtonControl
                 Content="{snet:Loc Connect}"
                 Command="{Binding ConnectCommand}"
-                Icon="{DynamicResource ConnectIcon}" Margin="5" />
+                Icon="{DynamicResource Connect}" Margin="5" />
 
             <snet:ButtonControl
                 Content="{snet:Loc Disconnect}"
                 Command="{Binding DisconnectCommand}"
-                Icon="{DynamicResource DisconnectIcon}" Margin="5" />
+                Icon="{DynamicResource Disconnect}" Margin="5" />
 
             <snet:TextBoxControl Width="200"
                 Hint="搜索..." ClearButtonEnabled="True"
-                Icon="{DynamicResource SearchIcon}" Margin="20,0,0,0">
+                Icon="{DynamicResource Scan}" Margin="20,0,0,0">
                 <b:Interaction.Triggers>
                     <b:EventTrigger EventName="TextChanged">
                         <b:InvokeCommandAction
@@ -929,19 +959,25 @@ xmlns:snet="https://snet.cn"
 
 ### 内置图标资源
 
+库内置图标 key 存于 `Snet.Windows.Core/resources/Icons.xaml`（150+ 个），常用真实 key（`DynamicResource` 引用，拼错会静默无图标）：
+
 ```xml
-Icon="{DynamicResource Hello}"
+Icon="{DynamicResource Save}"
+Icon="{DynamicResource Connect}"
+Icon="{DynamicResource Scan}"
+Icon="{DynamicResource ScanCode}"
 Icon="{DynamicResource AutoHandler}"
-Icon="{DynamicResource SaveIcon}"
-Icon="{DynamicResource SearchIcon}"
+Icon="{DynamicResource Send}"
 ```
+
+> **⚠️ 注意：** 不存在 `Hello`/`SaveIcon`/`SearchIcon`/`DeviceIcon`/`ConnectIcon`/`DisconnectIcon` 等 key（旧版文档杜撰）。示例中使用自定义 key 需自行在资源字典定义。
 
 自定义图标加载：
 ```csharp
 // 从外部 ResourceDictionary 文件加载
 IconsHandler.Loading("pack://application:,,,/MyApp;component/Resources/Icons.xaml");
 
-// 获取图标
+// 获取图标（key 不存在抛 KeyNotFoundException）
 var icon = IconsHandler.GetIcon("MyCustomIcon");
 ```
 
@@ -1181,6 +1217,8 @@ public static NavigationViewItem CreationControl(
 ---
 
 ## 🧩 第十五章：模板化视图架构
+
+> **⚠️ 本章为架构示意（参考实现）：** `DaqTemplateViewModel<T>` / `MqTemplateViewModel<T>` / `CommunicationClientTemplateViewModel<T>` 等模板 VM 与 `template/DaqTemplateView.xaml` 在 Daq 应用当前源码中**不存在**（旧版架构，Daq 的 viewModel 现为 AddressSettingsModel/ConsoleModel/PluginSettingsModel 等独立类）。下述代码**不可直接编译**，仅用于理解"DataTemplate + VM 基类"的设计思路；编写 Daq 应用请以实际源码为准。
 
 Daq 大规模使用 **DataTemplate + ViewModel 继承链** 模式：共享 UI 布局通过 ResourceDictionary 中的 DataTemplate 定义，各协议页面仅需 5 行 XAML + 5 行 C#。
 
@@ -1661,42 +1699,40 @@ if (SvgHandler.SvgCodeConverter(name, annotation, svgContent, out string xamlCod
 
 ## 🌳 第二十一章：OPC UA 节点浏览数据模型
 
-用于构建 OPC UA 树形节点浏览器的结构化数据模型。
+> **⚠️ Debug 应用代码，非 WpfMUI 库 API**（命名空间 `Snet.Iot.Debug.model`，源码 F:/Snet/Debug/Snet.Iot.Debug/model/）。用于构建 OPC UA 树形节点浏览器的结构化数据模型。
 
 ### OpcUaNodeBrowseStructuralBody
 
 ```csharp
-// F:/Snet/Shunnet/Snet/Daq/data/OpcUaNodeBrowseStructuralBody.cs
-public class OpcUaNodeBrowseStructuralBody
+// F:/Snet/Debug/Snet.Iot.Debug/model/OpcUaNodeBrowseStructuralBody.cs
+// 继承 BindNotify（MVVM 属性通知），皮肤切换时按 IconKey 自动刷新图标
+public class OpcUaNodeBrowseStructuralBody : BindNotify
 {
-    /// <summary>节点 ID</summary>
-    public string NodeId { get; set; }
-
-    /// <summary>显示名称</summary>
-    public string DisplayName { get; set; }
-
-    /// <summary>节点类别</summary>
-    public string NodeClass { get; set; }
-
-    /// <summary>是否已展开（UI 绑定）</summary>
-    public bool IsExpanded { get; set; }
-
-    /// <summary>是否已选中（UI 绑定）</summary>
-    public bool IsSelected { get; set; }
-
-    /// <summary>子节点列表</summary>
-    public List<OpcUaNodeBrowseStructuralBody> Children { get; set; } = new();
+    public int PageIndex { get; set; }          // 分页索引
+    public bool IsLoading { get; set; }         // 加载中
+    public string IconKey { get; set; } = "";   // 图标资源 key
+    public object Icon { get; set; }            // 图标（皮肤切换自动按 IconKey 重取）
+    public string Name { get; set; }            // 节点名称
+    public object NodeID { get; set; }          // 节点 ID
+    public string Count { get; set; }           // 子节点数量（字符串）
+    public ObservableCollection<OpcUaNodeBrowseStructuralBody> Children { get; set; } = new();
 }
 ```
 
 ### OpcUaNodeBrowseMessageStructuralBody
 
 ```csharp
-// 消息级别的节点浏览结果
-public class OpcUaNodeBrowseMessageStructuralBody
+// F:/Snet/Debug/Snet.Iot.Debug/model/OpcUaNodeBrowseMessageStructuralBody.cs
+// 消息级别的节点数据（继承 BindNotify）
+public class OpcUaNodeBrowseMessageStructuralBody : BindNotify
 {
-    public string StatusMessage { get; set; }
-    public List<OpcUaNodeBrowseStructuralBody> Nodes { get; set; } = new();
+    public int Index { get; set; }              // 序号
+    public string Name { get; set; }            // 名称
+    public string Address { get; set; }         // 地址
+    public string Value { get; set; }           // 值
+    public string Type { get; set; }            // 类型
+    public string AccessLevel { get; set; }     // 访问级别
+    public string Description { get; set; }     // 描述
 }
 ```
 
@@ -1747,17 +1783,6 @@ MyApp/
 ├── Language.en.resx          # 英文翻译资源
 ├── resources/
 │   └── icons.xaml            # 自定义图标
-├── template/                 # 可复用 DataTemplate
-│   ├── DaqTemplateView.xaml
-│   ├── MqTemplateView.xaml
-│   ├── CommunicationClientTemplateView.xaml
-│   ├── CommunicationServiceTemplateView.xaml
-│   ├── MqServiceTemplateView.xaml
-│   ├── DaqTemplateViewModel.cs
-│   ├── MqTemplateViewModel.cs
-│   ├── CommunicationClientTemplateViewModel.cs
-│   ├── CommunicationServiceTemplateViewModel.cs
-│   └── MqServiceTemplateViewModel.cs
 ├── view/                     # View（每个协议/功能一个）
 │   ├── SiemensView.xaml + .cs
 │   ├── ModbusView.xaml + .cs
@@ -1815,53 +1840,28 @@ public partial class App : Application
 }
 ```
 
-### 完整的 DaqTemplateViewModel.cs
+### 协议页 ViewModel 架构（示意）
 
-基于 Daq 实际代码的关键架构模式：
+> **⚠️ 示意架构，非可编译示例：** `DaqTemplateViewModel<T>` 类在 Daq 应用当前源码中不存在（见第十五章警示）。下述代码展示的是"IDaq + BasicsData + 命令 + 三区日志"的页面 VM 设计思路，实际开发请以 Daq 源码（viewModel/ 下的 AddressSettingsModel、ConsoleModel 等）为准。
 
 ```csharp
-public class DaqTemplateViewModel<T> : BindNotify
+// 示意：协议页 VM 的典型结构（非真实存在的类）
+public class ProtocolPageViewModel : BindNotify
 {
-    // === 生命周期事件 ===
-    public DaqTemplateViewModel()
+    // === 核心对象 ===
+    public IDaq Daq { get; set; }            // 采集接口
+    public BasicsData BasicsData { get; set; }  // 协议配置对象（各协议自己的 Basics）
+    public string FileName { get; set; }     // 导出文件名
+    public string Key { get; set; }          // 多语言 Key
+
+    // === 生命周期 ===
+    public ProtocolPageViewModel()
     {
-        // 订阅语言切换事件（响应标题刷新）
         LanguageHandler.OnLanguageEventAsync -= OnLanguageChangedAsync;
         LanguageHandler.OnLanguageEventAsync += OnLanguageChangedAsync;
-
-        // UI 线程延迟初始化默认值
-        Application.Current.Dispatcher.InvokeAsync(async () =>
-        {
-            ComboBoxSelectedItem = ComboBoxItemsSource[0];
-            DataType = 20;       // 默认 String
-            Length = 1;
-            ToolTitle = await GetTitleAsync();
-        }, DispatcherPriority.Loaded);
-
-        StartLogLoop(); // 启动底层日志循环
+        // On → 注册 Info/Data 异步事件 → 推送三区日志
+        // 导入: 文件选择 → 反序列化 → 重建实例；导出: BasicsData.ToJson() → 写入
     }
-
-    // === 核心对象 ===
-    public IDaq Daq { get; set; }          // 采集接口
-    public T BasicsData { get; set; }       // 协议配置对象
-    public string FileName { get; set; }    // 导出文件名
-    public string Key { get; set; }         // 多语言 Key
-
-    // === 双向绑定属性（Panel 可见性控制）===
-    public Visibility GetAutoAllocatingParamVisibility { get; set; }
-    public Visibility InteractionVisibility { get; set; } = Visibility.Visible;
-
-    // === 命令：On / Off / Read / Write / Subscribe / UnSubscribe ===
-    // === 命令：Inc (导入) / Exp (导出) ===
-    // === 命令：InfoClear / DataClear / InteractionClear ===
-    // === 命令：GetAutoAllocatingParam (获取协议类型参数) ===
-    // === 三个日志区：InfoEvent / DataEvent / InteractionEvent ===
-
-    // === 事件处理: On → 注册 Info/Data 异步事件 → 推送日志 ===
-    // === 事件处理: 底层交互数据 LogNet_BeforeSaveToFile → 入队 ===
-    // === 语言切换: 重新生成 ToolTitle (中/英) ===
-    // === 导入: 文件选择 → 反序列化 → Dispose 旧对象 → 创建新实例 ===
-    // === 导出: 文件夹选择 → BasicsData.ToJson() → 写入文件 ===
 }
 ```
 
@@ -1951,10 +1951,10 @@ public class ItemsControlBody : BindNotify
 ### 插件契约
 
 ```csharp
-// DAQ 采集插件 — 必须实现 IDaq 接口（Snet.Model/interface/IDaq.cs，16 子接口）
+// DAQ 采集插件 — 必须实现 IDaq 接口（Snet.Model/interface/IDaq.cs，17 子接口，含 IPacker）
 public interface IDaq : IOn, IOff, IRead, IWrite, ISubscribe,
     IStatus, IEvent, IArgs, IInstance, ILog,
-    IWA, IObject, ILanguage, IClone, IDisposable, IAsyncDisposable { }
+    IWA, IObject, ILanguage, IClone, IPacker, IDisposable, IAsyncDisposable { }
 
 // MQ 消息插件 — 必须实现 IMq 接口（Snet.Model/interface/IMq.cs，13 子接口）
 public interface IMq : IOn, IOff, IProducer, IConsumer,
@@ -2041,48 +2041,42 @@ MainChart.ScrollData(pressureSeries, DateTime.Now, 1.2);
 
 ## 🖥️ 第二十五章：系统监控仪表盘
 
-基于 [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) 的 CPU / GPU / RAM 实时硬件监控。
+> **⚠️ Daq/KMSim 应用代码，非 WpfMUI 库 API**（命名空间 `Snet.Windows.KMSim.utility`，源码 F:/Snet/KMSim/Snet.Windows.KMSim/utility/SystemMonitoring.cs）。基于 [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) 的硬件信息采集。
 
 ### SystemMonitoring 核心
 
 ```csharp
-// F:/Snet/KMSim/Snet.Windows.KMSim/utility/SystemMonitoring.cs（KMSim 应用代码，非 WpfMUI 库）
-public class SystemMonitoring : IDisposable
-{
-    public float CpuLoad { get; private set; }        // CPU 使用率 (%)
-    public float CpuTemperature { get; private set; }  // CPU 温度 (°C)
-    public float GpuLoad { get; private set; }         // GPU 使用率 (%)
-    public float GpuTemperature { get; private set; }  // GPU 温度 (°C)
-    public float RamUsed { get; private set; }         // 已用内存 (GB)
-    public float RamTotal { get; private set; }        // 总内存 (GB)
-    public float RamLoad { get; private set; }         // 内存使用率 (%)
+using Snet.Windows.KMSim.utility;
 
-    public void Start(int intervalMs = 1000) { /* 启动定时采集 */ }
-    public void Stop() { /* 停止定时采集 */ }
-
-    // 更新回调（每 intervalMs 触发一次）
-    public event Action<SystemMonitoring> OnDataUpdated;
-}
+// 单例获取 + 生命周期
+var monitor = SystemMonitoring.Instance();
+monitor.Init();          // 启动硬件采集（内部初始化 LibreHardwareMonitor Computer）
+var info = monitor.GetInfo();       // 返回 HardwareData（含全部硬件信息）
+var info2 = monitor.GetInfo(true);  // baseInfo=true 仅基础信息
+monitor.End();           // 停止采集
+monitor.Dispose();       // 释放（或 using var）
 ```
+
+**HardwareData 结构：**
+
+| 属性 | 说明 |
+|:---|:---|
+| `SystemName` / `SystemVer` / `SystemRunTime` | 计算机名 / 系统版本 / 运行时长（"X天X小时X分钟"） |
+| `CpuInfo` / `MemoryInfo` / `DiskInfo` / `GpuInfo` / `BiosInfo` / `NetworkInfo` | 各硬件信息字符串 |
+| `Info` | `List<HardwareDataType>` 传感器明细（Key/Value） |
+
+**辅助方法：** `IsAdmin()`（是否管理员）、`IsOpen()`（是否已启动采集）。
 
 ### 配合 LedGaugeControl 的仪表盘面板
 
 ```xml
-<!-- CPU 面板 -->
-<GroupBox Header="CPU">
+<!-- 硬件状态面板（监控数据为字符串信息，用 Led 指示采集状态） -->
+<GroupBox Header="系统状态">
     <StackPanel>
-        <snet:LedGaugeControl Color="Blue" IsOn="{Binding CpuAlive}"
-            IsFlashing="{Binding CpuFlashing}" />
-        <TextBlock Text="{Binding CpuLoad, StringFormat={}{0:F1}%}" />
-        <TextBlock Text="{Binding CpuTemperature, StringFormat={}{0:F1}°C}" />
-    </StackPanel>
-</GroupBox>
-
-<!-- RAM 面板 -->
-<GroupBox Header="RAM">
-    <StackPanel>
-        <TextBlock Text="{Binding RamUsed, StringFormat={}{0:F1} GB}" />
-        <ProgressBar Value="{Binding RamLoad}" Maximum="100" />
+        <snet:LedGaugeControl Color="Green" IsOn="{Binding MonitorRunning}" />
+        <TextBlock Text="{Binding CpuInfo}" />
+        <TextBlock Text="{Binding MemoryInfo}" />
+        <TextBlock Text="{Binding SystemRunTime}" />
     </StackPanel>
 </GroupBox>
 ```
@@ -2091,38 +2085,15 @@ public class SystemMonitoring : IDisposable
 
 ## ❄️ 第二十六章：雪花粒子特效
 
-WPF 纯渲染实现的雪花飘落动画，支持主题色跟随。
+> **⚠️ Daq 应用代码，非 WpfMUI 库 API**（命名空间 `Snet.Iot.Daq.effects`，源码 F:/Snet/Daq/Snet.Iot.Daq/effects/SnowflakeEffect.cs）。WPF 纯渲染雪花飘落动画，主题色自动跟随（内部订阅 SkinHandler_OnSkinEvent）。
 
-### SnowflakeEffect 核心
+### SnowflakeEffect 用法
 
 ```csharp
-// 使用 Canvas 作为容器，按 50ms 定时器驱动逐帧动画
-public class SnowflakeEffect : IDisposable
-{
-    private readonly Canvas _canvas;
-    private readonly List<SnowFlake> _snowflakes = new(200);
-    private readonly Color _baseColor;      // 基础颜色（跟随主题）
-    private Timer _timer;
-
-    public SnowflakeEffect(Canvas canvas, int count = 200, Color? color = null)
-    {
-        _canvas = canvas;
-        _baseColor = color ?? Colors.White;
-        // 随机初始化雪花：位置、大小、透明度、速度、摆动角度
-        InitializeSnowflakes(count);
-        // 启动 50ms 定时器驱动动画
-        _timer = new Timer(Tick, null, 0, 50);
-    }
-
-    private void Tick(object? state)
-    {
-        // 每帧更新每个雪花：Y += Speed, X += sin(Angle) * Step
-        // 触底回归顶部，利用 RenderTransform 避免重建 UI 元素
-    }
-
-    public void UpdateColor(Color newColor) { /* 主题切换时更新颜色 */ }
-    public void Dispose() { _timer?.Dispose(); ClearSnowflakes(); }
-}
+// 使用 Canvas 作为容器（雪花数量默认 188）
+var effect = new SnowflakeEffect(SnowCanvas);
+effect.Start();   // 开始动画（主题色跟随皮肤自动切换，无需手动 UpdateColor）
+effect.Stop();    // 停止动画
 ```
 
 ### XAML 集成
@@ -2138,22 +2109,17 @@ public class SnowflakeEffect : IDisposable
 ```
 
 ```csharp
-// 在 Home 页面加载时启动
-var effect = new SnowflakeEffect(SnowCanvas, count: 200);
-
-// 皮肤切换时同步颜色
-SkinHandler.OnSkinEvent += (sender, e) =>
-{
-    effect.UpdateColor(e.Skin == SkinType.Dark
-        ? Colors.White : Colors.DarkGray);
-};
+// 在 Home 页面加载时启动，卸载时停止
+var effect = new SnowflakeEffect(SnowCanvas);
+effect.Start();
+// 页面关闭时：effect.Stop();
 ```
 
----
+> **⚠️ 注意：** 构造参数是 `flakeCount`（默认 188），**没有** `count` 命名参数、`UpdateColor` 或颜色构造参数——主题跟随通过内部 `SkinHandler_OnSkinEvent` 订阅自动完成。
 
 ## 🔒 第二十七章：单实例保护
 
-基于命名 Mutex + NamedPipe 的单实例管理器，第二实例启动时自动激活已有窗口。
+> **⚠️ Daq 应用代码，非 WpfMUI 库 API**（命名空间 `Snet.Iot.Daq.Handler`，源码 F:/Snet/Daq/Snet.Iot.Daq/handler/SingleInstanceHandler.cs）。基于命名 Mutex + NamedPipe 的单实例管理器，第二实例启动时自动激活已有窗口。
 
 ### SingleInstanceHandler
 
@@ -2229,7 +2195,7 @@ Daq 内置的彩色标签日志控制台，通过正则匹配日志标签自动�
 ### 颜色标签映射
 
 ```csharp
-// App.xaml.cs / App.EditModels
+// App.xaml.cs / App.EditModels（⚠️ 部分示例——Daq 实际约 79 条，含 On/Off/Read/Write/Send 等标签）
 private static List<EditModel> GetEditModels() =>
 [
     new() { Name = "[ Info ]",                Color = "#4CAF50" },  // 绿色
@@ -2254,23 +2220,39 @@ private static List<EditModel> GetEditModels() =>
 <ComboBox ItemsSource="{Binding Devices}" SelectedItem="{Binding SelectedDevice}" />
 <TextBox Text="{Binding ConsoleOutput}"
          AcceptsReturn="True" IsReadOnly="True"
-         TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
-         TextChanged="{snet:EventCommand Command={Binding TextChanged}}" />
+         TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
 ```
 
-### EditBindingHandler 彩色渲染
+### 事件绑定命令（EventCommand）
+
+`EventCommand` 是 `TriggerAction<DependencyObject>`（继承 Microsoft.Xaml.Behaviors.Wpf），**只能放在 `Interaction.Triggers` 的 `EventTrigger` 内**，不能作为属性赋值：
+
+```xml
+<!-- ✅ 正确：用 Interaction.Triggers 包装（需 xmlns:b="http://schemas.microsoft.com/xaml/behaviors" + 安装 Microsoft.Xaml.Behaviors.Wpf 包） -->
+<TextBox Text="{Binding ConsoleOutput}" AcceptsReturn="True">
+    <b:Interaction.Triggers>
+        <b:EventTrigger EventName="TextChanged">
+            <snet:EventCommand Command="{Binding TextChangedCommand}" />
+        </b:EventTrigger>
+    </b:Interaction.Triggers>
+</TextBox>
+<!-- ❌ 错误：TextChanged="{snet:EventCommand ...}" 属性写法 → XAML 解析失败 -->
+```
+
+### EditBindingHandler 双向绑定
 
 ```
 // F:/Snet/WpfMUI/Snet.Windows.Controls/handler/EditBindingHandler.cs
-// 通过正则扫描 TextBox.Text，匹配 EditModel.Name 标签，
-// 在 RichTextBox/FlowDocument 中对匹配行应用对应 Color 的高亮效果。
+// TextEditor（内嵌 AvalonEdit）的文本双向绑定附加属性：
+//   snet:EditBindingHandler.EditText="{Binding Code}"（BindsTwoWayByDefault）
+// 注意：该类与正则着色/FlowDocument 高亮无关；日志着色请用 TextEditor 的 Highlighting 机制。
 ```
 
 ---
 
 ## ⚙️ 第二十九章：地址字节级解析器
 
-`AddressSettings` 和 `AutoPackHandler` 实现可视化的字节/位/编码/数据格式配置，支持自定义协议解析。
+`AddressSettings` 与 Daq 的自动组包（`DqaHandler`/`AddressAutoPackModel`，见下文）实现可视化的字节/位/编码/数据格式配置，支持自定义协议解析。
 
 ### 核心概念
 
@@ -2285,30 +2267,33 @@ private static List<EditModel> GetEditModels() =>
 
 ```csharp
 // F:/Snet/Daq/Snet.Iot.Daq.Core/data/AddressModelCore.cs
-public class AddressModelCore
+// 继承 DaqPluginOperateModel.ReadModel（基类字段 Address/Type/Length/EncodingType）+ IAddressModel
+public class AddressModelCore : DaqPluginOperateModel.ReadModel, IAddressModel
 {
-    public string SN { get; set; }              // 唯一标识（机台号）
-    public string AddressName { get; set; }     // 设备地址（如 DB1.0、40001）
-    public DataType DataType { get; set; }      // 数据类型（String/Int/Float/Bool...）
-    public int Length { get; set; }             // 读取长度
-    public EncodingType EncodingType { get; set; } // 编码格式（ASCII/UTF8/HEX...）
-    public AddressType AddressType { get; set; }   // 地址类型（实数/虚拟）
-    public bool IsEnable { get; set; }          // 是否启用
-    public AddressMq? AddressMqParam { get; set; } // MQ 自动转发配置
+    // 基类 ReadModel：Address(string) / Type(DataType) / Length(ushort) / EncodingType(EncodingType)
+    public int Index { get; set; }          // 序号（主键自增）
+    public string Guid { get; set; }        // 唯一标识
+    public string AnotherName { get; set; } // 别名
+    public string Describe { get; set; }    // 描述
+    public string Topic { get; set; }       // 数据传输主题
+    public bool SimplifyValue { get; set; } // 数据传输精简值
+    public string ExpandParam { get; set; } // 扩展参数
+    public DateTime Time { get; set; }      // 时间
+    public bool IsSelected { get; set; }    // UI 选中
+    // + Update / Revoke / Convert 等命令
 }
 ```
 
-### 自动组包算法
+> **⚠️ 注意：** 字段名是 `Address` / `Type` / `Length` / `EncodingType`（基类），**没有** `SN` / `AddressName` / `DataType` / `AddressType` / `IsEnable` / `AddressMqParam` 属性。
+
+### 自动组包（Daq 应用侧）
 
 ```csharp
-// F:/Snet/Daq/Snet.Iot.Daq.Core/handler/AutoPackHandler.cs
-// 将离散地址列表按协议类型分组，合并连续/临近地址为批量读取
-public class AutoPackHandler
-{
-    // 输入: List<AddressModel> 离散地址
-    // 输出: List<AddressBatch> 组包后的批次
-    // 策略: 按 (DeviceSN, ProtocolType) 分组，按 AddressName 排序后合并连续地址
-}
+// Daq 的自动组包能力在 Snet.Iot.Daq.Core：
+//   - handler/DqaHandler.cs:341 — 批量订阅入口（autoPack 参数）
+//   - data/AddressAutoPackModel.cs — 组包模型
+// 底层组包算法本身由 Snet.Core 的 PackerHandler/PackerFactory 提供（见 DAQ-Skill §1.3）。
+// ⚠️ 不存在 AutoPackHandler 类——旧文档虚构，勿引用。
 ```
 
 ### AddressSettings 视图
@@ -2348,5 +2333,6 @@ public class AutoPackHandler
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.0.9 | 2026-08-11 | 对照 WpfMUI 源码升级：NuGet 版本 26.214.1→26.222.1；依赖树移除 AvalonEdit（v26.222.1 起源码内嵌）；第五章新增"编辑控件 TextEditor/TextEditorControl"（Snet.Windows.Controls.edit，替代旧 AvalonEdit xmlns）；第六章修正：注解 using 改 `Snet.Windows.Controls.property.core.DataAnnotations`（非 property.wpf）、`ItemsSourceProperty` 实参为字符串属性名、`Spinnable` 4 参构造（无 3 参）、`InputFilePath` 单参=默认扩展名；第四章补 SetLanguageAsync 异步优先 + LanguageHandler 双命名空间歧义警示（事件真身在 Snet.Core.handler）；第七章补 MessageEvenTrigger 与 DragControlsExcessiveAnimate；code-review 修正：第十章 Spinnable 4 参、第十一章图标 key 改真实值、第十五/二十二章模板 VM 标注为示意架构（类不存在）、第二十一章 OPC UA 模型改真实路径/成员（Snet.Iot.Debug.model）、第二十三/二十九章 IDaq 17 接口/AddressModelCore 真实字段、第二十五/二十六/二十七章 SystemMonitoring/SnowflakeEffect/SingleInstanceHandler 按真实 API 重写+来源标注、第二十八章 EventCommand 改 Interaction.Triggers 用法/EditBindingHandler 说明重写、第六章 Width/Height 注解签名/using System.Windows.Media、依赖树补 System.Management/System.Drawing.Common、删除虚构 AutoPackHandler 指向 DqaHandler |
 | 1.0.0.8 | 2026-08-02 | 全面核对源码修正：XAML xmlns `https://shunnet.top`→`https://snet.cn`（5 处）；删除虚构 `GetSkinAsync`（仅同步 GetSkin）；托盘章节重写（NotifyIcon 是 XAML 元素 + Register/Unregister/点击事件，TrayManager 为 internal 不可访问）；`Win32Handler.Select` 参数 `isFolder`→`selectFolder`（且不支持多选）；`dragEvenTrigger`→`DragEvenTrigger`（委托带参）；PropertyGrid using 去 `.PropertyGrid` 后缀；事件参数 `e.SkinType`→`e.Skin`；`SetProperty(expr,val,null)` 三参歧义→两参；`CreationControl` 第 4 参 `multilingual`；GifHandler 命名空间 `Snet.Iot.Debug.handler`；SystemMonitoring 路径修正；NuGet 版本 1.0.0.1→26.214.1 |
 | 1.0.0.7 | 2026-07-14 | 初始版本：WindowBase、6 大控件、MVVM、主题、多语言、拖拽、托盘、PropertyGrid、NavigationView、模板视图架构、全局异常处理、异步日志、文件对话框、GIF/SVG 转换、OPC UA 节点浏览、完整架构实战、Daq 插件热插拔、ScottPlot 图表、系统监控、雪花特效、单实例保护、Console 控制台、地址字节级解析器（共 29 章） |
