@@ -1,6 +1,6 @@
 # PluginDev-Skill — Snet Daq 插件开发契约（IDaq + IMq）
 
-**版本:** 1.0.0.9  
+**版本:** 1.0.1.2  
 **作者:** Shun  
 **许可证:** MIT  
 **框架:** .NET 10.0
@@ -59,8 +59,7 @@ IMq 插件：
        └─ CoreUnify<O, D>（同上自动提供）
 
 你的 MqData 类
-  └─ Basics 独立类（无订阅字段，含 SN + 连接参数）
-       └─ ProtocolType 枚举 + Attribute 标注
+  └─ Basics 独立类（无订阅字段，含 SN + 连接参数，无需 ProtocolType 枚举——那是 IDAQ 的概念）
 ```
 
 ## IDaq 插件：8 个必须实现的抽象方法

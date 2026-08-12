@@ -1,7 +1,7 @@
 ---
 name: plugindev-skill
 description: Snet.Iot.Daq 插件开发技能，覆盖 IDaq（数据采集）与 IMq（消息中间件）两类插件开发。严格定义插件开发契约：必须实现的抽象方法、必须遵循的返回类型、必须使用的数据标注、必须调用的框架方法。AI 自行决定采集方式（TCP/HTTP/文件/串口）或消息收发方式，但必须遵守契约。
-version: 1.0.0.9
+version: 1.0.1.2
 metadata:
   hermes:
     tags: [plugin-development, daq, iot, dotnet, contract, code-generation, mq, middleware]
@@ -174,6 +174,13 @@ public class XxxOperate : DaqAbstract<XxxOperate, XxxData.Basics>, IDaq
 ## 2. 方法契约详解
 
 > **核心约束：** 8 个抽象异步方法必须 `await BegOperateAsync → try → await GetStatusAsync检查 → 实现 → catch`；GetStatusAsync 建议不包 try/catch（简单状态判断），GetBaseObjectAsync 禁止 try/catch。
+>
+> **⚠️ 状态检查必须统一走 `GetStatusAsync`** —— Read/Write/Subscribe/UnSubscribe 等方法的入口状态判断一律使用：
+> ```csharp
+> if (!(await GetStatusAsync(token)).GetDetails(out string? msg))
+>     return await EndOperateAsync(false, msg, token: token);
+> ```
+> **禁止**直接读私有状态字段（如 `IsOpen`/`IsConnected`）替代 —— GetStatusAsync 封装了状态语义（含"关闭中"中间态、日志控制），绕过它会破坏整体一致性。**唯一例外**：持有异步锁（SemaphoreSlim）的临界区内不能调用 GetStatusAsync（会重入等锁 → 死锁），此时允许直接读私有标志做复查（见 §8.7 第 4 条）。
 
 ### 2.1 OnAsync — 打开连接
 
@@ -1308,6 +1315,13 @@ public interface IMq : IOn, IOff, IProducer, IConsumer, IStatus,
 ### 8.3 方法契约详解
 
 > **核心约束（与 DAQ 插件一致）：** 所有异步方法 `await BegOperateAsync → try → await GetStatusAsync检查 → 实现 → catch`；GetStatusAsync 建议不包 try/catch（简单状态判断）。
+>
+> **⚠️ 状态检查必须统一走 `GetStatusAsync`** —— Produce/Consume/UnConsume 的入口状态判断一律使用：
+> ```csharp
+> if (!(await GetStatusAsync(token)).GetDetails(out string? msg))
+>     return await EndOperateAsync(false, msg, token: token);
+> ```
+> **禁止**直接读私有状态字段（如 `IsOpen`/`IsConnected`）替代 —— GetStatusAsync 封装了状态语义（含"关闭中"中间态、日志控制），绕过它会破坏整体一致性。**唯一例外**：持有异步锁（SemaphoreSlim）的临界区内不能调用 GetStatusAsync（会重入等锁 → 死锁），此时允许直接读私有标志做复查（见 §8.7 第 4 条）。
 
 #### 8.3.1 OnAsync — 连接 Broker
 
@@ -1519,28 +1533,12 @@ public class XxxMqData
         [Description("端口")]
         public int Port { get; set; } = 6688;
 
-        // ── 必须：协议类型 ──
-        [Description("协议类型")]
-        [JsonConverter(typeof(JsonStringEnumConverter))]
-        [AutoAllocatingTag(typeof(ProtocolType))]
-        [Display(true, true, true, ParamModel.dataCate.select)]
-        public ProtocolType ProtocolType { get; set; } = ProtocolType.XxxProtocol;
-    }
-
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public enum ProtocolType
-    {
-        [Description("协议中文描述")]
-        [AutoAllocating(new string[] {
-            "SN",        // 必须
-            "IpAddress", // 连接参数
-            "Port",      // 连接参数
-            // ... AI 定义的连接参数
-        })]
-        XxxProtocol,
+        // ── AI 定义的连接参数（认证凭据、消费组、SSL 开关、ResponseType 等）──
     }
 }
 ```
+
+> **⚠️ IMq 插件不需要 `ProtocolType` 属性** —— 协议类型标记（`AutoAllocatingTag`/`AutoAllocating`）是 **IDAQ 插件**的概念（见第 3.3 节），用于设备多协议切换；IMq 插件一个类对应一个消息系统，无协议切换需求，参考实现 Snet.Kafka/Snet.RabbitMQ 均无此属性。
 
 ### 8.5 完整 IMq 插件模板（AI 填写连接/收发逻辑）
 
@@ -1732,12 +1730,35 @@ Compress-Archive -Path ./publish/* -DestinationPath MyMqPlugin.zip
 {
   "SN": "my-mq",
   "IpAddress": "127.0.0.1",
-  "Port": 6688,
-  "ProtocolType": "XxxProtocol"
+  "Port": 6688
 }
 ```
 
 配置文件内容 = Basics 的 JSON 序列化（属性名与 Basics 一致）。文件放入 Daq 工具运行目录的 `config/mq/` 后自动加载并启动；修改文件热更新。
+
+### 8.7 IMq 插件开发实战要点（踩坑提炼）
+
+> 基于 Snet.RocketMQ（RocketMQ.Client 5.2.1）真实开发总结，适用于所有 Broker 型 MQ 插件（Kafka/RocketMQ/RabbitMQ 等）。
+
+1. **Basics 不需要 `ProtocolType` 属性** —— 协议类型标记是 IDAQ 插件的概念（第 3.3 节），IMq 插件一个类对应一个消息系统，无多协议切换需求（见 8.4 注意事项）。
+
+1. **状态判断统一走 `GetStatusAsync`** —— Produce/Consume/UnConsume 入口一律 `if (!(await GetStatusAsync(token)).GetDetails(out string? msg)) return await EndOperateAsync(false, msg, token: token);`，禁止直接读私有状态字段（绕开 GetStatusAsync 会破坏一致性，且漏掉"关闭中"等中间态）。**仅锁内复查可直读私有标志**（临界区内调 GetStatusAsync 会重入等锁死锁，见第 4 条）。
+
+2. **消费者懒创建** —— 部分 SDK（如 RocketMQ.Client 的 `PushConsumer`）`Build()` 强制要求非空初始订阅集合，无法在 OnAsync 预建消费者。解决：**首个 ConsumeAsync 时以该 topic 初始化消费者**，后续 `Subscribe(topic, filter)` 动态加主题；用 `ConcurrentDictionary<string, FilterExpression>` 记录已订阅主题（含"此主题已订阅/不存在"幂等判断）。
+
+3. **异步锁保护消费者生命周期** —— SDK 的 Build/Subscribe/Dispose 多为异步网络调用，`lock` 不可用。用 `SemaphoreSlim(1,1)` + `await WaitAsync(token)`；**锁内只变更状态，EndOperateAsync 等日志/语言 IO 放锁外**，避免放大锁持有时间。
+
+4. **OffAsync 与 ConsumeAsync 竞态** —— Off 释放消费者与 Consume 重建消费者并发会泄漏消费者。修复模式：OffAsync 开头**先置 `IsOpen=false` 关闭入口** → 锁内释放 consumer/producer → finally 兜底置空字段并复位 IsOpen；ConsumeAsync **锁内复查 `IsOpen`**。
+
+5. **SSL 默认开启陷阱** —— 部分客户端（RocketMQ.Client `ClientConfig`）默认 `EnableSsl(true)`，本地自建无 TLS 的 Broker 连接即失败。Basics 提供 `SslEnabled`（bool）开关，默认 false。
+
+6. **SDK 状态不可读时自管标志** —— RocketMQ `Client.State` 是 internal，插件无法读取；与 Kafka 一致用自管 `IsOpen` 标志，GetStatusAsync 直接返回（禁止 try/catch）。
+
+7. **同步消费回调的异常兜底** —— 部分 SDK 的监听器是同步接口（RocketMQ `IMessageListener.Consume` 返回 `ConsumeResult`）。回调内用 `.GetAwaiter().GetResult()` 推送事件；**异常不得逸出回调**：外层 catch 返回 `ConsumeResult.FAILURE`（让 Broker 按重试策略重投），通知事件本身再包一层 try/catch。
+
+8. **凭据成对校验** —— 有认证的插件（AccessKey/SecretKey）在 OnAsync 开头校验两者同时为空或同时非空，缺失即 fail-fast。
+
+9. **重试/回滚语义** —— UnConsume 先 `Unsubscribe` 再移除本地集合（SDK 抛异常时集合保留，重试仍可取消）；Consume 的 `Subscribe` 失败发生在路由查询阶段（SDK 订阅集合无变化），重试幂等。
 
 ---
 
@@ -1939,6 +1960,9 @@ public override async Task<OperateResult> ReadAsync(Address address, Cancellatio
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.1.2 | 2026-08-12 | **§2 IDAQ 核心约束补状态检查规范**（与 §8.3 IMq 对齐）：Read/Write/Subscribe/UnSubscribe 入口状态判断必须统一走 `GetStatusAsync`，禁止直接读私有状态字段；锁内复查豁免 |
+| 1.0.1.1 | 2026-08-12 | **§8.3 状态检查规范 + §8.7 补条目**：Produce/Consume/UnConsume 入口状态判断必须统一走 `GetStatusAsync`（`if (!(await GetStatusAsync(token)).GetDetails(out string? msg)) return await EndOperateAsync(false, msg, token: token);`），禁止直接读私有状态字段；唯一例外是锁内复查（临界区内调 GetStatusAsync 会重入等锁死锁）—— 提炼自 Snet.RocketMQ 开发（第一版直接查 IsOpen 破坏一致性，已修正） |
+| 1.0.1.0 | 2026-08-12 | **§8 IMq 契约修正 + 实战提炼**（基于 Snet.RocketMQ / RocketMQ.Client 5.2.1 真实开发）：§8.4 数据类契约删除 `ProtocolType` 属性与枚举（IMq 插件不需要——那是 IDAQ 的协议标记概念，参考实现 Snet.Kafka/Snet.RabbitMQ 均无）；§8.6 配置示例删 ProtocolType；新增 §8.7 IMq 插件开发实战要点：消费者懒创建（PushConsumer Build 要求非空订阅）、SemaphoreSlim 异步锁（锁内不做日志 IO）、OffAsync/ConsumeAsync 竞态修复（IsOpen 前置 + finally 兜底 + 锁内复查）、SSL 默认开启陷阱（ClientConfig EnableSsl 默认 true）、SDK 状态 internal 自管 IsOpen、同步消费回调异常兜底（FAILURE 让 Broker 重投）、凭据成对校验、UnConsume 先取消后移除 |
 | 1.0.0.9 | 2026-08-11 | 对照源码升级：NuGet 版本 26.214.1→26.222.1；§1 继承链契约补"继承即得"能力（Packer/UnPacker 组包、WA* WebApi、CloneThis、UpdateArgs，直接实现 IDaq 需自实现 6 方法）；§3.2 SCData 位置更正（Snet.Core.subscription）与 HandleInterval 改 virtual 可重写（附 override 示例）；§6.3 BytesHandler 补同步 Transform 两重载；§8.2 IMq 接口表补 IClone/IArgs 行 + MqAbstract.Off 不透传 hardClose 与 UpdateArgsAsync Status=false 缺陷警告；§10.2 通信类速查：UdpMulticastOperate 属性修正（无 IpAddress，MulticastAddress/MulticastPort/TimeToLive）、新增 UdpServiceOperate 单播服务端行（ClientMessage 事件载荷说明）；code-review 修正：§8.5 模板 producer/consumer 改 IDisposable（object 无 Dispose）、§8.1 MqAbstract 无 WebApi 警示、§3.2 LanguageHandler 改可选、§10.2 UdpBroadcast 删虚构 TimeToLive/UdpMulticast 删内部方法列 RetrySendCount、GetStatusAsync 注释占位符改 bool 变量、CN/CD/AP 改"虚属性"、GetStatusAsync try/catch 软化 |
 | 1.0.0.8 | 2026-08-02 | **新增第 8 章 IMq 插件开发契约**（MqAbstract 继承链/6 方法契约详解/数据类契约/完整模板/config 配置注册），技能现同时覆盖 IDaq 与 IMq 两类插件开发；参考表拆分为 10.1 DAQ / 10.2 IMq |
 | 1.0.0.8 | 2026-08-02 | 全面核对源码修正：`BytesHandler.Execute`→`TransformAsync` 两重载用法；`LanguageHandler()` 说明需自实现（附真实插件示例）；`SubscribeOperate.InstanceAsync` 补 await（3 处）；`UdpOperate`→UdpClient/UdpBroadcast/UdpMulticast 三真实类；WsClient/WsService 用 `Host`（非 Url/Port）；HTTP 模板 `BType`→`BodyType`（无 Json 值）；`GetParam()`→`GetArgs()`；ICommunication 接口名 `IGetObject/IGetStatus`→`IObject/IStatus`；OnInfoEvent→`EventInfoResult`；Display 参数语义（Use/Show/MustFillIn）；GetMethod/GetEvent 拆分说明；EndOperateAsync 补 Caller* 参数 |
