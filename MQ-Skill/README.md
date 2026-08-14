@@ -1,9 +1,11 @@
 # MQ-Skill — Snet 消息中间件应用技能
 
-**版本:** 1.0.0.9  
+**版本:** 1.0.1.0  
 **作者:** Shun  
 **许可证:** MIT  
 **框架:** .NET 10.0
+
+🌐 [中文 README](README.md) | [English README](README.en.md)
 
 ## 一句话消息收发
 
@@ -13,7 +15,7 @@
 
 → 自动生成包含：项目创建 + NuGet安装 + 中间件配置 + 生产/消费 + 日志的完整可运行代码
 
-**核心：** 5 种中间件（MQTT/Kafka/RabbitMQ/NetMQ/Netty）全部实现统一 `IMq` 接口，`Produce`/`Consume`/`OnDataEventAsync` 用法一致，切换中间件无需改业务逻辑。
+**核心：** 6 种中间件（MQTT/Kafka/RabbitMQ/RocketMQ/NetMQ/Netty）全部实现统一 `IMq` 接口，`Produce`/`Consume`/`OnDataEventAsync` 用法一致，切换中间件无需改业务逻辑。
 
 ## 简介
 
@@ -24,6 +26,7 @@
 | **MQTT** | `MqttClientOperate` / `MqttServiceOperate` / `MqttWebSocketServiceOperate` | Client+内置 Broker+WebSocket，QoS 0/1/2 |
 | **Kafka** | `KafkaOperate` | 高吞吐，SASL 认证，`BootstrapServers` 连接 |
 | **RabbitMQ** | `RabbitMQOperate` | AMQP 协议，4 种 Exchange（direct/topic/fanout/headers） |
+| **RocketMQ** | `RocketMQOperate` | Apache RocketMQ 5.x，gRPC 连 Proxy，ACL/SSL |
 | **NetMQ** | `NetMQOperate` | ZeroMQ Pub/Sub，无 Broker，<1ms 延迟 |
 | **Netty** | `NettyClientOperate` / `NettyServiceOperate` | DotNetty 高性能 TCP，SSL 支持 |
 
@@ -59,4 +62,4 @@ await mq.OffAsync();                             // 断开
 - [DAQ-Skill](../DAQ-Skill) — 数据采集 + 自动转发
 - [PluginDev-Skill](../PluginDev-Skill) — 开发自定义 IMq 插件（第 8 章）
 
-**📄 文件：** `SKILL.md`（8 章：统一 IMq 接口 / 5 种中间件详解 / DAQ 联动转发 / 故障排查）
+**📄 文件：** `SKILL.md`（9 章：统一 IMq 接口 / 6 种中间件详解 / DAQ 联动转发 / 故障排查）

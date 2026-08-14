@@ -1,9 +1,11 @@
 # DAQ-Skill — 工业物联网数据采集技能
 
-**版本:** 1.0.0.9  
+**版本:** 1.0.1.0  
 **作者:** Shun  
 **许可证:** MIT  
 **框架:** .NET 10.0
+
+🌐 [中文 README](README.md) | [English README](README.en.md)
 
 ## 一句话采集+转发
 
@@ -17,7 +19,7 @@
 
 ## 简介
 
-基于 [Snet](https://www.nuget.org/profiles/Shun) 框架的工业物联网全栈式数据采集通信库。支持 30+ 种工业协议（PLC/工控/电力/机器人），消息中间件（Kafka/MQTT/RabbitMQ/NetMQ/Netty）数据转发，内置 WebAPI 远程控制。
+基于 [Snet](https://www.nuget.org/profiles/Shun) 框架的工业物联网全栈式数据采集通信库。支持 30+ 种工业协议（PLC/工控/电力/机器人），消息中间件（Kafka/MQTT/RabbitMQ/RocketMQ/NetMQ/Netty）数据转发，内置 WebAPI 远程控制。
 
 ## 交互流程
 
@@ -91,6 +93,7 @@
 | `Snet.Mqtt` | Client（连接 Broker）+ Service（内置 Broker）+ WSService（WebSocket） | `Snet.Mqtt.client.MqttClientOperate.{SN}` |
 | `Snet.Kafka` | AdminClient/Producer/Consumer | `Snet.Kafka.KafkaOperate.{SN}` |
 | `Snet.RabbitMQ` | Publish/Subscribe | `Snet.RabbitMQ.RabbitMQOperate.{SN}` |
+| `Snet.RocketMQ` | Publish/Subscribe（Apache RocketMQ 5.x，gRPC 连 Proxy） | `Snet.RocketMQ.RocketMQOperate.{SN}` |
 | `Snet.NetMQ` | Publish/Subscribe | `Snet.NetMQ.NetMQOperate.{SN}` |
 | `Snet.Netty` | Client/Service | `Snet.Netty.client.NettyClientOperate.{SN}` |
 
@@ -131,8 +134,8 @@ dotnet new console -n DaqDemo && cd DaqDemo
 # ⚠️ 必须指定版本号！到 nuget.org 查找最新版本：
 #   https://www.nuget.org/packages/Snet.Siemens
 #   https://www.nuget.org/packages/Snet.Mqtt
-dotnet add package Snet.Siemens -v 26.222.1
-dotnet add package Snet.Mqtt -v 26.222.1
+dotnet add package Snet.Siemens -v 26.226.1
+dotnet add package Snet.Mqtt -v 26.226.1
 
 # 电力协议示例
 # dotnet add package Snet.PQDIF -v <最新版本>

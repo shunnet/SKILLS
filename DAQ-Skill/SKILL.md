@@ -1,7 +1,7 @@
 ---
 name: daq-skill
-description: 工业物联网数据采集通信库，基于 Snet 框架，支持 PLC/工控/电力/机器人 等 30+ 种工业协议的数据读取、写入、订阅、状态获取，以及 Kafka/MQTT/RabbitMQ/NetMQ/Netty 消息中间件转发。所有采集库通过 ProtocolType 枚举自动选择底层驱动。支持"一句话"完成采集+转发。
-version: 1.0.0.9
+description: 工业物联网数据采集通信库，基于 Snet 框架，支持 PLC/工控/电力/机器人 等 30+ 种工业协议的数据读取、写入、订阅、状态获取，以及 Kafka/MQTT/RabbitMQ/RocketMQ/NetMQ/Netty 消息中间件转发。所有采集库通过 ProtocolType 枚举自动选择底层驱动。支持"一句话"完成采集+转发。
+version: 1.0.1.0
 metadata:
   hermes:
     tags: [daq, iot, plc, industrial-automation, modbus, siemens, opc-ua, mqtt, kafka]
@@ -92,8 +92,8 @@ operate.Off();
 
 ```bash
 # ✅ 正确：指定版本号
-dotnet add package Snet.Siemens -v 26.222.1
-dotnet add package Snet.Mqtt -v 26.222.1
+dotnet add package Snet.Siemens -v 26.226.1
+dotnet add package Snet.Mqtt -v 26.226.1
 
 # ❌ 错误：不带版本号（使用 * 通配符，运行时报错）
 dotnet add package Snet.Siemens
@@ -114,16 +114,16 @@ dotnet add package Snet.Mqtt
 
 ```bash
 # ✅ 正确：只引用驱动包 + MQ 包
-dotnet add package Snet.Siemens -v 26.222.1
-dotnet add package Snet.Mqtt -v 26.222.1
+dotnet add package Snet.Siemens -v 26.226.1
+dotnet add package Snet.Mqtt -v 26.226.1
 
 # ❌ 错误：多引用了传递依赖包
-dotnet add package Snet.Siemens -v 26.222.1
-dotnet add package Snet.Mqtt -v 26.222.1
-dotnet add package Snet.Core -v 26.222.1      # 不需要！
-dotnet add package Snet.Model -v 26.222.1     # 不需要！
-dotnet add package Snet.Log -v 26.222.1       # 不需要！
-dotnet add package Snet.Utility -v 26.222.1   # 不需要！
+dotnet add package Snet.Siemens -v 26.226.1
+dotnet add package Snet.Mqtt -v 26.226.1
+dotnet add package Snet.Core -v 26.226.1      # 不需要！
+dotnet add package Snet.Model -v 26.226.1     # 不需要！
+dotnet add package Snet.Log -v 26.226.1       # 不需要！
+dotnet add package Snet.Utility -v 26.226.1   # 不需要！
 ```
 
 ### using 语句 vs NuGet 引用
@@ -855,7 +855,7 @@ DataFormat.DCBA  // 完全反转
 | **松下** | `Station` | `PanasonicData.cs` |
 | **麦格米特** | `Station`, `DataFormat`, `AddressStartWithZero` | `MegMeetData.cs` |
 | **英威腾** | `Station`, `DataFormat`, `StationCheckMatch`, `AddressStartWithZero` | `InvtData.cs` |
-| **倍福** | `SenderAMSNetId`, `TargetAMSNetId`, `UseAutoAmsNetID`, `UseTagCache`, `UseServerActivePush`（默认 true，服务端主动推送） | `BeckhoffData.cs` |
+| **倍福** | `SenderAMSNetId`, `TargetAMSNetId`, `UseAutoAmsNetID`, `UseTagCache`, `UseServerActivePush`（默认 true，服务端主动推送）, `AmsPort`（默认 851=TwinCAT3；TwinCAT2 设 801） | `BeckhoffData.cs` |
 | **安川** | `CpuFrom`, `CpuTo`, `DataFormat` | `YaskawaData.cs` |
 | **通用电气** | 无特殊属性 | `GEData.cs` |
 | **西蒙** | `FrameNo` | `CimonData.cs` |
@@ -1128,10 +1128,10 @@ using (DBOperate operate = await DBOperate.InstanceAsync(new DBData.Basics
     OperateResult result = await operate.OnAsync();
     if (!result.Status)
     {
-        LogHelper.Fatal($"数据库连接失败: {result.Message}");
+        LogHelper.Fatal($"数据库启动失败: {result.Message}");
         return;
     }
-    LogHelper.Info("数据库已连接");
+    LogHelper.Info("数据库采集已就绪（Daq 模式为短连接工厂，OnAsync 仅校验 DBType，连接串错误在首次 Read 时报出）");
 
     // AddressName = SQL 查询语句
     Address address = new Address
@@ -1734,7 +1734,7 @@ using (var operate = await XxxOperate.InstanceAsync(config))
 | `/api/off` | POST | 关闭连接 |
 | `/api/read` | POST | 读取数据（需传 Address JSON） |
 | `/api/write` | POST | 写入数据（需传 WriteModel JSON） |
-| `/api/getstatus` | POST | 获取连接状态 |
+| `/api/getstatus` | GET | 获取连接状态 |
 | `/api/switchlanguage` | POST | 切换中英文 |
 
 ### 10.3 WebAPI 方法
@@ -1816,7 +1816,7 @@ public class EventDataResult : ResultModel
     public T? GetSource<T>();
     
     // 获取详情
-    public bool GetDetails(out EventDataResult result);
+    public bool GetDetails<T>(out T? resultData);
 }
 ```
 
@@ -1963,6 +1963,7 @@ DAQ → Netty:   "Snet.Netty.client.NettyClientOperate.{SN}"
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.1.0 | 2026-08-14 | 对照源码升级（Shunnet @754fedf，NuGet 26.222.1/26.223.1→**26.226.1**，48 包统一）：安装命令版本号全部更新；§10.2 WebAPI 表 `/api/getstatus` POST→**GET**（DaqAbstract getstatusMethod）；§5.3 倍福补 `AmsPort`（默认 851=TwinCAT3；TwinCAT2 设 801）；§7.6 DB 日志文案更新（Daq 模式为短连接工厂，OnAsync 仅校验 DBType，连接串错误在首次 Read 时报出）；§12.2 EventDataResult 伪类 `GetDetails` 签名改 `GetDetails<T>(out T? resultData)`；description 中间件列表补 RocketMQ |
 | 1.0.0.9 | 2026-08-11 | 对照源码全面升级：NuGet 版本 26.214.1→**26.222.1**（Snet.Opc 单独标注 26.223.1）；新增 §1.3 地址自动组包（IPacker：PackerAsync/UnPackerAsync、19 协议族注册表、标签类协议自动降级原样返回）与 §1.4 克隆/参数更新（IClone：CloneThis；IArgs：UpdateArgs/GetBasicsArgs，含 UpdateArgsAsync Status=false 已知缺陷提示）；§7.3 OPC UA 证书认证（AType.Certificate + Cer/SecreKey/TrustedUserPath，服务端非 IDaq 提示，IOu 节点浏览 API）；§5.3 修正：SCData 位置与 HandleInterval 改 virtual 可重写、Modbus 补 Crc16CheckEnable/IsClearCacheBeforeRead/StationCheckMatch、倍福补 UseServerActivePush、罗克韦尔补 SrcNode/Station、补 GE 行；§7.6 DB 采集修复说明（默认 10 秒、ToNJson、SqlSugar 内嵌为 Snet.DB.sugar）；code-review 修正：§1.1 "无条件 Produce"→Quality 门（Normal/ParseUnknown）、§4.5 String 字节宽随编码、§5.3 罗克韦尔 ReadArrayUseSegment 只读注记/欧姆龙补 IsStringReverseByteWord/公共属性来源更正为各厂商 Basics 声明；§7.7.2 TEP Slave 前置条件警告；§7.8 PQDIF/Freedom 不支持 Byte 类型；§14 覆盖列表补全 13 个协议包；ProtocolType 为厂商嵌套枚举说明 |
 | 1.0.0.8 | 2026-08-02 | 全面核对源码修正：`FileOut`→`Out`；OPC DA Client/HTTP 用 `SName`/`IpAddress`（无 ServerUrl）；TEP Slave 删除虚构 `ViolenceUpload`；24 处构造统一 `await XxxOperate.InstanceAsync()` 单例池；补充 `config/mq/` 配置文件自动转发前提（MqOperate.InstanceIoc 机制）；NuGet 版本号 1.0.0.1→26.214.1；MQTT 默认账号 sample→shunnet；补 `using MQTTnet.Protocol;`；Fatek 删除虚构 DataFormat；OnInfoEvent 类型→EventInfoResult；Write 三重载说明修正；虚拟地址参数"增长比例"→"步长" |
 | 1.0.0.7 | 2026-07-14 | 初始版本 |

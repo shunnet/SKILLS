@@ -1,8 +1,10 @@
 # WpfUI-Skill — WPF 现代化界面开发技能
 
-**版本:** 1.0.0.9
+**版本:** 1.0.1.0
 **作者:** Shun
 **许可证:** MIT
+
+🌐 [中文 README](README.md) | [English README](README.en.md)
 
 ## 🎯 定位
 

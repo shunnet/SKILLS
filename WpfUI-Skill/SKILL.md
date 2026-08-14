@@ -1,7 +1,7 @@
 ---
 name: wpfui-skill
 description: WPF 现代化界面开发技能，基于 Snet.Windows.Core 和 Snet.Windows.Controls 库，支持自定义窗口、MVVM 架构、深色/浅色主题切换、中英文多语言、PropertyGrid 属性编辑器、拖拽控件、LED 指示灯、分页栏、系统托盘、消息对话框等完整 WPF 桌面应用开发能力。支持"一句话"生成完整 WPF 界面。
-version: 1.0.0.9
+version: 1.0.1.0
 metadata:
   hermes:
     tags: [wpf, desktop, mvvm, ui, theme, localization, property-grid, drag-drop, dotnet]
@@ -50,24 +50,24 @@ AI 先用大白话问用户：
 
 ```bash
 # 核心库（必装）
-dotnet add package Snet.Windows.Core -v 26.222.1
+dotnet add package Snet.Windows.Core -v 26.226.1
 
 # 控件库（按需）
-dotnet add package Snet.Windows.Controls -v 26.222.1
+dotnet add package Snet.Windows.Controls -v 26.226.1
 ```
 
 ### NuGet 依赖关系
 
 ```
 Snet.Windows.Controls
-  ├── Snet.Windows.Core (>= 26.222.1)
+  ├── Snet.Windows.Core (>= 26.226.1)
   │     ├── MaterialDesignThemes (>= 5.3.2)
   │     ├── WPF-UI (>= 4.3.0)
   │     ├── CommunityToolkit.Mvvm (>= 8.4.2)
   │     ├── Microsoft.Xaml.Behaviors.Wpf（EventCommand/Interaction.Triggers 依赖）
-  │     ├── System.Management (>= 10.0.10)
-  │     ├── System.Drawing.Common (>= 10.0.10)
-  │     └── Snet.Core (>= 26.222.1)
+  │     ├── System.Management (>= 10.0.11)
+  │     ├── System.Drawing.Common (>= 10.0.11)
+  │     └── Snet.Core (>= 26.226.1)
   └── (v26.222.1 起 AvalonEdit 依赖已移除——代码编辑器源码已内嵌，见"编辑控件"章节)
 ```
 
@@ -2298,20 +2298,21 @@ public class AddressModelCore : DaqPluginOperateModel.ReadModel, IAddressModel
 
 ### AddressSettings 视图
 
+> **⚠️ 示意示例：** 绑定字段为 `AddressModelCore` 的真实基类字段（`Address`/`Type`/`Length`/`EncodingType` + 扩展 `AnotherName`/`Describe`/`IsSelected`），非真实 Daq 视图结构——Daq 的 `AddressSettings.xaml` 是 QueryContent/QueryAddress/AddAddress 等命令布局。
+
 ```xml
-<!-- AddressSettings.xaml — 可视化地址配置面板 -->
+<!-- AddressSettings 示意 — 绑定 AddressModelCore 真实字段 -->
 <GroupBox Header="地址配置">
     <DataGrid ItemsSource="{Binding Addresses}" AutoGenerateColumns="False">
         <DataGrid.Columns>
-            <DataGridTextColumn Header="SN" Binding="{Binding SN}" />
-            <DataGridTextColumn Header="地址" Binding="{Binding AddressName}" />
-            <snet:ComboBoxControl Header="数据类型" ItemsSource="{Binding DataTypes}"
-                SelectedItem="{Binding DataType}" />
+            <DataGridTextColumn Header="地址" Binding="{Binding Address}" />
+            <DataGridTextColumn Header="类型" Binding="{Binding Type}" />
             <DataGridTextColumn Header="长度" Binding="{Binding Length}" />
-            <DataGridCheckBoxColumn Header="启用" Binding="{Binding IsEnable}" />
+            <DataGridTextColumn Header="编码" Binding="{Binding EncodingType}" />
+            <DataGridCheckBoxColumn Header="选中" Binding="{Binding IsSelected}" />
         </DataGrid.Columns>
     </DataGrid>
-    <snet:ButtonControl Content="自动组包" Command="{Binding AutoPackCommand}" />
+    <snet:ButtonControl Content="添加地址" Command="{Binding AddAddressCommand}" />
 </GroupBox>
 ```
 
@@ -2333,6 +2334,7 @@ public class AddressModelCore : DaqPluginOperateModel.ReadModel, IAddressModel
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.1.0 | 2026-08-14 | 对照源码升级（WpfMUI @390d732，NuGet 26.222.1→**26.226.1**）：安装命令与依赖树版本号更新（Snet.Core 系 26.226.1、System.Management/System.Drawing.Common 10.0.10→**10.0.11**）；§29 AddressSettings 示例改为绑定 AddressModelCore 真实字段（Address/Type/Length/EncodingType/IsSelected）并标注示意性质 |
 | 1.0.0.9 | 2026-08-11 | 对照 WpfMUI 源码升级：NuGet 版本 26.214.1→26.222.1；依赖树移除 AvalonEdit（v26.222.1 起源码内嵌）；第五章新增"编辑控件 TextEditor/TextEditorControl"（Snet.Windows.Controls.edit，替代旧 AvalonEdit xmlns）；第六章修正：注解 using 改 `Snet.Windows.Controls.property.core.DataAnnotations`（非 property.wpf）、`ItemsSourceProperty` 实参为字符串属性名、`Spinnable` 4 参构造（无 3 参）、`InputFilePath` 单参=默认扩展名；第四章补 SetLanguageAsync 异步优先 + LanguageHandler 双命名空间歧义警示（事件真身在 Snet.Core.handler）；第七章补 MessageEvenTrigger 与 DragControlsExcessiveAnimate；code-review 修正：第十章 Spinnable 4 参、第十一章图标 key 改真实值、第十五/二十二章模板 VM 标注为示意架构（类不存在）、第二十一章 OPC UA 模型改真实路径/成员（Snet.Iot.Debug.model）、第二十三/二十九章 IDaq 17 接口/AddressModelCore 真实字段、第二十五/二十六/二十七章 SystemMonitoring/SnowflakeEffect/SingleInstanceHandler 按真实 API 重写+来源标注、第二十八章 EventCommand 改 Interaction.Triggers 用法/EditBindingHandler 说明重写、第六章 Width/Height 注解签名/using System.Windows.Media、依赖树补 System.Management/System.Drawing.Common、删除虚构 AutoPackHandler 指向 DqaHandler |
 | 1.0.0.8 | 2026-08-02 | 全面核对源码修正：XAML xmlns `https://shunnet.top`→`https://snet.cn`（5 处）；删除虚构 `GetSkinAsync`（仅同步 GetSkin）；托盘章节重写（NotifyIcon 是 XAML 元素 + Register/Unregister/点击事件，TrayManager 为 internal 不可访问）；`Win32Handler.Select` 参数 `isFolder`→`selectFolder`（且不支持多选）；`dragEvenTrigger`→`DragEvenTrigger`（委托带参）；PropertyGrid using 去 `.PropertyGrid` 后缀；事件参数 `e.SkinType`→`e.Skin`；`SetProperty(expr,val,null)` 三参歧义→两参；`CreationControl` 第 4 参 `multilingual`；GifHandler 命名空间 `Snet.Iot.Debug.handler`；SystemMonitoring 路径修正；NuGet 版本 1.0.0.1→26.214.1 |
 | 1.0.0.7 | 2026-07-14 | 初始版本：WindowBase、6 大控件、MVVM、主题、多语言、拖拽、托盘、PropertyGrid、NavigationView、模板视图架构、全局异常处理、异步日志、文件对话框、GIF/SVG 转换、OPC UA 节点浏览、完整架构实战、Daq 插件热插拔、ScottPlot 图表、系统监控、雪花特效、单实例保护、Console 控制台、地址字节级解析器（共 29 章） |

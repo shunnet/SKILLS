@@ -1,7 +1,7 @@
 ---
 name: plugindev-skill
 description: Snet.Iot.Daq 插件开发技能，覆盖 IDaq（数据采集）与 IMq（消息中间件）两类插件开发。严格定义插件开发契约：必须实现的抽象方法、必须遵循的返回类型、必须使用的数据标注、必须调用的框架方法。AI 自行决定采集方式（TCP/HTTP/文件/串口）或消息收发方式，但必须遵守契约。
-version: 1.0.1.2
+version: 1.0.1.3
 metadata:
   hermes:
     tags: [plugin-development, daq, iot, dotnet, contract, code-generation, mq, middleware]
@@ -36,7 +36,7 @@ metadata:
 
 ```bash
 # ✅ 正确：指定版本号
-dotnet add package Snet.Core -v 26.222.1
+dotnet add package Snet.Core -v 26.226.1
 
 # ❌ 错误：不带版本号（使用 * 通配符，运行时报错）
 dotnet add package Snet.Core
@@ -104,11 +104,11 @@ dotnet add package Snet.Core
 你的 Operate 类
   └─ 必须继承 DaqAbstract<你的Operate类, 你的Data.Basics>
        └─ DaqAbstract 继承 CoreUnify（自动提供：单例、事件、日志、多语言、参数、WebApi）
-            └─ 必须实现 8 个抽象异步方法 + 3 个虚属性（强烈建议重写，否则 UI 显示类型全名/空描述）
+            └─ 必须实现 8 个抽象异步方法 + 2 个虚属性（强烈建议重写，否则 UI 显示类型全名/空描述）
             └─ 同步方法是薄封装：`=> XxxAsync().GetAwaiter().GetResult()`，从基类自动继承
 ```
 
-> **✅ 继承即得（v26.222.1+，无需自己实现）：**
+> **✅ 继承即得（v26.226.1+，无需自己实现）：**
 > - **地址自动组包**：`Packer` / `PackerAsync` / `UnPacker` / `UnPackerAsync`（IPacker 契约）——继承 DaqAbstract 即内置，公开字段 `packerHandler` / `bytesHandler` 可直接使用
 > - **WebAPI**：`WAOn` / `WAOff` / `WAStatus` / `WARequestExample`（IWA，6 个 HTTP 端点自动暴露）
 > - **克隆**：`CloneThis` / `CloneThisAsync`（IClone，克隆不入单例池）
@@ -118,13 +118,9 @@ dotnet add package Snet.Core
 ```csharp
 public class XxxOperate : DaqAbstract<XxxOperate, XxxData.Basics>, IDaq
 {
-    // ============ 3 个虚属性（强烈建议重写）============
+    // ============ 2 个虚属性（强烈建议重写）============
     protected override string CN => "中文名称";
     protected override string CD => "中文描述";
-    protected override List<propertie> AP => new List<propertie>
-    {
-        new propertie { PropertyName = "ServiceName", Description = "命名空间", Default = this.GetType().FullName }
-    };
 
     // ============ 构造函数 ============
     public XxxOperate() : base() { LanguageHandler(); }
@@ -133,7 +129,7 @@ public class XxxOperate : DaqAbstract<XxxOperate, XxxData.Basics>, IDaq
     // ============ LanguageHandler（可选：如需 UI 中英文热切换才实现）============
     // 注册语言切换事件：UI 中英文热切换时刷新插件内部字符串资源
     // 无需语言资源切换的插件可省略（如 Snet.PerformanceTesting 的构造函数就无此逻辑）
-    // 参考真实插件实现（如 Snet.Beckhoff/BeckhoffOperate.cs:1191）：
+    // 参考真实插件实现（如 Snet.Beckhoff/BeckhoffOperate.cs:1185）：
     private void LanguageHandler()
     {
         OnLanguageEventAsync -= LanguageEventAsync;
@@ -262,7 +258,7 @@ public override async Task<OperateResult> OffAsync(bool hardClose = false, Cance
 | Status=true | 已连接 |
 | Status=false | 未连接 |
 | try/catch | **禁止**（简单状态判断，无需异常捕获） |
-| logOutput | 建议 `false`（真实驱动 KafkaOperate.cs:498 即用 logOutput:false 静默——文件日志也不写；`consoleOutput:false` 只静默控制台，文件日志仍写） |
+| logOutput | 建议 `false`（真实驱动 KafkaOperate.cs:519 即用 logOutput:false 静默——文件日志也不写；`consoleOutput:false` 只静默控制台，文件日志仍写） |
 
 ```csharp
 public override async Task<OperateResult> GetStatusAsync(CancellationToken token = default)
@@ -1000,13 +996,9 @@ namespace XxxNamespace
 {
     public class XxxOperate : DaqAbstract<XxxOperate, Basics>, IDaq
     {
-        // ═══ 3 个虚属性（强烈建议重写）═══
+        // ═══ 2 个虚属性（强烈建议重写）═══
         protected override string CN => "【AI 填写中文名称】";
         protected override string CD => "【AI 填写中文描述】";
-        protected override List<propertie> AP => new List<propertie>
-        {
-            new propertie { PropertyName = "ServiceName", Description = "命名空间", Default = this.GetType().FullName }
-        };
 
         // ═══ 构造函数 ═══
         public XxxOperate() : base() { LanguageHandler(); }
@@ -1200,7 +1192,7 @@ namespace XxxNamespace
 
                 // 创建 SubscribeOperate（必须传 SubscribeData.Basics，并绑定 FunctionAsync = ReadAsync）
                 // SubscribeOperate 自带轮询循环（按 HandleInterval 周期调用 FunctionAsync），无需自写 Task.Run！
-                // 参考真实驱动：Snet.Siemens/SiemensOperate.cs:1970
+                // 参考真实驱动：Snet.Siemens/SiemensOperate.cs:1963
                 subscribeOperate = await SubscribeOperate.InstanceAsync(new SubscribeData.Basics()
                 {
                     Address = address,
@@ -1234,7 +1226,7 @@ namespace XxxNamespace
 
                 if (subscribeOperate != null)
                 {
-                    // 调 SubscribeOperate.UnSubscribeAsync 精确取消（参考 SiemensOperate.cs:1999）
+                    // 调 SubscribeOperate.UnSubscribeAsync 精确取消（参考 SiemensOperate.cs:1992）
                     return await EndOperateAsync(await subscribeOperate.UnSubscribeAsync(address, token), token: token);
                 }
                 return await EndOperateAsync(true, token: token);
@@ -1263,20 +1255,16 @@ namespace XxxNamespace
   └─ 必须继承 MqAbstract<你的Operate类, 你的MqData.Basics>
        └─ MqAbstract 继承 CoreUnify（自动提供：单例、事件、日志、多语言、参数、克隆——CloneThis/UpdateArgs/GetBasicsArgs）
        └─ ⚠️ 无 WebApi：WA* 方法（WAOn/WAOff 等）仅 DaqAbstract 实现，MQ 插件没有 HTTP 接口
-            └─ 必须实现 6 个抽象异步方法 + 3 个属性
+            └─ 必须实现 6 个抽象异步方法 + 2 个属性
             └─ 同步方法（On/Off/GetStatus/Produce×2/Consume/UnConsume）是基类薄封装，自动继承
 ```
 
 ```csharp
 public class XxxMqOperate : MqAbstract<XxxMqOperate, XxxMqData.Basics>, IMq
 {
-    // ============ 3 个虚属性（强烈建议重写）============
+    // ============ 2 个虚属性（强烈建议重写）============
     protected override string CN => "中文名称";
     protected override string CD => "中文描述";
-    protected override List<propertie> AP => new List<propertie>
-    {
-        new propertie { PropertyName = "ServiceName", Description = "命名空间", Default = this.GetType().FullName }
-    };
 
     // ============ 构造函数（LanguageHandler 可选实现，见第 1 章说明）============
     public XxxMqOperate() : base() { LanguageHandler(); }
@@ -1310,7 +1298,7 @@ public interface IMq : IOn, IOff, IProducer, IConsumer, IStatus,
 | `IClone` | `CloneThis()` / `CloneThisAsync(token)` — 克隆实例（不入单例池），继承 MqAbstract 自动获得 |
 | `IArgs` | `UpdateArgs<T>` / `GetBasicsArgs()` / `GetAutoAllocatingArgs()` — 参数更新/查询，自动获得 |
 
-> **⚠️ 已知缺陷（v26.222.1）：** 基类同步 `Off(bool hardClose)` **不透传 hardClose**（MqAbstract.cs:34 直接调 `OffAsync()`），插件内部强制关闭请直接调用 `await OffAsync(true, token)`；`UpdateArgsAsync` 成功路径返回 `Status=false`（CoreUnify.cs:871），判断用 `GetDetails` 消息。
+> **⚠️ 已知缺陷（v26.226.1）：** 基类同步 `Off(bool hardClose)` **不透传 hardClose**（MqAbstract.cs:34 直接调 `OffAsync()`），插件内部强制关闭请直接调用 `await OffAsync(true, token)`；`UpdateArgsAsync` 成功路径返回 `Status=false`（CoreUnify.cs:865），判断用 `GetDetails` 消息。
 
 ### 8.3 方法契约详解
 
@@ -1399,7 +1387,7 @@ public override async Task<OperateResult> OffAsync(bool hardClose = false, Cance
 | Status=true | 已连接 |
 | Status=false | 未连接 |
 | try/catch | **禁止**（简单状态判断） |
-| logOutput | 建议 `false`（真实驱动 KafkaOperate.cs:498 即用 logOutput:false 静默——文件日志也不写；`consoleOutput:false` 只静默控制台，文件日志仍写） |
+| logOutput | 建议 `false`（真实驱动 KafkaOperate.cs:519 即用 logOutput:false 静默——文件日志也不写；`consoleOutput:false` 只静默控制台，文件日志仍写） |
 
 ```csharp
 public override async Task<OperateResult> GetStatusAsync(CancellationToken token = default)
@@ -1468,7 +1456,7 @@ public override async Task<OperateResult> ConsumeAsync(string topic, Cancellatio
         {
             while (!consumeToken.Token.IsCancellationRequested)
             {
-                // 收到消息后，按 ResponseType 约定推送（参考 Snet.Kafka/KafkaOperate.cs:131-137）
+                // 收到消息后，按 ResponseType 约定推送（参考 Snet.Kafka/KafkaOperate.cs:109-122）
                 byte[] content = /* 收到的消息字节 */;
                 await OnDataEventHandlerAsync(this, new EventDataResult(true, $"接收到 ( {topic} ) 主题消息", content));
                 // 或推送字符串: new EventDataResult(true, message, Encoding.UTF8.GetString(content))
@@ -1561,10 +1549,6 @@ namespace XxxNamespace
     {
         protected override string CN => "【AI 填写中文名称】";
         protected override string CD => "【AI 填写中文描述】";
-        protected override List<propertie> AP => new List<propertie>
-        {
-            new propertie { PropertyName = "ServiceName", Description = "命名空间", Default = this.GetType().FullName }
-        };
 
         public XxxMqOperate() : base() { LanguageHandler(); }
         public XxxMqOperate(Basics basics) : base(basics) { LanguageHandler(); }
@@ -1951,6 +1935,7 @@ public override async Task<OperateResult> ReadAsync(Address address, Cancellatio
 | `Snet.Mqtt` | TCP | MQTT Client/Service/WS 生产消费 | MQTTnet |
 | `Snet.Kafka` | TCP | Kafka Producer/Consumer（SASL 认证） | Confluent.Kafka |
 | `Snet.RabbitMQ` | TCP | AMQP 生产消费（4 种 Exchange） | RabbitMQ.Client |
+| `Snet.RocketMQ` | TCP | RocketMQ Producer/Consumer（PushConsumer 懒创建，gRPC 连 Proxy） | RocketMQ.Client 5.2.1 |
 | `Snet.NetMQ` | TCP | ZeroMQ Pub/Sub 生产消费 | NetMQ |
 | `Snet.Netty` | TCP | DotNetty 自定义帧生产消费 | DotNetty |
 
@@ -1960,6 +1945,7 @@ public override async Task<OperateResult> ReadAsync(Address address, Cancellatio
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.1.3 | 2026-08-14 | 对照源码升级（Shunnet @754fedf，NuGet 26.222.1→**26.226.1**）：**CoreUnify 的 `AP` 虚属性已移除**——§1/§7/§8.1/§8.5 四处 `protected override List<propertie> AP` 模板与三处"3 个虚属性"文本全部改为 2 个虚属性（CN/CD），照抄编译失败的隐患消除；§11.2 参考实现表补 `Snet.RocketMQ`（PushConsumer 懒创建 / RocketMQ.Client 5.2.1）；源码行号引用刷新（KafkaOperate.cs:498→519、131-137→109-122；SiemensOperate.cs:1970→1963、1999→1992；BeckhoffOperate.cs:1191→1185；CoreUnify.cs:871→865）；"继承即得"标注 v26.222.1+→v26.226.1+ |
 | 1.0.1.2 | 2026-08-12 | **§2 IDAQ 核心约束补状态检查规范**（与 §8.3 IMq 对齐）：Read/Write/Subscribe/UnSubscribe 入口状态判断必须统一走 `GetStatusAsync`，禁止直接读私有状态字段；锁内复查豁免 |
 | 1.0.1.1 | 2026-08-12 | **§8.3 状态检查规范 + §8.7 补条目**：Produce/Consume/UnConsume 入口状态判断必须统一走 `GetStatusAsync`（`if (!(await GetStatusAsync(token)).GetDetails(out string? msg)) return await EndOperateAsync(false, msg, token: token);`），禁止直接读私有状态字段；唯一例外是锁内复查（临界区内调 GetStatusAsync 会重入等锁死锁）—— 提炼自 Snet.RocketMQ 开发（第一版直接查 IsOpen 破坏一致性，已修正） |
 | 1.0.1.0 | 2026-08-12 | **§8 IMq 契约修正 + 实战提炼**（基于 Snet.RocketMQ / RocketMQ.Client 5.2.1 真实开发）：§8.4 数据类契约删除 `ProtocolType` 属性与枚举（IMq 插件不需要——那是 IDAQ 的协议标记概念，参考实现 Snet.Kafka/Snet.RabbitMQ 均无）；§8.6 配置示例删 ProtocolType；新增 §8.7 IMq 插件开发实战要点：消费者懒创建（PushConsumer Build 要求非空订阅）、SemaphoreSlim 异步锁（锁内不做日志 IO）、OffAsync/ConsumeAsync 竞态修复（IsOpen 前置 + finally 兜底 + 锁内复查）、SSL 默认开启陷阱（ClientConfig EnableSsl 默认 true）、SDK 状态 internal 自管 IsOpen、同步消费回调异常兜底（FAILURE 让 Broker 重投）、凭据成对校验、UnConsume 先取消后移除 |

@@ -1,9 +1,11 @@
 # PluginDev-Skill — Snet Daq 插件开发契约（IDaq + IMq）
 
-**版本:** 1.0.1.2  
+**版本:** 1.0.1.3  
 **作者:** Shun  
 **许可证:** MIT  
 **框架:** .NET 10.0
+
+🌐 [中文 README](README.md) | [English README](README.en.md)
 
 ## 核心原则
 
@@ -139,9 +141,9 @@ Compress-Archive -Path ./publish/* -DestinationPath MyPlugin.zip
 
 **IDAq 插件：** `Snet.Siemens` `Snet.Modbus` `Snet.Mitsubishi` `Snet.Omron` `Snet.Opc` `Snet.AllenBradley` `Snet.DB` `Snet.Sim` `Snet.Freedom` `Snet.TEP` `Snet.PQDIF`
 
-**IMq 插件：** `Snet.Mqtt` `Snet.Kafka` `Snet.RabbitMQ` `Snet.NetMQ` `Snet.Netty`
+**IMq 插件：** `Snet.Mqtt` `Snet.Kafka` `Snet.RabbitMQ` `Snet.RocketMQ` `Snet.NetMQ` `Snet.Netty`
 
-> **📌 关于版本号：** 所有 `dotnet add package` 命令**必须**指定 `-v` 版本号（当前 26.222.1）。
+> **📌 关于版本号：** 所有 `dotnet add package` 命令**必须**指定 `-v` 版本号（当前 26.226.1）。
 > 获取最新版本：打开 `https://www.nuget.org/packages/<包名>` 查看，例如：
 > - `https://www.nuget.org/packages/Snet.DB`
 > - `https://www.nuget.org/packages/Snet.TEP`

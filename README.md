@@ -9,10 +9,14 @@
 </p>
 
 <p align="center">
+  <a href="README.md"><b>🌐 中文</b></a> · <a href="README.en.md"><b>🇺🇸 English</b></a>
+</p>
+
+<p align="center">
 
   <img src="https://img.shields.io/badge/.NET-10.0%2B-purple.svg"/>
   <img src="https://img.shields.io/badge/license-MIT-green"/>
-  <img src="https://img.shields.io/badge/version-1.0.0.9-blue"/>
+  <img src="https://img.shields.io/badge/version-1.0.1.3-blue"/>
   <img src="https://img.shields.io/badge/skills-4-orange"/>
   <img src="https://img.shields.io/github/stars/shunnet/SKILLS?style=social"/>
 
@@ -54,7 +58,7 @@
 
 - 🏭 **35+ 种工业协议** — 西门子/Modbus/三菱/欧姆龙/OPC UA/罗克韦尔/台达/基恩士/松下/倍福/汇川/英威腾/麦格米特/科伺/东方马达/宇电
 - 🗄️ **数据库采集** — SqlServer/MySQL/Oracle/SQLite + TEP 非标设备
-- 📡 **5 种消息中间件转发** — MQTT/Kafka/RabbitMQ/NetMQ/Netty
+- 📡 **6 种消息中间件转发** — MQTT/Kafka/RabbitMQ/RocketMQ/NetMQ/Netty
 - 🎮 **内置模拟库** — 无需真实 PLC 即可测试
 - ⚡ **自动数据转发** — 配置 `AddressMqParam`，框架自动完成 读取→格式化→MQ生产
 
@@ -81,11 +85,11 @@ AI 先用大白话问用户（🏷️ 牌子型号、🔌 怎么连的、📍 IP
 
 ### 🎯 用途
 
-帮助用户直接使用 Snet 框架完成消息生产与消费，覆盖 5 种主流消息中间件。
+帮助用户直接使用 Snet 框架完成消息生产与消费，覆盖 6 种主流消息中间件。
 
 ### ✨ 能力
 
-- 📨 **5 种消息中间件** — MQTT（Client/Broker/WebSocket）、Kafka、RabbitMQ、NetMQ、Netty
+- 📨 **6 种消息中间件** — MQTT（Client/Broker/WebSocket）、Kafka、RabbitMQ、RocketMQ、NetMQ、Netty
 - 🔗 **统一 IMq 接口** — Produce/Consume/OnDataEventAsync 用法一致，切换中间件不改业务逻辑
 - 🔄 **与 DAQ 联动** — `AddressMqParam` 配置 + `config/mq/` 注册，采集数据自动转发
 - 🛠️ **故障排查** — 端口/认证/ResponseType/实例注册等常见问题速查
@@ -196,7 +200,7 @@ AI 先用大白话问用户（🏷️ 窗口需求、🎨 主题偏好、🌍 �
                         ↓
 ┌─ 📡 MQ-Skill ────────────────────────────────────────┐
 │  使用现成消息中间件（MQTT / Kafka / RabbitMQ /        │
-│   NetMQ / Netty）→ 生产/消费 → 统一 IMq 接口          │
+│   RocketMQ / NetMQ / Netty）→ 生产/消费 → 统一 IMq    │
 └───────────────────────┬───────────────────────────────┘
                         │
                         │ ⬇️ 如果现成协议/中间件不满足需求...
