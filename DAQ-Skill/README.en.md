@@ -1,6 +1,6 @@
 # DAQ-Skill — Industrial IoT Data Acquisition Skill
 
-**Version:** 1.0.1.0  
+**Version:** 1.0.1.1  
 **Author:** Shun  
 **License:** MIT  
 **Framework:** .NET 10.0
@@ -134,8 +134,8 @@ dotnet new console -n DaqDemo && cd DaqDemo
 # ⚠️ Always pin the version! Check nuget.org for the latest:
 #   https://www.nuget.org/packages/Snet.Siemens
 #   https://www.nuget.org/packages/Snet.Mqtt
-dotnet add package Snet.Siemens -v 26.226.1
-dotnet add package Snet.Mqtt -v 26.226.1
+dotnet add package Snet.Siemens -v 26.235.2
+dotnet add package Snet.Mqtt -v 26.235.2
 
 # Power protocol example
 # dotnet add package Snet.PQDIF -v <latest version>

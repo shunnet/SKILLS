@@ -1,7 +1,7 @@
 ---
 name: daq-skill
 description: 工业物联网数据采集通信库，基于 Snet 框架，支持 PLC/工控/电力/机器人 等 30+ 种工业协议的数据读取、写入、订阅、状态获取，以及 Kafka/MQTT/RabbitMQ/RocketMQ/NetMQ/Netty 消息中间件转发。所有采集库通过 ProtocolType 枚举自动选择底层驱动。支持"一句话"完成采集+转发。
-version: 1.0.1.0
+version: 1.0.1.1
 metadata:
   hermes:
     tags: [daq, iot, plc, industrial-automation, modbus, siemens, opc-ua, mqtt, kafka]
@@ -92,8 +92,8 @@ operate.Off();
 
 ```bash
 # ✅ 正确：指定版本号
-dotnet add package Snet.Siemens -v 26.226.1
-dotnet add package Snet.Mqtt -v 26.226.1
+dotnet add package Snet.Siemens -v 26.235.2
+dotnet add package Snet.Mqtt -v 26.235.2
 
 # ❌ 错误：不带版本号（使用 * 通配符，运行时报错）
 dotnet add package Snet.Siemens
@@ -114,16 +114,16 @@ dotnet add package Snet.Mqtt
 
 ```bash
 # ✅ 正确：只引用驱动包 + MQ 包
-dotnet add package Snet.Siemens -v 26.226.1
-dotnet add package Snet.Mqtt -v 26.226.1
+dotnet add package Snet.Siemens -v 26.235.2
+dotnet add package Snet.Mqtt -v 26.235.2
 
 # ❌ 错误：多引用了传递依赖包
-dotnet add package Snet.Siemens -v 26.226.1
-dotnet add package Snet.Mqtt -v 26.226.1
-dotnet add package Snet.Core -v 26.226.1      # 不需要！
-dotnet add package Snet.Model -v 26.226.1     # 不需要！
-dotnet add package Snet.Log -v 26.226.1       # 不需要！
-dotnet add package Snet.Utility -v 26.226.1   # 不需要！
+dotnet add package Snet.Siemens -v 26.235.2
+dotnet add package Snet.Mqtt -v 26.235.2
+dotnet add package Snet.Core -v 26.235.2      # 不需要！
+dotnet add package Snet.Model -v 26.235.1     # 不需要！
+dotnet add package Snet.Log -v 26.235.1       # 不需要！
+dotnet add package Snet.Utility -v 26.235.1   # 不需要！
 ```
 
 ### using 语句 vs NuGet 引用
@@ -266,10 +266,12 @@ var values = (await op.UnPackerAsync(batch))
 ```
 
 **关键约定：**
-- `protocolTypeKey` = `Basics.ProtocolType.ToString()`（如 `"SiemensS7Net_S1200"`、`"ModbusTcpNet"`）
-- 注册表共 **19 个协议族**：Siemens / Modbus / Mitsubishi / Omron / Fuji / Keyence / Yokogawa / Panasonic / Yaskawa / GE / Fatek / Fanuc / LSis / Cimon / XinJE / Vigor / Toyota / AllenBradley / MitsubishiFx
+- `protocolTypeKey` = `Basics.ProtocolType.ToString()`（如 `"SiemensS7Net_S1200"`、`"ModbusTcpNet"`、`"BeckhoffAdsNet"`）
+- 注册表共 **20 个协议族**：Siemens / Modbus / Mitsubishi / Omron / Fuji / Keyence / Yokogawa / Panasonic / Yaskawa / GE / Fatek / Fanuc / LSis / Cimon / XinJE / Vigor / Toyota / AllenBradley / MitsubishiFx / **Beckhoff（倍福 ADS，v26.235.2 起）**
+- **倍福 ADS 组包要点**（`BeckhoffPacker`）：`M100`/`I100`/`Q100` 字读按字节地址组包、`M100.3` Bool 按位号（n×8+bit）组包（1 位 1 字节，位/字分区域 `|B`/`|W`）；`i=100000` 绝对内存、`ig=0xF080;100` 自定义索引组可组包；**`s=MAIN.PLCVar` 符号地址与点号 Word 降级原样返回**（驱动运行时查符号表，偏移不可预知）
 - **标签访问类协议不支持组包，自动原样返回（不报错）**：`SiemensS7Plus` / `MelsecCipNet` / `OmronCipNet` / `KeyenceKvOld` / `KeyenceNanoSerial` / `PanasonicMcNet` / `LSFastEnet` / `AllenBradleyNet` 等
 - 组包批次点 `AddressDescribe` 以 `"packer"` 前缀标记，`AddressExtendParam` 携带 `List<BytesModel>`（批内偏移）；跨区类型（位区 Word / 字区 Bool）自动降级原样保留；超长地址按 `PhysicalMaxBytes=131070` 自动分帧
+- **解包 `isStringReverseByteWord`**（v26.235.2 起，4 个 `UnPacker`/`UnPackerAsync` 重载均有）：`String` 解包是否按 16 位字反转字节（每 2 字节一组交换，连接级配置——如欧姆龙 FINS 字符串按字反转字节读取）
 - 查询支持组包的协议清单：`PackerHandler.GetSupportAutoPackDeviceTypes()` / `CanAutoPack(typeName)`
 
 ### 1.4 克隆与参数更新（IClone / IArgs）
@@ -1963,6 +1965,7 @@ DAQ → Netty:   "Snet.Netty.client.NettyClientOperate.{SN}"
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.1.1 | 2026-08-24 | 对照源码升级（Shunnet @ffd40cd，NuGet 26.226.1→**26.235.2/26.235.1**）：§1.3 协议族 19→**20** 并新增倍福 ADS 组包要点（BeckhoffPacker：M/I/Q 字读字节偏移、M100.3 Bool 位号 n×8+bit 组包、i=/ig= 可组包、s= 符号与点号 Word 降级原样返回）+ `UnPacker` 新增 `isStringReverseByteWord` 解包参数（String 按字反转字节，连接级配置如欧姆龙 FINS）；安装命令版本号更新 |
 | 1.0.1.0 | 2026-08-14 | 对照源码升级（Shunnet @754fedf，NuGet 26.222.1/26.223.1→**26.226.1**，48 包统一）：安装命令版本号全部更新；§10.2 WebAPI 表 `/api/getstatus` POST→**GET**（DaqAbstract getstatusMethod）；§5.3 倍福补 `AmsPort`（默认 851=TwinCAT3；TwinCAT2 设 801）；§7.6 DB 日志文案更新（Daq 模式为短连接工厂，OnAsync 仅校验 DBType，连接串错误在首次 Read 时报出）；§12.2 EventDataResult 伪类 `GetDetails` 签名改 `GetDetails<T>(out T? resultData)`；description 中间件列表补 RocketMQ |
 | 1.0.0.9 | 2026-08-11 | 对照源码全面升级：NuGet 版本 26.214.1→**26.222.1**（Snet.Opc 单独标注 26.223.1）；新增 §1.3 地址自动组包（IPacker：PackerAsync/UnPackerAsync、19 协议族注册表、标签类协议自动降级原样返回）与 §1.4 克隆/参数更新（IClone：CloneThis；IArgs：UpdateArgs/GetBasicsArgs，含 UpdateArgsAsync Status=false 已知缺陷提示）；§7.3 OPC UA 证书认证（AType.Certificate + Cer/SecreKey/TrustedUserPath，服务端非 IDaq 提示，IOu 节点浏览 API）；§5.3 修正：SCData 位置与 HandleInterval 改 virtual 可重写、Modbus 补 Crc16CheckEnable/IsClearCacheBeforeRead/StationCheckMatch、倍福补 UseServerActivePush、罗克韦尔补 SrcNode/Station、补 GE 行；§7.6 DB 采集修复说明（默认 10 秒、ToNJson、SqlSugar 内嵌为 Snet.DB.sugar）；code-review 修正：§1.1 "无条件 Produce"→Quality 门（Normal/ParseUnknown）、§4.5 String 字节宽随编码、§5.3 罗克韦尔 ReadArrayUseSegment 只读注记/欧姆龙补 IsStringReverseByteWord/公共属性来源更正为各厂商 Basics 声明；§7.7.2 TEP Slave 前置条件警告；§7.8 PQDIF/Freedom 不支持 Byte 类型；§14 覆盖列表补全 13 个协议包；ProtocolType 为厂商嵌套枚举说明 |
 | 1.0.0.8 | 2026-08-02 | 全面核对源码修正：`FileOut`→`Out`；OPC DA Client/HTTP 用 `SName`/`IpAddress`（无 ServerUrl）；TEP Slave 删除虚构 `ViolenceUpload`；24 处构造统一 `await XxxOperate.InstanceAsync()` 单例池；补充 `config/mq/` 配置文件自动转发前提（MqOperate.InstanceIoc 机制）；NuGet 版本号 1.0.0.1→26.214.1；MQTT 默认账号 sample→shunnet；补 `using MQTTnet.Protocol;`；Fatek 删除虚构 DataFormat；OnInfoEvent 类型→EventInfoResult；Write 三重载说明修正；虚拟地址参数"增长比例"→"步长" |

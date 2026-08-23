@@ -1,6 +1,6 @@
 # PluginDev-Skill — Snet Daq Plugin Development Contract (IDaq + IMq)
 
-**Version:** 1.0.1.3  
+**Version:** 1.0.1.4  
 **Author:** Shun  
 **License:** MIT  
 **Framework:** .NET 10.0
@@ -143,7 +143,7 @@ Compress-Archive -Path ./publish/* -DestinationPath MyPlugin.zip
 
 **IMq plugins:** `Snet.Mqtt` `Snet.Kafka` `Snet.RabbitMQ` `Snet.RocketMQ` `Snet.NetMQ` `Snet.Netty`
 
-> **📌 On versions:** all `dotnet add package` commands **must** pin `-v` with a version (current: 26.226.1).
+> **📌 On versions:** all `dotnet add package` commands **must** pin `-v` with a version (current: 26.235.2).
 > Get the latest version at `https://www.nuget.org/packages/<package-name>`, for example:
 > - `https://www.nuget.org/packages/Snet.DB`
 > - `https://www.nuget.org/packages/Snet.TEP`
