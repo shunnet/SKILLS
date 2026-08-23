@@ -1,7 +1,7 @@
 ---
 name: daq-skill
 description: 工业物联网数据采集通信库，基于 Snet 框架，支持 PLC/工控/电力/机器人 等 30+ 种工业协议的数据读取、写入、订阅、状态获取，以及 Kafka/MQTT/RabbitMQ/RocketMQ/NetMQ/Netty 消息中间件转发。所有采集库通过 ProtocolType 枚举自动选择底层驱动。支持"一句话"完成采集+转发。
-version: 1.0.1.1
+version: 1.0.1.2
 metadata:
   hermes:
     tags: [daq, iot, plc, industrial-automation, modbus, siemens, opc-ua, mqtt, kafka]
@@ -266,11 +266,14 @@ var values = (await op.UnPackerAsync(batch))
 ```
 
 **关键约定：**
-- `protocolTypeKey` = `Basics.ProtocolType.ToString()`（如 `"SiemensS7Net_S1200"`、`"ModbusTcpNet"`、`"BeckhoffAdsNet"`）
-- 注册表共 **20 个协议族**：Siemens / Modbus / Mitsubishi / Omron / Fuji / Keyence / Yokogawa / Panasonic / Yaskawa / GE / Fatek / Fanuc / LSis / Cimon / XinJE / Vigor / Toyota / AllenBradley / MitsubishiFx / **Beckhoff（倍福 ADS，v26.235.2 起）**
-- **倍福 ADS 组包要点**（`BeckhoffPacker`）：`M100`/`I100`/`Q100` 字读按字节地址组包、`M100.3` Bool 按位号（n×8+bit）组包（1 位 1 字节，位/字分区域 `|B`/`|W`）；`i=100000` 绝对内存、`ig=0xF080;100` 自定义索引组可组包；**`s=MAIN.PLCVar` 符号地址与点号 Word 降级原样返回**（驱动运行时查符号表，偏移不可预知）
-- **标签访问类协议不支持组包，自动原样返回（不报错）**：`SiemensS7Plus` / `MelsecCipNet` / `OmronCipNet` / `KeyenceKvOld` / `KeyenceNanoSerial` / `PanasonicMcNet` / `LSFastEnet` / `AllenBradleyNet` 等
-- 组包批次点 `AddressDescribe` 以 `"packer"` 前缀标记，`AddressExtendParam` 携带 `List<BytesModel>`（批内偏移）；跨区类型（位区 Word / 字区 Bool）自动降级原样保留；超长地址按 `PhysicalMaxBytes=131070` 自动分帧
+- `protocolTypeKey` = `Basics.ProtocolType.ToString()`（如 `"SiemensS7Net_S1200"`、`"ModbusTcpNet"`、`"BeckhoffAdsNet"`、`"LSCpu"`、`"LSFastEnet"`）
+- 注册表共 **22 个协议族**：Siemens / Modbus / Mitsubishi / Omron / Fuji / Keyence / Yokogawa / Panasonic / Yaskawa / GE / Fatek / Fanuc / **LSis_Cnet / LSis_Cpu / LSis_FastEnet**（v26.235 起 LSis 拆三模式） / Cimon / XinJE / Vigor / Toyota / AllenBradley / MitsubishiFx / **Beckhoff（倍福 ADS，v26.235.2 起）**
+- **LSis 三模式**（`LSisPacker` 按 Family 分支）：Cnet（位宽 B/W/D/L 缩放 + U/I/Q 复合区，Bool+Word 可组，131070 分帧）；**Cpu**（GLOFA 串口 hex 编址 10 位/字，**仅 Bool 位流批**，上限 120）；**FastEnet**（XGB 以太网显式 B/W/D/L 位宽 **仅 Word** 可组，X=位/无位宽/UIQ/点号降级，上限 500）。`LSCpu`/`LSFastEnet` 原自动透传 → 现可自动组包
+- **倍福 ADS 组包要点**（`BeckhoffPacker`，26.235.x 起字节空间建模）：`M100`/`I100`/`Q100` 字读按字节地址组包；`M100.3` Bool = **字节 100 位 3**（消费层字节区字读，批首归一化剥点为 `M100`）；`i=100000` 绝对内存、`ig=0xF080;100` 自定义索引组可组包；**`s=MAIN.PLCVar` 符号地址、无点号 Bool（`M100` 位语义与字节区批读不一致）、点号 Word 均降级原样返回**
+- **位流批布局**（v26.235 系统性修复）：消费层对组包 ByteArray 批走驱动字读，字读位区响应 = 从批首地址起连续位流（8 位/字节 LSB-first）→ 批内偏移 = **位号差**（非绝对字节差）。启用协议：Melsec/Keyence/Fins/Fuji/FxLinks/GE/Yaskawa/Yokogawa/Fatek/LSis_Cpu
+- **线圈/位区 Bool 降级**（v26.235 全量审查修复）：Modbus/Yaskawa 无点号 Bool（FC1/SFC1 线圈）、Fanuc/Vigor/XinJE 位区 Bool、Toyo 全部 Bool、Panasonic 非 16 对齐 Bool、Fins TIM/CNT 点号 Bool、Cimon D 点号 → 消费层字读路径错区/驱动拒绝 → **降级为单点 ReadBool**（点号寄存器 Bool 仍组包）
+- **标签访问类协议不支持组包，自动原样返回（不报错）**：`SiemensS7Plus` / `MelsecCipNet` / `OmronCipNet` / `KeyenceKvOld` / `KeyenceNanoSerial` / `PanasonicMcNet` / `AllenBradleyNet` 等
+- 组包批次点 `AddressDescribe` 以 `"packer"` 前缀标记，`AddressExtendParam` 携带 `List<BytesModel>`（批内偏移）；跨区类型（位区 Word / 字区 Bool）自动降级原样保留；**批首归一化**（`NormalizeBatchHead`：点号/format= 批首 → 驱动可解析裸地址，Modbus 剥点保留 s=/x=/w=、GE 归一 M2→M1、LSis U/I/Q 点号不剥）；超长地址按 `PhysicalMaxBytes` 自动分帧
 - **解包 `isStringReverseByteWord`**（v26.235.2 起，4 个 `UnPacker`/`UnPackerAsync` 重载均有）：`String` 解包是否按 16 位字反转字节（每 2 字节一组交换，连接级配置——如欧姆龙 FINS 字符串按字反转字节读取）
 - 查询支持组包的协议清单：`PackerHandler.GetSupportAutoPackDeviceTypes()` / `CanAutoPack(typeName)`
 
@@ -678,7 +681,7 @@ new AddressDetails
     AddressType = AddressType.Reality, // Reality=实际, VirtualStatic/DynamicRandom...
     IsEnable = true,                 // false=跳过采集
     Length = 1,                      // 数组长度
-    EncodingType = EncodingType.ANSI, // 编码（String时使用）
+    EncodingType = null, // 编码（String时使用；null→UTF8，26.235.x 起构造器默认即 null）
     AddressDescribe = "描述说明",    // 描述
     AddressAnotherName = "别名",     // 别名
 
@@ -703,7 +706,7 @@ new AddressDetails
 | `UInt64`/`Ulong` | `UInt64Array`/`UlongArray` | `ulong` | 8 |
 | `Float`/`Single` | `FloatArray`/`SingleArray` | `float` | 4 |
 | `Double` | `DoubleArray` | `double` | 8 |
-| `String` | — | `string` | n×编码宽（ANSI/ASCII=1、Unicode=2、UTF32=4；默认 UTF8=1） |
+| `String` | — | `string` | n×编码宽（ANSI=GBK/GB2312 1 字节 26.235.x 起、ASCII=1、Unicode=2、BigEndianUnicode=2、UTF32=4、BigEndianUTF32=4；默认 UTF8=1） |
 | `ByteArray` | — | `byte[]` | n |
 | `Char` | — | `char` | 2 |
 | `Date` / `Time` / `DateTime` | — | `DateTime` | — |
@@ -1965,6 +1968,7 @@ DAQ → Netty:   "Snet.Netty.client.NettyClientOperate.{SN}"
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.1.2 | 2026-08-24 | 对照源码升级（Shunnet @676c129 组包问题修复）：§1.3 协议族 20→**22**（LSis 拆三模式 LSis_Cnet/Cpu/FastEnet，LSCpu/LSFastEnet 现可自动组包）；新增位流批布局（Melsec/Keyence/Fins/Fuji/FxLinks/GE/Yaskawa/Yokogawa/Fatek/LSis_Cpu，批内偏移=位号差）；新增线圈/位区 Bool 降级（Modbus/Yaskawa 线圈、Fanuc/Vigor/XinJE 位区、Toyo 全部、Panasonic 非 16 对齐、Fins TIM/CNT、Cimon D 点号）；新增批首归一化（Modbus 剥点/format=、Beckhoff/Cimon/Toyo 剥点、GE M2→M1、LSis U/I/Q 不剥）；倍福改字节空间建模（M100.3=字节100 位3，无点号 Bool 降级）；§4.4 AddressDetails 构造器默认编码 ANSI→**null(→UTF8)**；§4.5 ANSI 映射 GBK/GB2312(936) |
 | 1.0.1.1 | 2026-08-24 | 对照源码升级（Shunnet @ffd40cd，NuGet 26.226.1→**26.235.2/26.235.1**）：§1.3 协议族 19→**20** 并新增倍福 ADS 组包要点（BeckhoffPacker：M/I/Q 字读字节偏移、M100.3 Bool 位号 n×8+bit 组包、i=/ig= 可组包、s= 符号与点号 Word 降级原样返回）+ `UnPacker` 新增 `isStringReverseByteWord` 解包参数（String 按字反转字节，连接级配置如欧姆龙 FINS）；安装命令版本号更新 |
 | 1.0.1.0 | 2026-08-14 | 对照源码升级（Shunnet @754fedf，NuGet 26.222.1/26.223.1→**26.226.1**，48 包统一）：安装命令版本号全部更新；§10.2 WebAPI 表 `/api/getstatus` POST→**GET**（DaqAbstract getstatusMethod）；§5.3 倍福补 `AmsPort`（默认 851=TwinCAT3；TwinCAT2 设 801）；§7.6 DB 日志文案更新（Daq 模式为短连接工厂，OnAsync 仅校验 DBType，连接串错误在首次 Read 时报出）；§12.2 EventDataResult 伪类 `GetDetails` 签名改 `GetDetails<T>(out T? resultData)`；description 中间件列表补 RocketMQ |
 | 1.0.0.9 | 2026-08-11 | 对照源码全面升级：NuGet 版本 26.214.1→**26.222.1**（Snet.Opc 单独标注 26.223.1）；新增 §1.3 地址自动组包（IPacker：PackerAsync/UnPackerAsync、19 协议族注册表、标签类协议自动降级原样返回）与 §1.4 克隆/参数更新（IClone：CloneThis；IArgs：UpdateArgs/GetBasicsArgs，含 UpdateArgsAsync Status=false 已知缺陷提示）；§7.3 OPC UA 证书认证（AType.Certificate + Cer/SecreKey/TrustedUserPath，服务端非 IDaq 提示，IOu 节点浏览 API）；§5.3 修正：SCData 位置与 HandleInterval 改 virtual 可重写、Modbus 补 Crc16CheckEnable/IsClearCacheBeforeRead/StationCheckMatch、倍福补 UseServerActivePush、罗克韦尔补 SrcNode/Station、补 GE 行；§7.6 DB 采集修复说明（默认 10 秒、ToNJson、SqlSugar 内嵌为 Snet.DB.sugar）；code-review 修正：§1.1 "无条件 Produce"→Quality 门（Normal/ParseUnknown）、§4.5 String 字节宽随编码、§5.3 罗克韦尔 ReadArrayUseSegment 只读注记/欧姆龙补 IsStringReverseByteWord/公共属性来源更正为各厂商 Basics 声明；§7.7.2 TEP Slave 前置条件警告；§7.8 PQDIF/Freedom 不支持 Byte 类型；§14 覆盖列表补全 13 个协议包；ProtocolType 为厂商嵌套枚举说明 |
