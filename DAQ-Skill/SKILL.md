@@ -1,7 +1,7 @@
 ---
 name: daq-skill
 description: 工业物联网数据采集通信库，基于 Snet 框架，支持 PLC/工控/电力/机器人 等 30+ 种工业协议的数据读取、写入、订阅、状态获取，以及 Kafka/MQTT/RabbitMQ/RocketMQ/NetMQ/Netty 消息中间件转发。所有采集库通过 ProtocolType 枚举自动选择底层驱动。支持"一句话"完成采集+转发。
-version: 1.0.1.2
+version: 1.0.1.3
 metadata:
   hermes:
     tags: [daq, iot, plc, industrial-automation, modbus, siemens, opc-ua, mqtt, kafka]
@@ -92,8 +92,8 @@ operate.Off();
 
 ```bash
 # ✅ 正确：指定版本号
-dotnet add package Snet.Siemens -v 26.235.2
-dotnet add package Snet.Mqtt -v 26.235.2
+dotnet add package Snet.Siemens -v 26.236.1
+dotnet add package Snet.Mqtt -v 26.236.1
 
 # ❌ 错误：不带版本号（使用 * 通配符，运行时报错）
 dotnet add package Snet.Siemens
@@ -114,16 +114,16 @@ dotnet add package Snet.Mqtt
 
 ```bash
 # ✅ 正确：只引用驱动包 + MQ 包
-dotnet add package Snet.Siemens -v 26.235.2
-dotnet add package Snet.Mqtt -v 26.235.2
+dotnet add package Snet.Siemens -v 26.236.1
+dotnet add package Snet.Mqtt -v 26.236.1
 
 # ❌ 错误：多引用了传递依赖包
-dotnet add package Snet.Siemens -v 26.235.2
-dotnet add package Snet.Mqtt -v 26.235.2
-dotnet add package Snet.Core -v 26.235.2      # 不需要！
-dotnet add package Snet.Model -v 26.235.1     # 不需要！
-dotnet add package Snet.Log -v 26.235.1       # 不需要！
-dotnet add package Snet.Utility -v 26.235.1   # 不需要！
+dotnet add package Snet.Siemens -v 26.236.1
+dotnet add package Snet.Mqtt -v 26.236.1
+dotnet add package Snet.Core -v 26.236.1      # 不需要！
+dotnet add package Snet.Model -v 26.236.1     # 不需要！
+dotnet add package Snet.Log -v 26.236.1       # 不需要！
+dotnet add package Snet.Utility -v 26.236.1   # 不需要！
 ```
 
 ### using 语句 vs NuGet 引用
@@ -1968,6 +1968,7 @@ DAQ → Netty:   "Snet.Netty.client.NettyClientOperate.{SN}"
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.1.3 | 2026-08-24 | 对照源码升级（Shunnet @46ef840 + WpfMUI @bf4efed，NuGet 26.235.x→**26.236.1** 全包统一）：安装命令版本号全部更新（Snet.* 含 Windows.Core/Controls 一律 26.236.1，26.235.1/.2 分叉消除）；`BytesHandler.TransformAsync` 两重载签名参数换位（`CancellationToken token` 移至末位、`isStringReverseByteWord` 提前——语义不变，仅按位置传 token 的调用需调整；单参数/按名传参不受影响） |
 | 1.0.1.2 | 2026-08-24 | 对照源码升级（Shunnet @676c129 组包问题修复）：§1.3 协议族 20→**22**（LSis 拆三模式 LSis_Cnet/Cpu/FastEnet，LSCpu/LSFastEnet 现可自动组包）；新增位流批布局（Melsec/Keyence/Fins/Fuji/FxLinks/GE/Yaskawa/Yokogawa/Fatek/LSis_Cpu，批内偏移=位号差）；新增线圈/位区 Bool 降级（Modbus/Yaskawa 线圈、Fanuc/Vigor/XinJE 位区、Toyo 全部、Panasonic 非 16 对齐、Fins TIM/CNT、Cimon D 点号）；新增批首归一化（Modbus 剥点/format=、Beckhoff/Cimon/Toyo 剥点、GE M2→M1、LSis U/I/Q 不剥）；倍福改字节空间建模（M100.3=字节100 位3，无点号 Bool 降级）；§4.4 AddressDetails 构造器默认编码 ANSI→**null(→UTF8)**；§4.5 ANSI 映射 GBK/GB2312(936) |
 | 1.0.1.1 | 2026-08-24 | 对照源码升级（Shunnet @ffd40cd，NuGet 26.226.1→**26.235.2/26.235.1**）：§1.3 协议族 19→**20** 并新增倍福 ADS 组包要点（BeckhoffPacker：M/I/Q 字读字节偏移、M100.3 Bool 位号 n×8+bit 组包、i=/ig= 可组包、s= 符号与点号 Word 降级原样返回）+ `UnPacker` 新增 `isStringReverseByteWord` 解包参数（String 按字反转字节，连接级配置如欧姆龙 FINS）；安装命令版本号更新 |
 | 1.0.1.0 | 2026-08-14 | 对照源码升级（Shunnet @754fedf，NuGet 26.222.1/26.223.1→**26.226.1**，48 包统一）：安装命令版本号全部更新；§10.2 WebAPI 表 `/api/getstatus` POST→**GET**（DaqAbstract getstatusMethod）；§5.3 倍福补 `AmsPort`（默认 851=TwinCAT3；TwinCAT2 设 801）；§7.6 DB 日志文案更新（Daq 模式为短连接工厂，OnAsync 仅校验 DBType，连接串错误在首次 Read 时报出）；§12.2 EventDataResult 伪类 `GetDetails` 签名改 `GetDetails<T>(out T? resultData)`；description 中间件列表补 RocketMQ |

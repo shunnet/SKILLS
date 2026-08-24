@@ -1,6 +1,6 @@
 # DAQ-Skill — 工业物联网数据采集技能
 
-**版本:** 1.0.1.2  
+**版本:** 1.0.1.3  
 **作者:** Shun  
 **许可证:** MIT  
 **框架:** .NET 10.0
@@ -134,8 +134,8 @@ dotnet new console -n DaqDemo && cd DaqDemo
 # ⚠️ 必须指定版本号！到 nuget.org 查找最新版本：
 #   https://www.nuget.org/packages/Snet.Siemens
 #   https://www.nuget.org/packages/Snet.Mqtt
-dotnet add package Snet.Siemens -v 26.235.2
-dotnet add package Snet.Mqtt -v 26.235.2
+dotnet add package Snet.Siemens -v 26.236.1
+dotnet add package Snet.Mqtt -v 26.236.1
 
 # 电力协议示例
 # dotnet add package Snet.PQDIF -v <最新版本>

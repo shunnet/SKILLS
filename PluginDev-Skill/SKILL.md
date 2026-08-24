@@ -1,7 +1,7 @@
 ---
 name: plugindev-skill
 description: Snet.Iot.Daq 插件开发技能，覆盖 IDaq（数据采集）与 IMq（消息中间件）两类插件开发。严格定义插件开发契约：必须实现的抽象方法、必须遵循的返回类型、必须使用的数据标注、必须调用的框架方法。AI 自行决定采集方式（TCP/HTTP/文件/串口）或消息收发方式，但必须遵守契约。
-version: 1.0.1.4
+version: 1.0.1.5
 metadata:
   hermes:
     tags: [plugin-development, daq, iot, dotnet, contract, code-generation, mq, middleware]
@@ -36,7 +36,7 @@ metadata:
 
 ```bash
 # ✅ 正确：指定版本号
-dotnet add package Snet.Core -v 26.235.2
+dotnet add package Snet.Core -v 26.236.1
 
 # ❌ 错误：不带版本号（使用 * 通配符，运行时报错）
 dotnet add package Snet.Core
@@ -1945,6 +1945,7 @@ public override async Task<OperateResult> ReadAsync(Address address, Cancellatio
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.1.5 | 2026-08-24 | 对照源码升级（Shunnet @46ef840，NuGet 26.235.x→**26.236.1** 全包统一）：安装命令版本号更新（Snet.Core 26.236.1）；`BytesHandler.TransformAsync` 两重载签名参数换位（`CancellationToken token` 移至末位、`isStringReverseByteWord` 提前——语义不变；技能示例均为单参数/前 3 位置参数调用，不受影响）；已知缺陷注记保留（Off(bool hardClose) 不透传）——26.236 源码核对仍成立 |
 | 1.0.1.4 | 2026-08-24 | 对照源码升级（Shunnet @ffd40cd，NuGet 26.226.1→**26.235.2/26.235.1**）：安装命令版本号更新；§1 继承即得能力表补注 `IPacker.UnPacker` 四个重载新增 `isStringReverseByteWord = false` 参数（String 按字反转字节解包，连接级配置如欧姆龙 FINS）；`ProtocolFamily` 新增 `Beckhoff`（20 个枚举值）；已知缺陷注记保留（Off(bool hardClose) 不透传）——26.235 源码核对仍成立 |
 | 1.0.1.3 | 2026-08-14 | 对照源码升级（Shunnet @754fedf，NuGet 26.222.1→**26.226.1**）：**CoreUnify 的 `AP` 虚属性已移除**——§1/§7/§8.1/§8.5 四处 `protected override List<propertie> AP` 模板与三处"3 个虚属性"文本全部改为 2 个虚属性（CN/CD），照抄编译失败的隐患消除；§11.2 参考实现表补 `Snet.RocketMQ`（PushConsumer 懒创建 / RocketMQ.Client 5.2.1）；源码行号引用刷新（KafkaOperate.cs:498→519、131-137→109-122；SiemensOperate.cs:1970→1963、1999→1992；BeckhoffOperate.cs:1191→1185；CoreUnify.cs:871→865）；"继承即得"标注 v26.222.1+→v26.226.1+ |
 | 1.0.1.2 | 2026-08-12 | **§2 IDAQ 核心约束补状态检查规范**（与 §8.3 IMq 对齐）：Read/Write/Subscribe/UnSubscribe 入口状态判断必须统一走 `GetStatusAsync`，禁止直接读私有状态字段；锁内复查豁免 |

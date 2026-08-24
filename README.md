@@ -1,4 +1,4 @@
-﻿<h1 align="center">📦 SKILLS</h1>
+<h1 align="center">📦 SKILLS</h1>
 
 <p align="center">
   <img width="120" height="120" src="https://api.shunnet.top/pic/nuget.png" alt="Snet Logo"/>
@@ -16,7 +16,7 @@
 
   <img src="https://img.shields.io/badge/.NET-10.0%2B-purple.svg"/>
   <img src="https://img.shields.io/badge/license-MIT-green"/>
-  <img src="https://img.shields.io/badge/version-1.0.1.4-blue"/>
+  <img src="https://img.shields.io/badge/version-1.0.1.5-blue"/>
   <img src="https://img.shields.io/badge/skills-4-orange"/>
   <img src="https://img.shields.io/github/stars/shunnet/SKILLS?style=social"/>
 
