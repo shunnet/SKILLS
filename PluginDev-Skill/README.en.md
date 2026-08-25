@@ -1,6 +1,6 @@
 # PluginDev-Skill — Snet Daq Plugin Development Contract (IDaq + IMq)
 
-**Version:** 1.0.1.5  
+**Version:** 1.0.2.0  
 **Author:** Shun  
 **License:** MIT  
 **Framework:** .NET 10.0
@@ -82,11 +82,13 @@ Your MqData class
 | Method | Parameters | Returns | Core constraints |
 |------|------|------|----------|
 | `OnAsync()` | — | `Task<OperateResult>` | Connect to broker; on failure catch → `OffAsync(true)` |
-| `OffAsync(bool)` | hardClose | `Task<OperateResult>` | Release producer/consumer |
-| `GetStatusAsync()` | — | `Task<OperateResult>` | Connection state (no try/catch) |
+| `OffAsync(bool)` | hardClose | `Task<OperateResult>` | Release producer/consumer (**best-effort cleanup, never interrupted**) |
+| `GetStatusAsync()` | — | `Task<OperateResult>` | Connection state (no try/catch; 3-state recommended: connected/closing/disconnected) |
 | **`ProduceAsync(topic, byte[])`** | topic + message | `Task<OperateResult>` | Publish message (string overload is a base-class virtual, may inherit) |
-| **`ConsumeAsync(topic)`** | topic | `Task<OperateResult>` | Subscribe + push consumption data via `OnDataEventHandlerAsync` |
-| `UnConsumeAsync(topic)` | topic | `Task<OperateResult>` | Cancel token, release consumer |
+| **`ConsumeAsync(topic)`** | topic | `Task<OperateResult>` | Subscribe + push via `OnDataEventHandlerAsync` in **3-branch `Basics.ResponseType`** (Bytes/Content/ContentWithTopic) |
+| `UnConsumeAsync(topic)` | topic | `Task<OperateResult>` | **Idempotent cancel** (unsubscribed topic → failure); keep consumer while topics remain, destroy only when all are cancelled |
+
+> **📌 IMq Data class must declare `ResponseType`** (default `Content`) — drives the ConsumeAsync push format (see SKILL.md §8.4).
 
 ## Event Model
 

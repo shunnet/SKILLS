@@ -1,7 +1,7 @@
 ---
 name: plugindev-skill
 description: Snet.Iot.Daq 插件开发技能，覆盖 IDaq（数据采集）与 IMq（消息中间件）两类插件开发。严格定义插件开发契约：必须实现的抽象方法、必须遵循的返回类型、必须使用的数据标注、必须调用的框架方法。AI 自行决定采集方式（TCP/HTTP/文件/串口）或消息收发方式，但必须遵守契约。
-version: 1.0.1.5
+version: 1.0.2.0
 metadata:
   hermes:
     tags: [plugin-development, daq, iot, dotnet, contract, code-generation, mq, middleware]
@@ -1379,6 +1379,24 @@ public override async Task<OperateResult> OffAsync(bool hardClose = false, Cance
 }
 ```
 
+> **★ OffAsync 必须"尽力清理、不中断"（参考实现：KafkaOperate.cs:355 / RocketMQOperate.cs:108）：**
+> 关闭是兜底清理路径（OnAsync 失败也会调 `OffAsync(true)`），**任何一步释放异常都不得阻止后续清理与状态复位**——否则连接/消费者残留。
+> - **Kafka 模式（逐段清理）**：每段独立 try/catch，异常只记录不中断，全部清理完再统一返回：
+> ```csharp
+> Exception? disposeException = null;
+> producerConfig = null;
+> try { producer?.Dispose(); } catch (Exception ex) { disposeException ??= ex; }
+> producer = null;
+> try { consumer?.Close(); } catch (Exception ex) { disposeException ??= ex; }
+> try { consumer?.Dispose(); } catch (Exception ex) { disposeException ??= ex; }
+> consumer = null;
+> IsOpen = false;
+> if (disposeException != null)
+>     return await EndOperateAsync(false, disposeException.Message, exception: disposeException, token: token);
+> return await EndOperateAsync(true, token: token);
+> ```
+> - **RocketMQ 模式（长 Dispose 出锁）**：异步锁内只"摘除引用 + 置空字段"，`DisposeAsync()`（长网络等待）**出锁后执行**，避免阻塞其他操作。
+
 #### 8.3.3 GetStatusAsync — 获取状态
 
 | 约束 | 值 |
@@ -1398,6 +1416,16 @@ public override async Task<OperateResult> GetStatusAsync(CancellationToken token
     return await EndOperateAsync(connected, logOutput: false, token: token);
 }
 ```
+
+> **★ GetStatusAsync 建议三态（参考实现 RocketMQOperate.cs:152）：** SDK 关闭是异步长操作，期间应返回"关闭中"而非"未连接"，避免半开状态误报：
+> ```csharp
+> private bool IsOpen { get; set; }      // 已连接
+> private bool IsClosing { get; set; }   // 关闭中（OffAsync 进行中）
+> public override async Task<OperateResult> GetStatusAsync(CancellationToken token = default)
+>     => await EndOperateAsync(IsOpen, IsOpen ? "已连接" : (IsClosing ? "关闭中" : "未连接"),
+>         logOutput: false, methodName: await BegOperateAsync(token), token: token);
+> ```
+> **★ `BegOperateAsync` 的返回值是 `methodName`（字符串）：** 单行返回写法中 `EndOperateAsync` 的 `[CallerMemberName]` 会取到 `GetStatusAsync` 自身，但若表达式跨方法（或需要精确方法名），可显式传 `methodName: await BegOperateAsync(token)`（参考实现 Kafka/RocketMQ 均此写法）。**`EndOperateAsync` 必须与 `BegOperateAsync` 在同一方法内配对调用**——计时器按 `{TAG}.{methodName}` 查找，逻辑抽到私有辅助方法时禁止在辅助方法内调 `EndOperateAsync`，应返回结果由契约方法统一 End（否则报 ValueStopwatch 未初始化异常）。
 
 #### 8.3.4 ProduceAsync — 生产消息（核心）
 
@@ -1429,7 +1457,9 @@ public override async Task<OperateResult> ProduceAsync(string topic, byte[] cont
 }
 ```
 
-> **注意：** `ProduceAsync(string topic, string content, Encoding? encoding = null)` 是基类 `virtual` 方法，默认将字符串按指定编码（缺省 UTF-8）转字节后调用 byte[] 版——**无特殊需求时直接继承即可，无需覆写**。
+> **注意：** `ProduceAsync(string topic, string content, Encoding? encoding = null)` 是基类 `virtual` 方法，默认将字符串按指定编码（缺省 UTF-8）转字节后调用 byte[] 版——**无特殊需求时直接继承即可，无需覆写**。实际签名（MqAbstract.cs:54）为 `ProduceAsync(string topic, string content, Encoding? encoding = null, CancellationToken token = default)`，覆写时记得带上 token。
+>
+> **⚠️ 参考实现的状态检查不一致（以本规范为准）：** KafkaOperate.cs:290 的 `ProduceAsync` 直读 `IsOpen` 而非 `GetStatusAsync`（绕开状态语义），RocketMQ/MQTT 则走 `GetStatusAsync`——**请按 §8.7 第 1 条规范统一走 `GetStatusAsync`**。
 
 #### 8.3.5 ConsumeAsync — 消费消息（核心）
 
@@ -1473,6 +1503,35 @@ public override async Task<OperateResult> ConsumeAsync(string topic, Cancellatio
 }
 ```
 
+> **★ 消费推送三分支统一模板（Kafka/RocketMQ/MQTT 三个参考实现完全一致，直接照抄）：**
+> 收到消息后按 `basics.ResponseType` 三态分发（`Snet.Model.@enum.ResponseType`：`Bytes` / `Content` / `ContentWithTopic`）：
+> ```csharp
+> string message = $"{TAG} 接收到 ( {topic} ) 主题消息";
+> switch (basics.ResponseType)
+> {
+>     case ResponseType.Bytes:
+>         await OnDataEventHandlerAsync(this, new EventDataResult(true, message, content));                        // byte[]
+>         break;
+>     case ResponseType.Content:
+>         await OnDataEventHandlerAsync(this, new EventDataResult(true, message, Encoding.UTF8.GetString(content))); // string
+>         break;
+>     case ResponseType.ContentWithTopic:
+>         await OnDataEventHandlerAsync(this, new EventDataResult(true, message, new ResponseModel(topic, Encoding.UTF8.GetString(content)))); // ResponseModel
+>         break;
+> }
+> ```
+> 消费方经 `e.GetSource<string>()` / `GetSource<byte[]>()` / `GetSource<ResponseModel>()` 取数（`ResponseModel` 含 `Topic`+`Content`，`ToString()` 为 JSON）。
+>
+> **★ 幂等语义（参考实现 KafkaOperate.cs:410 / RocketMQOperate.cs:183）：**
+> - 重复订阅同一 topic → 返回失败 `"{topic} 此主题已订阅"`（用 `ConcurrentDictionary` 记录已订阅主题）；
+> - 消费者**懒创建**：首个 `ConsumeAsync` 时以该 topic 初始化消费者（RocketMQ `PushConsumer.Build()` 强制非空初始订阅；Kafka `Subscribe(多主题)` 会**自动取消之前的订阅**——每次订阅必须传**当前全部主题的快照** `TopicArray.Keys.ToList()`）；
+> - 轮询/回调任务只在首次消费时启动一次（锁内判断，防并发重复启动）。
+>
+> **★ SDK 回调线程模型适配（RocketMQOperate.cs:279）：**
+> - **同步回调**（如 RocketMQ `IMessageListener.Consume`）：推送用 fire-and-forget `_ = operate.OnDataEventHandlerAsync(...)`，异常不得逸出回调（返回 `FAILURE` 让 Broker 重投），**不要**同步 `.GetAwaiter().GetResult()` 等待事件（async void 处理器会死锁）；
+> - **异步回调/轮询**（MQTT `ApplicationMessageReceivedAsync`、Kafka 轮询）：直接 `await OnDataEventHandlerAsync(...)`；
+> - 消费异常（Broker 持续不可达）建议 `Task.Delay(1000)` 退避，避免热点空转（KafkaOperate.cs:138）。
+
 #### 8.3.6 UnConsumeAsync — 取消消费
 
 | 约束 | 值 |
@@ -1503,6 +1562,13 @@ public override async Task<OperateResult> UnConsumeAsync(string topic, Cancellat
 }
 ```
 
+> **★ 幂等与"部分取消"语义（参考实现 KafkaOperate.cs:458 / RocketMQOperate.cs:231）：** 参考模板每取消一个主题就销毁整个消费者，**只适用于单主题场景**；多主题并发消费时必须按参考实现模式：
+> - 主题未订阅 → 返回失败 `"{topic} 此主题不存在"`；
+> - **先 `Unsubscribe(topic)` 再从集合移除**（SDK 抛异常时集合保留，重试仍可再次取消）；
+> - 取消后**仍有其他主题** → 仅重写订阅剩余主题快照（Kafka）或仅移除集合（RocketMQ），**不销毁消费者**；
+> - 取消后**无剩余主题** → 停止轮询（Cancel tokenSource）+ 关闭并销毁消费者（`Close()` 后实例不可复用，置 null，由下次 `ConsumeAsync` 幂等重建；RocketMQ 摘除引用后 `DisposeAsync` 出锁执行）；
+> - 全程在异步锁内变更状态，`EndOperateAsync` 放锁外。
+
 ### 8.4 数据类契约
 
 ```csharp
@@ -1521,10 +1587,24 @@ public class XxxMqData
         [Description("端口")]
         public int Port { get; set; } = 6688;
 
-        // ── AI 定义的连接参数（认证凭据、消费组、SSL 开关、ResponseType 等）──
+        /// <summary>
+        /// 响应类型（必配！驱动 ConsumeAsync 的推送格式，见 §8.3.5）
+        /// </summary>
+        [Description("响应类型")]
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        [Display(true, true, true, ParamModel.dataCate.select)]
+        public ResponseType ResponseType { get; set; } = ResponseType.Content;
+
+        // ── AI 定义的连接参数（认证凭据、消费组、SSL 开关等）──
     }
 }
 ```
+
+> **★ `ResponseType` 是 IMq 数据类的必配字段（Kafka/RocketMQ/MQTT 参考实现均有）：** `Snet.Model.@enum.ResponseType` 三值：
+> - `Bytes` — 消费推送 `byte[]`；
+> - `Content` — 消费推送 `string`（默认）；
+> - `ContentWithTopic` — 消费推送 `ResponseModel(Topic, Content)`（`Snet.Model.data`，`ToString()` 为 JSON）。
+> 枚举带 `[JsonConverter(typeof(JsonStringEnumConverter))]` + `[Display(true, true, true, ParamModel.dataCate.select)]` 才能在 UI 下拉展示。
 
 > **⚠️ IMq 插件不需要 `ProtocolType` 属性** —— 协议类型标记（`AutoAllocatingTag`/`AutoAllocating`）是 **IDAQ 插件**的概念（见第 3.3 节），用于设备多协议切换；IMq 插件一个类对应一个消息系统，无协议切换需求，参考实现 Snet.Kafka/Snet.RabbitMQ 均无此属性。
 
@@ -1537,6 +1617,7 @@ using Snet.Model.data;
 using Snet.Model.@enum;
 using Snet.Model.@interface;
 using Snet.Utility;
+using System.Collections.Concurrent;  // ConcurrentDictionary（订阅主题集合）
 using System.ComponentModel;           // [Category] / [Description]
 using System.Text;
 using System.Text.Json.Serialization;  // [JsonConverter] / JsonStringEnumConverter
@@ -1573,6 +1654,10 @@ namespace XxxNamespace
         private IDisposable? producer;   // 生产者客户端（基类 IDisposable 保证 OffAsync 中的 Dispose 可编译）
         private IDisposable? consumer;   // 消费者客户端
         private CancellationTokenSource? consumeToken;
+        private bool IsOpen { get; set; }        // 已连接（SDK 状态不可读时自管标志，§8.7 第 6 条）
+        private bool IsClosing { get; set; }     // 关闭中（OffAsync 进行中，GetStatusAsync 三态用）
+        private readonly ConcurrentDictionary<string, bool> TopicArray = new();  // 已订阅主题（幂等判断 + 快照重订阅）
+        private readonly SemaphoreSlim AsyncLock = new SemaphoreSlim(1, 1);      // 异步锁：消费者/生产者生命周期（§8.7 第 3 条）
 
         public override async Task<OperateResult> OnAsync(CancellationToken token = default)
         {
@@ -1585,6 +1670,7 @@ namespace XxxNamespace
 
                 // 【AI 在此实现连接 Broker】
 
+                IsOpen = true;
                 return await EndOperateAsync(true, token: token);
             }
             catch (Exception ex)
@@ -1605,12 +1691,32 @@ namespace XxxNamespace
                     if (!status.GetDetails(out string? message))
                         return await EndOperateAsync(false, message, token);
                 }
-                consumeToken?.Cancel(); consumeToken?.Dispose();
-                consumer?.Dispose();
-                producer?.Dispose();
+
+                // ★ 尽力清理、不中断（§8.3.2）：每段独立 try/catch，异常只记录；先置空引用再释放
+                IsOpen = false;
+                IsClosing = true;
+                Exception? disposeException = null;
+                try { await AsyncLock.WaitAsync(token); }
+                catch (Exception ex) { disposeException ??= ex; }
+                try
+                {
+                    consumeToken?.Cancel(); consumeToken?.Dispose(); consumeToken = null;
+                    consumer = null;      // 摘除引用
+                    producer = null;
+                    TopicArray.Clear();
+                }
+                finally { AsyncLock.Release(); }
+                IsClosing = false;
+                try { /* consumer?.DisposeAsync(); 长 Dispose 出锁执行 */ }
+                catch (Exception ex) { disposeException ??= ex; }
+                try { producer?.Dispose(); }
+                catch (Exception ex) { disposeException ??= ex; }
+                producer = null;
 
                 // 【AI 在此实现断开逻辑】
 
+                if (disposeException != null)
+                    return await EndOperateAsync(false, disposeException.Message, exception: disposeException, token: token);
                 return await EndOperateAsync(true, token: token);
             }
             catch (Exception ex)
@@ -1621,9 +1727,9 @@ namespace XxxNamespace
 
         public override async Task<OperateResult> GetStatusAsync(CancellationToken token = default)
         {
-            await BegOperateAsync(token);
-            bool connected = /* AI：判断连接状态 */ false;
-            return await EndOperateAsync(connected, logOutput: false, token: token);
+            // ★ 三态 + methodName 显式传参写法（§8.3.3）
+            return await EndOperateAsync(IsOpen, IsOpen ? "已连接" : (IsClosing ? "关闭中" : "未连接"),
+                logOutput: false, methodName: await BegOperateAsync(token), token: token);
         }
 
         public override async Task<OperateResult> ProduceAsync(string topic, byte[] content, CancellationToken token = default)
@@ -1654,17 +1760,38 @@ namespace XxxNamespace
                 if (!status.GetDetails(out string? message))
                     return await EndOperateAsync(false, message, token);
 
-                consumeToken = new CancellationTokenSource();
-                _ = Task.Run(async () =>
+                // ★ 幂等 + 懒创建 + 锁内复查（§8.3.5）：消费者在首个 ConsumeAsync 时创建；
+                // 已订阅返回失败；轮询任务仅首次启动
+                bool success = true;
+                string? resultMessage = null;
+                await AsyncLock.WaitAsync(token);
+                try
                 {
-                    while (!consumeToken.Token.IsCancellationRequested)
+                    if (!IsOpen)
+                        (success, resultMessage) = (false, "未打开");
+                    else if (!TopicArray.TryAdd(topic, true))
+                        (success, resultMessage) = (false, $"{topic} 此主题已订阅");
+                    else
                     {
-                        // 【AI：收到消息后经事件推送】
-                        // await OnDataEventHandlerAsync(this, new EventDataResult(true, $"接收到 ( {topic} ) 主题消息", content));
+                        // 【AI：确保消费者存在并订阅 topic（Kafka 需传全部主题快照）】
+                        if (consumeToken == null)
+                        {
+                            consumeToken = new CancellationTokenSource();
+                            _ = Task.Run(async () =>
+                            {
+                                while (!consumeToken.Token.IsCancellationRequested)
+                                {
+                                    // 【AI：收到消息后按 §8.3.5 三分支模板推送】
+                                }
+                            }, consumeToken.Token);
+                        }
                     }
-                }, consumeToken.Token);
-
-                return await EndOperateAsync(true, token: token);
+                }
+                finally
+                {
+                    AsyncLock.Release();
+                }
+                return await EndOperateAsync(success, resultMessage, token: token);
             }
             catch (Exception ex)
             {
@@ -1681,9 +1808,25 @@ namespace XxxNamespace
                 if (!status.GetDetails(out string? message))
                     return await EndOperateAsync(false, message, token);
 
-                consumeToken?.Cancel();
-                if (consumer != null) { consumer?.Dispose(); consumer = null; }
-                return await EndOperateAsync(true, token: token);
+                // ★ 幂等 + 部分取消（§8.3.6）：先 Unsubscribe 再移除；仍有主题则保留消费者，无主题才销毁
+                bool success = true;
+                string? resultMessage = null;
+                await AsyncLock.WaitAsync(token);
+                try
+                {
+                    if (!TopicArray.ContainsKey(topic))
+                        (success, resultMessage) = (false, $"{topic} 此主题不存在");
+                    else
+                    {
+                        TopicArray.TryRemove(topic, out _);
+                        // 【AI：consumer.Unsubscribe(topic)；若 TopicArray 为空 → 停轮询 + 销毁消费者并置 null】
+                    }
+                }
+                finally
+                {
+                    AsyncLock.Release();
+                }
+                return await EndOperateAsync(success, resultMessage, token: token);
             }
             catch (Exception ex)
             {
@@ -1738,11 +1881,21 @@ Compress-Archive -Path ./publish/* -DestinationPath MyMqPlugin.zip
 
 6. **SDK 状态不可读时自管标志** —— RocketMQ `Client.State` 是 internal，插件无法读取；与 Kafka 一致用自管 `IsOpen` 标志，GetStatusAsync 直接返回（禁止 try/catch）。
 
-7. **同步消费回调的异常兜底** —— 部分 SDK 的监听器是同步接口（RocketMQ `IMessageListener.Consume` 返回 `ConsumeResult`）。回调内用 `.GetAwaiter().GetResult()` 推送事件；**异常不得逸出回调**：外层 catch 返回 `ConsumeResult.FAILURE`（让 Broker 按重试策略重投），通知事件本身再包一层 try/catch。
+7. **同步消费回调的异常兜底** —— 部分 SDK 的监听器是同步接口（RocketMQ `IMessageListener.Consume` 返回 `ConsumeResult`）。**推送用 fire-and-forget `_ = operate.OnDataEventHandlerAsync(...)`**（参考实现 RocketMQOperate.cs:298），**不要**同步 `.GetAwaiter().GetResult()` 等待事件处理（async void 处理器会死锁，且阻塞 SDK 消费线程）；**异常不得逸出回调**：外层 catch 返回 `ConsumeResult.FAILURE`（让 Broker 按重试策略重投），通知事件本身再包一层 try/catch。
 
 8. **凭据成对校验** —— 有认证的插件（AccessKey/SecretKey）在 OnAsync 开头校验两者同时为空或同时非空，缺失即 fail-fast。
 
 9. **重试/回滚语义** —— UnConsume 先 `Unsubscribe` 再移除本地集合（SDK 抛异常时集合保留，重试仍可取消）；Consume 的 `Subscribe` 失败发生在路由查询阶段（SDK 订阅集合无变化），重试幂等。
+
+10. **消费推送三分支统一模板** —— Kafka/RocketMQ/MQTT 三个参考实现的消费推送**完全一致**：`switch (basics.ResponseType)` 三分支（`Bytes`→`byte[]` / `Content`→`string` / `ContentWithTopic`→`ResponseModel`），直接照抄（见 §8.3.5）。`Basics.ResponseType` 是**必配字段**（默认 `Content`），驱动推送格式（见 §8.4）。
+
+11. **OffAsync 尽力清理、不中断** —— 关闭是兜底路径（OnAsync 失败也会调 `OffAsync(true)`），任何一步释放异常都不得阻止后续清理与状态复位。参考实现（KafkaOperate.cs:355）逐段独立 try/catch + `disposeException` 收集，末尾统一返回；RocketMQ 锁内只摘引用、长 `DisposeAsync` 出锁执行（见 §8.3.2）。
+
+12. **GetStatusAsync 三态 + Beg/End 方法配对** —— 关闭是异步长操作，期间返回"关闭中"而非"未连接"（RocketMQ `IsClosing`，见 §8.3.3）；单行返回写法用 `methodName: await BegOperateAsync(token)` 显式传方法名。**`EndOperateAsync` 必须与 `BegOperateAsync` 同一方法内配对**：计时器按 `{TAG}.{methodName}` 查找，逻辑抽到私有辅助方法时禁止在辅助方法内 End（否则 ValueStopwatch 未初始化异常），应返回结果由契约方法统一 End。
+
+13. **Kafka `Subscribe` 会取消旧订阅** —— Confluent.Kafka 的 `consumer.Subscribe(集合)` 以新集合整体替换订阅。多主题订阅必须每次传**当前全部主题的快照** `TopicArray.Keys.ToList()`；取消部分主题后同样重写剩余主题快照（见 §8.3.6）。
+
+14. **消费异常退避** —— 消费轮询中 Broker 持续不可达时，异常路径 `Task.Delay(1000)` 退避再继续（KafkaOperate.cs:138），避免热点空转；取消流程中消费者被释放引发的异常在 `IsCancellationRequested` 时静默退出。
 
 ---
 
@@ -1945,6 +2098,7 @@ public override async Task<OperateResult> ReadAsync(Address address, Cancellatio
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.2.0 | 2026-08-25 | **IMq 契约补足**（对照源码 KafkaOperate.cs / RocketMQOperate.cs / MqttClientOperate.cs / MqAbstract.cs 实测）：§8.3.2 补 OffAsync"尽力清理不中断"（逐段 try/catch + disposeException；长 Dispose 出锁）；§8.3.3 补 GetStatusAsync 三态（IsClosing"关闭中"）+ `methodName: await BegOperateAsync(token)` 显式传参写法 + **Beg/End 方法配对约束**（计时器按 methodName 查找，私有辅助方法禁止 End，否则 ValueStopwatch 异常）；§8.3.4 补 virtual 签名带 CancellationToken + 参考实现状态检查不一致警示（Kafka 直读 IsOpen，以规范为准）；§8.3.5 补消费推送三分支统一模板（ResponseType: Bytes/Content/ContentWithTopic）+ 幂等语义（重复订阅返回失败）+ 消费者懒创建 + SDK 回调线程模型适配（同步回调 fire-and-forget 防 async void 死锁、消费退避）；§8.3.6 补幂等与部分取消语义（主题不存在返回失败、先 Unsubscribe 再移除、多主题保留消费者）；§8.4 数据类补 **Basics.ResponseType 必配字段**（含 Display/JsonConverter 标注与三值说明）；§8.5 完整模板同步升级（IsOpen/IsClosing/AsyncLock/TopicArray 字段 + 核心方法）；§8.7 修正第 7 条（同步回调推送改 fire-and-forget，原 GetAwaiter().GetResult() 与参考实现矛盾）并新增 10-14 条（三分支模板、尽力清理、三态与 Beg/End 配对、Kafka Subscribe 取消旧订阅、消费退避） |
 | 1.0.1.5 | 2026-08-24 | 对照源码升级（Shunnet @46ef840，NuGet 26.235.x→**26.236.1** 全包统一）：安装命令版本号更新（Snet.Core 26.236.1）；`BytesHandler.TransformAsync` 两重载签名参数换位（`CancellationToken token` 移至末位、`isStringReverseByteWord` 提前——语义不变；技能示例均为单参数/前 3 位置参数调用，不受影响）；已知缺陷注记保留（Off(bool hardClose) 不透传）——26.236 源码核对仍成立 |
 | 1.0.1.4 | 2026-08-24 | 对照源码升级（Shunnet @ffd40cd，NuGet 26.226.1→**26.235.2/26.235.1**）：安装命令版本号更新；§1 继承即得能力表补注 `IPacker.UnPacker` 四个重载新增 `isStringReverseByteWord = false` 参数（String 按字反转字节解包，连接级配置如欧姆龙 FINS）；`ProtocolFamily` 新增 `Beckhoff`（20 个枚举值）；已知缺陷注记保留（Off(bool hardClose) 不透传）——26.235 源码核对仍成立 |
 | 1.0.1.3 | 2026-08-14 | 对照源码升级（Shunnet @754fedf，NuGet 26.222.1→**26.226.1**）：**CoreUnify 的 `AP` 虚属性已移除**——§1/§7/§8.1/§8.5 四处 `protected override List<propertie> AP` 模板与三处"3 个虚属性"文本全部改为 2 个虚属性（CN/CD），照抄编译失败的隐患消除；§11.2 参考实现表补 `Snet.RocketMQ`（PushConsumer 懒创建 / RocketMQ.Client 5.2.1）；源码行号引用刷新（KafkaOperate.cs:498→519、131-137→109-122；SiemensOperate.cs:1970→1963、1999→1992；BeckhoffOperate.cs:1191→1185；CoreUnify.cs:871→865）；"继承即得"标注 v26.222.1+→v26.226.1+ |

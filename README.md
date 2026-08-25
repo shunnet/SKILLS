@@ -16,7 +16,7 @@
 
   <img src="https://img.shields.io/badge/.NET-10.0%2B-purple.svg"/>
   <img src="https://img.shields.io/badge/license-MIT-green"/>
-  <img src="https://img.shields.io/badge/version-1.0.1.5-blue"/>
+  <img src="https://img.shields.io/badge/version-1.0.2.0-blue"/>
   <img src="https://img.shields.io/badge/skills-4-orange"/>
   <img src="https://img.shields.io/github/stars/shunnet/SKILLS?style=social"/>
 
@@ -147,7 +147,7 @@ AI 先用大白话问用户（📨 用什么中间件、📍 Broker 地址、�
 
 AI 先用大白话问用户（🏷️ 设备是什么、🔌 怎么连的、📋 协议规矩是什么、📊 数据长什么样），确认后再生成代码。
 
-**📄 文件：** `SKILL.md`（41KB，12章）
+**📄 文件：** `SKILL.md`（101KB，12章）
 
 
 

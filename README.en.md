@@ -16,7 +16,7 @@
 
   <img src="https://img.shields.io/badge/.NET-10.0%2B-purple.svg"/>
   <img src="https://img.shields.io/badge/license-MIT-green"/>
-  <img src="https://img.shields.io/badge/version-1.0.1.5-blue"/>
+  <img src="https://img.shields.io/badge/version-1.0.2.0-blue"/>
   <img src="https://img.shields.io/badge/skills-4-orange"/>
   <img src="https://img.shields.io/github/stars/shunnet/SKILLS?style=social"/>
 
@@ -147,7 +147,7 @@ Help users develop custom protocol plugins deployed to the [Snet.Iot.Daq](https:
 
 The AI asks the user in plain language (🏷️ what the device is, 🔌 how it connects, 📋 what the protocol rules are, 📊 what the data looks like), then generates code after confirmation.
 
-**📄 File:** `SKILL.md` (41KB, 12 chapters) · [中文 README](README.md) | [English README](README.en.md)
+**📄 File:** `SKILL.md` (101KB, 12 chapters) · [中文 README](README.md) | [English README](README.en.md)
 
 
 

@@ -1,6 +1,6 @@
 # PluginDev-Skill — Snet Daq 插件开发契约（IDaq + IMq）
 
-**版本:** 1.0.1.5  
+**版本:** 1.0.2.0  
 **作者:** Shun  
 **许可证:** MIT  
 **框架:** .NET 10.0
@@ -82,11 +82,13 @@ IMq 插件：
 | 方法 | 入参 | 返回 | 核心约束 |
 |------|------|------|----------|
 | `OnAsync()` | — | `Task<OperateResult>` | 连接 Broker，失败 catch 调 `OffAsync(true)` |
-| `OffAsync(bool)` | hardClose | `Task<OperateResult>` | 释放生产者/消费者 |
-| `GetStatusAsync()` | — | `Task<OperateResult>` | 连接状态（禁止 try/catch）|
+| `OffAsync(bool)` | hardClose | `Task<OperateResult>` | 释放生产者/消费者（**尽力清理、不中断**）|
+| `GetStatusAsync()` | — | `Task<OperateResult>` | 连接状态（禁止 try/catch，建议"已连接/关闭中/未连接"三态）|
 | **`ProduceAsync(topic, byte[])`** | 主题+消息 | `Task<OperateResult>` | 发布消息（string 版是基类 virtual，可继承）|
-| **`ConsumeAsync(topic)`** | 主题 | `Task<OperateResult>` | 订阅 + 经 `OnDataEventHandlerAsync` 推送消费数据 |
-| `UnConsumeAsync(topic)` | 主题 | `Task<OperateResult>` | 取消 Token，释放消费者 |
+| **`ConsumeAsync(topic)`** | 主题 | `Task<OperateResult>` | 订阅 + **按 `Basics.ResponseType` 三分支**（Bytes/Content/ContentWithTopic）经 `OnDataEventHandlerAsync` 推送 |
+| `UnConsumeAsync(topic)` | 主题 | `Task<OperateResult>` | **幂等取消**（未订阅返回失败）；多主题时保留消费者，全部取消才销毁 |
+
+> **📌 IMq 数据类必配 `ResponseType` 字段**（默认 `Content`）——驱动 ConsumeAsync 的推送格式（详见 SKILL.md §8.4）。
 
 ## 事件模型
 
