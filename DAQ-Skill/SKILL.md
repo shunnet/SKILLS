@@ -1,7 +1,7 @@
 ---
 name: daq-skill
 description: 工业物联网数据采集通信库，基于 Snet 框架，支持 PLC/工控/电力/机器人 等 30+ 种工业协议的数据读取、写入、订阅、状态获取，以及 Kafka/MQTT/RabbitMQ/RocketMQ/NetMQ/Netty 消息中间件转发。所有采集库通过 ProtocolType 枚举自动选择底层驱动。支持"一句话"完成采集+转发。
-version: 1.0.1.3
+version: 1.0.1.4
 metadata:
   hermes:
     tags: [daq, iot, plc, industrial-automation, modbus, siemens, opc-ua, mqtt, kafka]
@@ -711,6 +711,8 @@ new AddressDetails
 | `Char` | — | `char` | 2 |
 | `Date` / `Time` / `DateTime` | — | `DateTime` | — |
 | `None` | — | `object`（原始值直通） | — |
+
+> **编码自动注册（26.236.x 起）：** `DaqAbstract`/`CoreExtend`/`BytesHandler`/`PackerHandler` 的静态构造函数均注册 `CodePagesEncodingProvider`——GB2312/GBK(936) 与 GB18030(54936) 一经使用即解析，组包/解包 GB2312 编码字符串**无需**手动 `Encoding.RegisterProvider`（`BytesHandler`/`PackerHandler` 单独实例化亦生效）。
 
 ### 4.6 DataFormat（字节序）
 
@@ -1968,6 +1970,7 @@ DAQ → Netty:   "Snet.Netty.client.NettyClientOperate.{SN}"
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.1.4 | 2026-08-24 | 对照源码升级（Shunnet @bd7e84e，26.236.x）：**编码自动注册补全**——`BytesHandler`/`PackerHandler` 新增静态构造函数注册 `CodePagesEncodingProvider`（组包/解包路径不经 DaqAbstract/CoreExtend 时 GB2312/GB18030 也立即可用）；§4.5 补编码自动注册说明（四类静态构造注册、无需手动 `Encoding.RegisterProvider`） |
 | 1.0.1.3 | 2026-08-24 | 对照源码升级（Shunnet @46ef840 + WpfMUI @bf4efed，NuGet 26.235.x→**26.236.1** 全包统一）：安装命令版本号全部更新（Snet.* 含 Windows.Core/Controls 一律 26.236.1，26.235.1/.2 分叉消除）；`BytesHandler.TransformAsync` 两重载签名参数换位（`CancellationToken token` 移至末位、`isStringReverseByteWord` 提前——语义不变，仅按位置传 token 的调用需调整；单参数/按名传参不受影响） |
 | 1.0.1.2 | 2026-08-24 | 对照源码升级（Shunnet @676c129 组包问题修复）：§1.3 协议族 20→**22**（LSis 拆三模式 LSis_Cnet/Cpu/FastEnet，LSCpu/LSFastEnet 现可自动组包）；新增位流批布局（Melsec/Keyence/Fins/Fuji/FxLinks/GE/Yaskawa/Yokogawa/Fatek/LSis_Cpu，批内偏移=位号差）；新增线圈/位区 Bool 降级（Modbus/Yaskawa 线圈、Fanuc/Vigor/XinJE 位区、Toyo 全部、Panasonic 非 16 对齐、Fins TIM/CNT、Cimon D 点号）；新增批首归一化（Modbus 剥点/format=、Beckhoff/Cimon/Toyo 剥点、GE M2→M1、LSis U/I/Q 不剥）；倍福改字节空间建模（M100.3=字节100 位3，无点号 Bool 降级）；§4.4 AddressDetails 构造器默认编码 ANSI→**null(→UTF8)**；§4.5 ANSI 映射 GBK/GB2312(936) |
 | 1.0.1.1 | 2026-08-24 | 对照源码升级（Shunnet @ffd40cd，NuGet 26.226.1→**26.235.2/26.235.1**）：§1.3 协议族 19→**20** 并新增倍福 ADS 组包要点（BeckhoffPacker：M/I/Q 字读字节偏移、M100.3 Bool 位号 n×8+bit 组包、i=/ig= 可组包、s= 符号与点号 Word 降级原样返回）+ `UnPacker` 新增 `isStringReverseByteWord` 解包参数（String 按字反转字节，连接级配置如欧姆龙 FINS）；安装命令版本号更新 |
