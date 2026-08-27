@@ -1,7 +1,7 @@
 ---
 name: wpfui-skill
-description: WPF 现代化界面开发技能，基于 Snet.Windows.Core 和 Snet.Windows.Controls 库，支持自定义窗口、MVVM 架构、深色/浅色主题切换、中英文多语言、PropertyGrid 属性编辑器、拖拽控件、LED 指示灯、分页栏、系统托盘、消息对话框等完整 WPF 桌面应用开发能力。支持"一句话"生成完整 WPF 界面。
-version: 1.0.1.2
+description: WPF 现代化界面开发技能，基于 Snet.Windows.Core 和 Snet.Windows.Controls 库，支持自定义窗口、MVVM 架构、深色/浅色主题切换、中英文多语言、PropertyGrid 属性编辑器、全部内置控件（Button/ComboBox/TextBox/LED/分页/代码编辑器/颜色选择器/文件选择器/内置表格/树形列表等 20+ 子控件）、拖拽控件、LED 指示灯、分页栏、系统托盘、消息对话框等完整 WPF 桌面应用开发能力。支持"一句话"生成完整 WPF 界面。
+version: 1.0.1.3
 metadata:
   hermes:
     tags: [wpf, desktop, mvvm, ui, theme, localization, property-grid, drag-drop, dotnet]
@@ -23,7 +23,8 @@ metadata:
 - 🎨 **深色/浅色主题** — Material Design + Wpf.Ui 双主题引擎，一键切换
 - 🌍 **中英文多语言** — `LocExtension` / `BLoc` 标记扩展，运行时热切换
 - 🧩 **MVVM 架构** — `BindNotify` 基类 + `InjectionWpf` DI 容器 + `EventCommand` 行为
-- 🎛️ **内置控件库** — Button / ComboBox / TextBox / PropertyControl / LedGauge / PageBar
+- 🎛️ **内置控件库（全）** — ButtonControl / ComboBoxControl / TextBoxControl / LedGaugeControl / PageBarControl / TextEditorControl / PropertyControl / NotifyIcon / 消息对话框
+- 🧰 **property/wpf 子控件（20+）** — ColorPicker / FilePicker / DirectoryPicker / RadioButtonList / SpinControl / FormattingTextBox / HeaderedEntrySlider / TextBoxEx / EditableTextBlock / CheckMark / EnumMenuItem / DockPanelSplitter / StackPanelEx / PopupBox / LinkBlock / PropertyGrid / DataGrid（内置版）/ TreeListBox / ItemsBag / PropertyDialog / WizardDialog（见 §6.2 全览）
 - 🔧 **PropertyGrid** — 属性编辑器，含 ColorPicker、FilePicker、DataGrid、TreeListBox
 - 🖱️ **拖拽控件** — 8 向缩放手柄 + 拖拽移动 + 动画拖拽创建
 - 💬 **消息对话框** — OK / OKCancel / Yes / YesNo 四种模式，Material Design 风格
@@ -367,6 +368,8 @@ Language.en.resx      (英文翻译)
 
 ## 🎛️ 第五章：内置控件
 
+> 本章覆盖可直接使用的**顶层内置控件**（ButtonControl / ComboBoxControl / TextBoxControl / LedGaugeControl / PageBarControl / TextEditorControl）；PropertyControl 属性编辑器见第六章；property/wpf 子控件全览（ColorPicker / FilePicker / 内置 DataGrid / TreeListBox 等 20+）见 **§6.2**。
+
 ### ButtonControl — 图标按钮
 
 ```xml
@@ -586,6 +589,324 @@ public class DeviceSettings
 
 ---
 
+### 6.2 property/wpf 内置子控件全览（20+ 个）
+
+> **来源与命名空间：** 以下控件位于 `Snet.Windows.Controls.property.wpf`（PropertyControl 属性编辑器的内部控件集），`snet:` 前缀（`https://snet.cn`）可直接使用，也可在 XAML 中**独立使用**。⚠️ 其中 `snet:DataGrid`、`snet:PropertyGrid` 与 `System.Windows.Controls` 中的同名类型**不是同一个类**，注意区分。
+
+#### ① 独立使用前：先合并样式字典
+
+`PropertyControl` 在内部已自动合并全部子控件样式；**脱离 PropertyControl 单独使用子控件时，必须先手动合并对应 Generic.xaml 字典**，否则控件无模板渲染（显示空白）：
+
+```xml
+<ResourceDictionary.MergedDictionaries>
+    <ResourceDictionary Source="pack://application:,,,/Snet.Windows.Controls;component/property/wpf/Controls/ColorPicker/Generic.xaml" />
+    <ResourceDictionary Source="pack://application:,,,/Snet.Windows.Controls;component/property/wpf/Controls/FilePicker/Generic.xaml" />
+    <ResourceDictionary Source="pack://application:,,,/Snet.Windows.Controls;component/property/wpf/Controls/RadioButtonList/Generic.xaml" />
+    <ResourceDictionary Source="pack://application:,,,/Snet.Windows.Controls;component/property/wpf/Controls/SpinControl/Generic.xaml" />
+    <ResourceDictionary Source="pack://application:,,,/Snet.Windows.Controls;component/property/wpf/Controls/HeaderedEntrySlider/Generic.xaml" />
+    <ResourceDictionary Source="pack://application:,,,/Snet.Windows.Controls;component/property/wpf/Controls/CheckMark/Generic.xaml" />
+    <ResourceDictionary Source="pack://application:,,,/Snet.Windows.Controls;component/property/wpf/Controls/DockPanelSplitter/Generic.xaml" />
+    <ResourceDictionary Source="pack://application:,,,/Snet.Windows.Controls;component/property/wpf/Controls/PopupBox/Generic.xaml" />
+    <ResourceDictionary Source="pack://application:,,,/Snet.Windows.Controls;component/property/wpf/Controls/TextBlockEx/Generic.xaml" />
+    <ResourceDictionary Source="pack://application:,,,/Snet.Windows.Controls;component/property/wpf/PropertyGrid/Generic.xaml" />
+    <ResourceDictionary Source="pack://application:,,,/Snet.Windows.Controls;component/property/wpf/TreeListBox/Generic.xaml" />
+    <ResourceDictionary Source="pack://application:,,,/Snet.Windows.Controls;component/property/wpf/DataGrid/Generic.xaml" />
+</ResourceDictionary.MergedDictionaries>
+```
+
+#### ② 选择 / 输入类
+
+**ColorPicker — 颜色选择器**（继承 ComboBox，下拉展开色板 / HSV / 光谱）
+
+```xml
+<snet:ColorPicker SelectedColor="{Binding LedColor}" />
+```
+
+| 属性 | 类型 | 说明 |
+|:---|:---|:---|
+| `SelectedColor` | `Color?` | 当前选中颜色（双向绑定） |
+
+**FilePicker — 文件选择框**
+
+```xml
+<snet:FilePicker
+    FilePath="{Binding ConfigPath}"
+    Filter="JSON 文件 (*.json)|*.json|所有文件 (*.*)|*.*"
+    DefaultExtension="json"
+    Multiselect="False"
+    UseOpenDialog="True" />
+```
+
+| 属性 | 说明 |
+|:---|:---|
+| `FilePath` | 文件路径（双向绑定） |
+| `Filter` | 文件对话框过滤器串（WPF 格式 `名称\|*.ext\|...`） |
+| `DefaultExtension` | 默认扩展名 |
+| `Multiselect` | 是否多选 |
+| `UseOpenDialog` | `true`=打开对话框 / `false`=保存对话框 |
+| `IsInputEnabled` | 是否允许手动输入路径 |
+| `BasePath` | 相对路径基准目录 |
+| `BrowseButtonContent` / `ExploreButtonContent` / `OpenButtonContent` 等 | 按钮内容/提示自定义 |
+
+**DirectoryPicker — 目录选择框**
+
+```xml
+<snet:DirectoryPicker Directory="{Binding ExportDir}" />
+```
+
+关键属性：`Directory`（双向绑定）、`BrowseButtonContent` / `ExploreButtonContent`。
+
+**RadioButtonList — 枚举单选列表**
+
+```xml
+<snet:RadioButtonList
+    EnumType="{x:Type local:DeviceType}"
+    Value="{Binding DeviceTypeValue}"
+    Orientation="Horizontal"
+    ItemMargin="4" />
+```
+
+| 属性 | 说明 |
+|:---|:---|
+| `EnumType` | 枚举类型 |
+| `Value` | 当前选中值（object，双向绑定） |
+| `Orientation` / `ItemMargin` / `ItemPadding` | 布局 |
+| `DescriptionConverter` | 显示文本转换器（如 `EnumDescriptionConverter`） |
+
+**FormattingTextBox — 格式化输入框**
+
+```xml
+<snet:FormattingTextBox Value="{Binding DoubleValue}" StringFormat="0.###" />
+```
+
+关键属性：`Value`（object，双向绑定）、`StringFormat`、`FormatProvider`。
+
+**SpinControl — 上下微调控件**（数字 / 时间）
+
+```xml
+<snet:SpinControl
+    Value="{Binding Port}"
+    Minimum="0" Maximum="65535"
+    SmallChange="1" LargeChange="10"
+    RepeatInterval="100" />
+```
+
+| 属性 | 说明 |
+|:---|:---|
+| `Value` / `Minimum` / `Maximum` | 值 / 范围（object） |
+| `SmallChange` / `LargeChange` | 步进 / 大步进 |
+| `RepeatInterval` | 按住时重复间隔（毫秒） |
+| `SpinButtonWidth` | 按钮宽度 |
+| `Culture` | 数字格式化区域 |
+
+**HeaderedEntrySlider — 标题 + 数值框 + 滑块**
+
+```xml
+<snet:HeaderedEntrySlider
+    Header="采样间隔"
+    Value="{Binding Interval}"
+    Minimum="100" Maximum="10000"
+    SmallChange="100" LargeChange="1000"
+    EntryStringFormat="{}{0:F0}" />
+```
+
+关键属性：`Header`、`Value`、`Minimum` / `Maximum`、`SmallChange` / `LargeChange`、`HeaderWidth` / `EntryWidth`（GridLength）、`EntryStringFormat`、`EntryContentAlignment`。
+
+**SliderEx** — `Slider` 的直接子类（默认样式滑块，无新增属性），用于需要 Slider 默认样式的场景。
+
+**TextBoxEx — 文本框增强**
+
+```xml
+<snet:TextBoxEx
+    Text="{Binding Code}"
+    SelectAllOnFocus="True"
+    MoveFocusOnEnter="True"
+    UpdateBindingOnEnter="True" />
+```
+
+| 属性 | 说明 |
+|:---|:---|
+| `SelectAllOnFocus` | 获得焦点时全选 |
+| `ScrollToHomeOnFocus` | 获得焦点时滚动到开头 |
+| `MoveFocusOnEnter` | 回车移动焦点 |
+| `UpdateBindingOnEnter` | 回车时提交绑定 |
+
+**TextBlockEx** — `TextBlock` 的直接子类（默认样式，无新增属性）。
+
+**EditableTextBlock — 可编辑文本块**（TextBlock + 编辑态切换）
+
+```xml
+<snet:EditableTextBlock Text="双击可编辑" IsEditing="{Binding IsEditing}" />
+```
+
+关键属性：`IsEditing`（是否编辑态）、`HorizontalContentAlignment` / `VerticalContentAlignment`。
+
+**CheckMark — 对勾标记**
+
+```xml
+<snet:CheckMark IsChecked="True" />
+```
+
+关键属性：`IsChecked`（bool）。
+
+**EnumMenuItem — 枚举菜单项**（继承 MenuItem）
+
+```xml
+<snet:EnumMenuItem Header="设备级别" SelectedValue="{Binding Level}" />
+```
+
+关键属性：`SelectedValue`（object，双向绑定）。
+
+#### ③ 容器 / 布局类
+
+**DockPanelSplitter — 分隔条**（DockPanel 子项之间拖动调宽）
+
+```xml
+<DockPanel>
+    <snet:DockPanelSplitter DockPanel.Dock="Right" Thickness="4" />
+    <Border>…</Border>
+</DockPanel>
+```
+
+关键属性：`Thickness`（分隔条厚度）、`IsHorizontal`、`ProportionalResize`（按比例缩放两侧）。
+
+**StackPanelEx — 限高 StackPanel**（超出 `VisibleChildrenCount` 的子项自动 Collapsed）
+
+```xml
+<snet:StackPanelEx VisibleChildrenCount="5">
+    <!-- 第 6 项起自动隐藏 -->
+</snet:StackPanelEx>
+```
+
+**PopupBox — 弹出模板下拉**（继承 ComboBox，下拉显示自定义 DataTemplate）
+
+```xml
+<snet:PopupBox>
+    <snet:PopupBox.PopupTemplate>
+        <DataTemplate>
+            <StackPanel>
+                <TextBlock Text="自定义弹层内容" />
+                <Button Content="确定" />
+            </StackPanel>
+        </DataTemplate>
+    </snet:PopupBox.PopupTemplate>
+</snet:PopupBox>
+```
+
+**LinkBlock — 超链接文本**（点击用系统浏览器打开）
+
+```xml
+<snet:LinkBlock Text="访问官网" NavigateUri="https://shunnet.top" />
+```
+
+**PropertyGrid — 属性网格（独立使用版，不套窗口/滚动条）**
+
+```xml
+<snet:PropertyGrid SelectedObject="{Binding SettingsObject}" ShowReadOnlyProperties="True" />
+```
+
+| 属性 | 说明 |
+|:---|:---|
+| `SelectedObject` / `SelectedObjects` | 编辑对象（单个 / 多个） |
+| `ShowReadOnlyProperties` | 是否显示只读属性 |
+| `EnumAsRadioButtonsLimit` | 枚举项数 ≤ 该值时用单选按钮显示 |
+| `LabelWidthSharing` / `EnableLabelWidthResizing` | 标签列宽共享 / 可拖拽调整 |
+| `TabVisibility` / `TabStripPlacement` | 分类页签显示与位置 |
+| `CategoryControlType` / `CategoryHeaderTemplate` | 分类样式 |
+| `ShowDescriptionIcons` / `DescriptionIcon` | 描述图标 |
+| `Indentation` / `VerticalPropertySpacing` | 缩进 / 行距 |
+
+> 日常使用推荐 `snet:PropertyControl` 包装（含标题栏/滚动/按钮，见 §6.1）；需要裸网格时用 `snet:PropertyGrid`。
+
+**DataGrid（property/wpf 内置版）** — ⚠️ 与 `System.Windows.Controls.DataGrid` **完全不同的另一个表格控件**（命名空间 `Snet.Windows.Controls.property.wpf`，PropertyControl 内部表格），`ItemsSource` 类型为 `IList`：
+
+```xml
+<snet:DataGrid
+    ItemsSource="{Binding Rows}"
+    AutoGenerateColumns="True"
+    CanInsert="True" CanDelete="True" />
+```
+
+| 属性 | 说明 |
+|:---|:---|
+| `ItemsSource` | `IList`（非 IEnumerable） |
+| `AutoGenerateColumns` / `ColumnDefinitions` | 自动/手动列定义 |
+| `AutoInsert` / `CreateItem` | 自动插入新行 / 行工厂 |
+| `CanInsert` / `CanDelete` / `CanCopy` / `CanCut` / `CanPaste` / `CanClear` | 编辑能力开关 |
+| `IsAutoFillEnabled` / `AutoFillCell` | 拖拽自动填充 |
+| `ClipboardSeparator` | 剪贴板分隔符 |
+| `CurrentCell` / `CustomSort` / `InputDirection` | 当前单元格 / 排序 / 输入方向 |
+| `RowHeadersSource` / `ColumnHeadersSource` / `GridLineBrush` / `HeaderBorderBrush` | 表头/网格线外观 |
+| `Operator` | `IDataGridOperator` 数据操作器 |
+
+**TreeListBox — 树形列表**（支持拖拽、多选、展开路径绑定）
+
+```xml
+<snet:TreeListBox
+    HierarchySource="{Binding Tree}"
+    ChildrenPath="Children"
+    IsExpandedPath="IsExpanded" />
+```
+
+关键属性：`HierarchySource`（根集合）、`ChildrenPath`（子节点属性名）、`IsExpandedPath` / `IsSelectedPath`、`Indentation`。
+
+#### ④ 对话框
+
+**PropertyDialog — 属性编辑对话框**（窗口内嵌 PropertyGrid + OK/Apply/Cancel）
+
+```csharp
+using Snet.Windows.Controls.property.wpf;
+
+var dialog = new PropertyDialog { Owner = Application.Current.MainWindow };
+dialog.DataContext = new MySettings();   // 任意对象，属性注解（§6.1）驱动编辑
+dialog.ShowDialog();
+```
+
+**WizardDialog — 向导对话框**（上一步/下一步/完成）
+
+```csharp
+var wizard = new WizardDialog { Owner = Application.Current.MainWindow };
+wizard.Pages = new List<object> { new Step1ViewModel(), new Step2ViewModel() };
+wizard.ShowDialog();
+```
+
+关键属性：`Pages`（`List<object>`，每页一个对象，页签由对象驱动）、`CurrentPage`（当前页索引）。
+
+#### ⑤ 数据 / 工具类
+
+**ItemsBag — 动态属性包**（把多个对象的同名属性合并到一个可编辑对象，用于 PropertyGrid 批量编辑）
+
+```csharp
+using Snet.Windows.Controls.property.wpf;
+
+var bag = new ItemsBag(new object[] { objA, objB });
+PropertyControl.BasicsData = bag;        // 或 PropertyGrid.SelectedObject = bag
+bag.Dispose();                            // 用完释放
+```
+
+**配套数据模型**（`Snet.Windows.Controls.data`）：
+
+| 模型 | 用途 |
+|:---|:---|
+| `ComboBoxModel`（Key/Value） | 下拉框键值项（`DisplayMemberPath="Key"`） |
+| `EditModel`（Name/Description/Color） | 日志标签着色模型（正则标签→颜色） |
+| `ItemsControlModel`（Key/…） | 勾选列表项（配合 `ItemsControlHandler.GetCheckedItem/SetCheckedItem`） |
+| `TabControlModel` | 页签模型 |
+
+**配套 handler 工具类**（`Snet.Windows.Controls.handler`）：
+
+| 类 | 用途 |
+|:---|:---|
+| `Win32Handler.Select` | 原生文件/目录选择对话框（§18） |
+| `WpfUiHandler.CreationControl` | NavigationView 导航项创建（§14） |
+| `EditBindingHandler.EditText` | TextEditor 双向绑定附加属性（§28） |
+| `EditHandler` | TextEditor 关键词着色（`SetKeywords`）+ 代码补全（`Complete`）+ 主题（`SetTheme`） |
+| `ItemsControlHandler` | `GetCheckedItem` / `SetCheckedItem` 勾选扩展 |
+| `UiMessageHandler` | 消息队列显示（`StartAsync(intervalMs, maxLength, maxBatchCount)` / `ShowAsync` / `ClearAsync`） |
+| `SettingsHandler` | `AutoStart`（开机自启）/ `IsRunAsAdmin` / `RestartAsAdmin` / `CreateDesktopShortcut` / `DeleteDesktopShortcut` |
+
+---
+
 ## 🖱️ 第七章：拖拽控件
 
 ### DragControlsBase — 缩放+移动
@@ -750,6 +1071,8 @@ private void OnExitApp(object sender, RoutedEventArgs e)
 ```
 
 > **说明：** `NotifyIcon` 提供 `Register()`/`Unregister()` 方法（XAML 声明后通常无需手动调用）和 `LeftClick`/`RightClick`/`LeftDoubleClick` 等 6 个点击事件，以及 `TooltipText`/`Icon`/`Menu`/`FocusOnLeftClick`/`MenuOnRightClick` 依赖属性。`TrayManager` 是 internal 静态类，用户代码不可直接访问。
+>
+> **代码方式（无 XAML）：** 也可用 `Snet.Windows.Controls.tray.NotifyIconService` 以纯代码注册托盘图标（设置 `Icon`/`TooltipText`/`ContextMenu` 后调用 `Register()`，退出时 `Unregister()`+`Dispose()`）。
 
 ---
 
@@ -2334,6 +2657,7 @@ public class AddressModelCore : DaqPluginOperateModel.ReadModel, IAddressModel
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.1.3 | 2026-08-27 | 内置控件全覆盖：新增 §6.2「property/wpf 内置子控件全览（20+）」，逐一补充 ColorPicker、FilePicker、DirectoryPicker、RadioButtonList、SpinControl、FormattingTextBox、HeaderedEntrySlider、SliderEx、TextBoxEx、TextBlockEx、EditableTextBlock、CheckMark、EnumMenuItem、DockPanelSplitter、StackPanelEx、PopupBox、LinkBlock、PropertyGrid（独立版）、DataGrid（内置版，区别于 System DataGrid）、TreeListBox、ItemsBag、PropertyDialog、WizardDialog 的用法与关键属性，含独立使用前需合并 Generic.xaml 样式字典的说明、配套数据模型与 handler 工具类（EditHandler/ItemsControlHandler/UiMessageHandler/SettingsHandler）；能力清单与 front-matter 同步更新 |
 | 1.0.1.2 | 2026-08-24 | 对照源码升级（WpfMUI @bf4efed，NuGet 26.235.2→**26.236.1**）：安装命令与依赖树版本号更新（Snet.Windows.Core/Controls 26.236.1、Snet.Core 26.236.1） |
 | 1.0.1.1 | 2026-08-24 | 对照源码升级（WpfMUI @92affc7，NuGet 26.226.1→**26.235.2**）：安装命令与依赖树版本号更新（Snet.Windows.Core/Controls 26.235.2、Snet.Core 26.235.2） |
 | 1.0.1.0 | 2026-08-14 | 对照源码升级（WpfMUI @390d732，NuGet 26.222.1→**26.226.1**）：安装命令与依赖树版本号更新（Snet.Core 系 26.226.1、System.Management/System.Drawing.Common 10.0.10→**10.0.11**）；§29 AddressSettings 示例改为绑定 AddressModelCore 真实字段（Address/Type/Length/EncodingType/IsSelected）并标注示意性质 |
