@@ -1,7 +1,7 @@
 ---
 name: mq-skill
 description: Snet 消息中间件应用技能，覆盖 MQTT（Client/Service/WebSocket）、Kafka、RabbitMQ、RocketMQ、NetMQ、Netty 六种 IMq 传输协议的消息生产、消费、统一 API 与数据转发。支持"一句话"完成消息收发配置。配合 PluginDev-Skill 开发自定义 IMq 插件。
-version: 1.0.1.2
+version: 1.0.1.3
 metadata:
   hermes:
     tags: [mq, middleware, mqtt, kafka, rabbitmq, rocketmq, netmq, netty, iot, dotnet, message-queue]
@@ -47,7 +47,7 @@ public interface IMq : IOn, IOff, IProducer, IConsumer, IStatus,
 | 更新参数 | `mq.UpdateArgs(config)` | `await mq.UpdateArgsAsync(config)` | 运行期替换单例参数（原子换键，失败回滚） |
 | 克隆实例 | `mq.CloneThis()` | `await mq.CloneThisAsync()` | 克隆新实例（不入单例池，独立连接） |
 
-> **⚠️ 已知缺陷（v26.226.1）：** `UpdateArgsAsync` 成功路径返回 `Status=false`（底层 `EndOperateAsync(false, "参数修改成功")`）——判断结果请用 `GetDetails` 消息内容；`Off(true)` 同步版不透传 `hardClose`（未连接时仍报"未连接"），强制关闭请用 `await OffAsync(true)`。
+> **✅ 已知缺陷已修复（26.250 起）：** ① `UpdateArgsAsync` 成功路径此前错误返回 `Status=false`（`EndOperateAsync(false, "参数修改成功")`），现 CoreUnify.cs:882 返回 **`Status=true`**；② 基类同步 `Off(bool hardClose)` 此前不透传 `hardClose`，现 MqAbstract.cs:34 已改为 `OffAsync(hardClose)`——**旧缺陷的规避写法（按 `GetDetails` 消息判断成功、强制关闭用 `OffAsync(true)`）不再必要**，按 `Status` 判断即可。
 
 ### 消费数据接收（统一事件）
 
@@ -80,11 +80,11 @@ await mq.ConsumeAsync("my/topic");
 
 ### 版本号：必须指定
 
-所有 `dotnet add package` 命令**必须**带 `-v` 版本号（当前统一版本 **26.236.1**），**禁止使用 `*` 通配符**。安装前到 nuget.org 确认最新版本。
+所有 `dotnet add package` 命令**必须**带 `-v` 版本号（当前统一版本 **26.250.1**），**禁止使用 `*` 通配符**。安装前到 nuget.org 确认最新版本。
 
 ```bash
 # ✅ 正确：指定版本号
-dotnet add package Snet.Mqtt -v 26.236.1
+dotnet add package Snet.Mqtt -v 26.250.1
 
 # ❌ 错误：不带版本号（使用 * 通配符，运行时报错）
 dotnet add package Snet.Mqtt
@@ -101,7 +101,7 @@ dotnet add package Snet.Mqtt
 
 ```bash
 # ✅ 正确：只引用中间件包
-dotnet add package Snet.Mqtt -v 26.236.1
+dotnet add package Snet.Mqtt -v 26.250.1
 ```
 
 ### using 语句 vs NuGet 引用
@@ -143,7 +143,7 @@ using Snet.Model.@enum;              // ← ResponseType 等
 
 ## 1. MQTT — 最常用的轻量消息协议
 
-> NuGet: `dotnet add package Snet.Mqtt -v 26.236.1`
+> NuGet: `dotnet add package Snet.Mqtt -v 26.250.1`
 > 三种操作类：`MqttClientOperate`（连接外部 Broker，继承 MqAbstract）/ `MqttServiceOperate`（内置 Broker）/ `MqttWebSocketServiceOperate`（浏览器 WebSocket）
 
 ### 1.1 MQTT Client（连接外部 Broker）
@@ -244,7 +244,7 @@ using (var wsService = await MqttWebSocketServiceOperate.InstanceAsync(config))
 
 ## 2. Kafka — 分布式高吞吐消息队列
 
-> NuGet: `dotnet add package Snet.Kafka -v 26.236.1`
+> NuGet: `dotnet add package Snet.Kafka -v 26.250.1`
 > Operate: `KafkaOperate`（继承 MqAbstract）| Config: `KafkaData.Basics`
 > **注意：Kafka 用 `BootstrapServers`（非 IpAddress+Port）**
 
@@ -316,7 +316,7 @@ var created = await kafka.CreateTopicsAsync(new List<string> { "factory/line1", 
 
 ## 3. RabbitMQ — AMQP 协议
 
-> NuGet: `dotnet add package Snet.RabbitMQ -v 26.236.1`
+> NuGet: `dotnet add package Snet.RabbitMQ -v 26.250.1`
 > Operate: `RabbitMQOperate`（继承 MqAbstract）| Config: `RabbitMQData.Basics`
 > **注意：RabbitMQ 有 `ExChangeName`（交换机名称）+ `Publish/Consume` 用 `Type` 参数指定交换机类型（direct/topic/fanout/headers）**
 
@@ -370,7 +370,7 @@ await rabbit.OffAsync();
 
 ## 4. NetMQ — ZeroMQ 无 Broker 模式
 
-> NuGet: `dotnet add package Snet.NetMQ -v 26.236.1`
+> NuGet: `dotnet add package Snet.NetMQ -v 26.250.1`
 > Operate: `NetMQOperate`（继承 MqAbstract）| Config: `NetMQData.Basics`
 > **注意：NetMQ 用 `Address`（ZMQ 地址格式）+ `UModel`（PubModel/SubModel）**
 
@@ -430,7 +430,7 @@ await pub.OffAsync();
 
 ## 5. Netty — 高性能 TCP 框架
 
-> NuGet: `dotnet add package Snet.Netty -v 26.236.1`
+> NuGet: `dotnet add package Snet.Netty -v 26.250.1`
 > 两种操作类：`NettyClientOperate`（客户端，继承 MqAbstract）/ `NettyServiceOperate`（服务端）
 > **注意：Netty 支持 SSL 加密（SslFilePath/SslFilePassword）**
 
@@ -510,7 +510,7 @@ using (var service = await NettyServiceOperate.InstanceAsync(config))
 
 ## 6. RocketMQ — Apache RocketMQ 5.x 消息队列
 
-> NuGet: `dotnet add package Snet.RocketMQ -v 26.236.1`
+> NuGet: `dotnet add package Snet.RocketMQ -v 26.250.1`
 > Operate: `RocketMQOperate`（继承 MqAbstract）| Config: `RocketMQData.Basics`
 > 底层依赖 RocketMQ.Client 5.2.1（Apache RocketMQ 5.x .NET 客户端，**经 gRPC 协议连接 Proxy**）
 
@@ -584,7 +584,7 @@ DAQ 采集的数据可自动转发到任意中间件（**关键机制，详见 D
 
 > 自动转发只识别 **`config/mq/` 目录下 `{完整命名空间}.{类名}.{SN}.Mq.Config.json` 配置文件加载的实例**（`MqOperate.InstanceIoc` 注册表）。用户代码 `new` 创建的实例不注册，转发会报 "实例未找到"。
 
-> **⚠️ 热加载 key 不一致（已知缺陷，v26.226.1）：** `MqOperate` **启动时扫描**注册的实例 key 与 ISns 格式一致（`命名空间.类名.SN`）；但**运行期间新增/修改**配置文件（watcher 热加载路径）注册的 key 会多保留 `.Mq.Config` 后缀，此时 ISns 定向转发仍报"实例未找到"。**规避：** 在 MqOperate 启动前放好配置文件；运行期动态加 MQ 实例后请重启应用或改用 §6.2 事件内手动 `ProduceAsync`。
+> **⚠️ 热加载 key 不一致（已知缺陷，v26.226.1 起；26.250 源码核对仍成立）：** `MqOperate` **启动时扫描**注册的实例 key 与 ISns 格式一致（`命名空间.类名.SN`）；但**运行期间新增/修改**配置文件（watcher 热加载路径 `MqOperate.Monitor.cs` `TryLoadConfigAndCreateInstanceAsync` 的 `sn` 保留 `.Mq.Config` 后缀）注册的 key 会多保留 `.Mq.Config` 后缀，此时 ISns 定向转发仍报"实例未找到"。**规避：** 在 MqOperate 启动前放好配置文件；运行期动态加 MQ 实例后请重启应用或改用 §6.2 事件内手动 `ProduceAsync`。
 
 ```json
 // config/mq/Snet.Mqtt.client.MqttClientOperate.mqtt-target.Mq.Config.json
@@ -646,8 +646,8 @@ new AddressDetails
 | RabbitMQ 取消订阅后数据丢失 | ~~`UnConsumeAsync` 会**删除队列**~~（已修复）—— 现为 `BasicCancel`，**队列与积压消息保留** | 未消费主题返回失败「此主题未在消费」；删除队列需走 Broker 管理 API |
 | 一处 `using var` 释放后全局断连 | `InstanceAsync` 同 SN/配置返回**共享实例**，Dispose 即 Off+出池 | 勿在多处 using 同一实例；确认无其他持有者再释放 |
 | Kafka 断线重连后收不到旧消息 | ~~每次 `OnAsync` 生成新消费组~~（已修复）—— `GroupId` 为**固定配置**（默认 `"snet"`），偏移量**手动提交**（EnableAutoCommit=false），断线重连后从上次提交偏移续读 | 同组多实例分摊消息；需全新消费时换一个 GroupId |
-| `Off(true)` 未连接时仍报"未连接" | 基类同步 `Off(bool)` 不透传 `hardClose`（MqAbstract.cs:34，已知缺陷）| 强制关闭用 `await mq.OffAsync(true)` |
-| `UpdateArgsAsync` 返回 Status=false | 底层成功路径误用 `EndOperateAsync(false, "参数修改成功")`（已知缺陷）| 按 `GetDetails` 消息内容判断，勿只看 Status |
+| ~~`Off(true)` 未连接时仍报"未连接"~~（**已修复 26.250**） | ~~基类同步 `Off(bool)` 不透传 `hardClose`（MqAbstract.cs:34）~~——现同步版已透传 | 同步 `mq.Off(true)` 即可强制关闭，无需改用 `OffAsync` |
+| ~~`UpdateArgsAsync` 返回 Status=false~~（**已修复 26.250**） | ~~底层成功路径误用 `EndOperateAsync(false, "参数修改成功")`~~——现 CoreUnify.cs:882 返回 Status=true | 按 `Status` 判断即可，无需看 `GetDetails` 消息兜底 |
 | 运行期新增 config/mq 文件后 ISns 失效 | 热加载注册 key 多保留 `.Mq.Config` 后缀（MqOperate.Monitor.cs，已知缺陷）| 启动前放好配置文件；动态新增后重启（见 §7.1） |
 | 断线后收不到消息 | MQTT 自动重连 5 次（5/10/15/20/30 秒退避）后仍失败才 Off；但 CleanSession 丢订阅，**重连成功不自动恢复订阅** | 在「重连成功」信息事件回调里重新 `ConsumeAsync(topic)` |
 | 消费 handler 异常后消息丢失 | 异常只发 `OnInfoEventAsync`（不落盘）| 订阅 `OnInfoEventAsync` 并在 handler 内 try-catch |
@@ -667,6 +667,7 @@ new AddressDetails
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.1.3 | 2026-08-24 | 对照源码升级（Shunnet @95a564b，NuGet 26.236.1→**26.250.1**）：安装命令与统一版本号更新（六种 IMq 传输协议一律 26.250.1）；**两条已知缺陷已修复改写**——`UpdateArgsAsync` 成功路径 `Status` 误为 false（CoreUnify.cs:882 现返回 true）、基类同步 `Off(bool)` 不透传 hardClose（MqAbstract.cs:34 现透传），注记与 §8 故障排查两行改为"已修复 26.250"；热加载 key 不一致缺陷保留（MqOperate.Monitor.cs 热加载路径仍保留 `.Mq.Config` 后缀，26.250 核对仍成立）；MqOperate 行为变化（同步 Produce 直调 `ProduceAsync(...).GetAwaiter().GetResult()` 不再 Task.Run 包装、On/Off/Consume 失败消息 null 安全、ProduceInternalAsync 空 topic/内容抛参校验）核对无文档影响 |
 | 1.0.1.2 | 2026-08-24 | 对照源码升级（Shunnet @46ef840，NuGet 26.235.x→**26.236.1** 全包统一）：安装命令与统一版本号更新（六种 IMq 传输协议一律 26.236.1）；已知缺陷注记保留（UpdateArgsAsync Status=false、热加载 key 不一致、Off(true) 不透传 hardClose）——26.236 源码核对仍成立 |
 | 1.0.1.1 | 2026-08-24 | 对照源码升级（Shunnet @ffd40cd，NuGet 26.226.1→**26.235.2**）：安装命令与统一版本号更新（六种 IMq 传输协议）；已知缺陷注记保留（UpdateArgsAsync Status=false、热加载 key 不一致、Off(true) 不透传 hardClose）——26.235 源码核对仍成立 |
 | 1.0.1.0 | 2026-08-14 | 对照源码升级（26.222.1→**26.226.1**）：**新增 §6 RocketMQ 章节**（Apache RocketMQ 5.x gRPC 连 Proxy 8081、消费者懒创建、ACL/SSL、配置速查、关键行为表），中间件 5 种→**6 种**（frontmatter/tags/统一接口/交互选项/ISns 表同步）；§7 故障排查 3 条行为改写：RabbitMQ 取消订阅不再删队列（BasicCancel 保留队列）、Kafka GroupId 固定 "snet"（偏移手动提交、重连续读）、MQTT 自动重连 5 次（CleanSession 重连后需重新订阅）；补 §2 Kafka 章节标题（原缺失）；版本历史与版本号标注统一 26.226.1 |

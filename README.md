@@ -16,7 +16,7 @@
 
   <img src="https://img.shields.io/badge/.NET-10.0%2B-purple.svg"/>
   <img src="https://img.shields.io/badge/license-MIT-green"/>
-  <img src="https://img.shields.io/badge/version-1.0.2.0-blue"/>
+  <img src="https://img.shields.io/badge/version-1.0.2.1-blue"/>
   <img src="https://img.shields.io/badge/skills-4-orange"/>
   <img src="https://img.shields.io/github/stars/shunnet/SKILLS?style=social"/>
 
@@ -75,7 +75,7 @@
 
 AI 先用大白话问用户（🏷️ 牌子型号、🔌 怎么连的、📍 IP多少、📊 读什么数据、📨 发到哪里），确认后再生成代码。
 
-**📄 文件：** `SKILL.md`（55KB，15章）
+**📄 文件：** `SKILL.md`（92KB，15章）
 
 
 
@@ -121,7 +121,7 @@ AI 先用大白话问用户（📨 用什么中间件、📍 Broker 地址、�
 
 ### ✨ 能力
 
-- 📋 **严格插件契约** — IDaq 8 个抽象方法 / IMq 6 个抽象方法 + 3 个必须属性
+- 📋 **严格插件契约** — IDaq 8 个抽象方法 / IMq 6 个抽象方法 + 2 个虚属性（CN/CD；AP 虚属性已移除）
 - 📡 **5 种内置通信类** — TCP/UDP/WebSocket/Serial/HTTP
 - 💾 **数据缓存** — 进程缓存 `ProcessCacheOperate` + 跨进程共享缓存 `ShareCacheOperate`
 - 🔍 **反射调用** — `ReflectionOperate` 动态加载外部 DLL、调用方法、注册事件
@@ -147,7 +147,7 @@ AI 先用大白话问用户（📨 用什么中间件、📍 Broker 地址、�
 
 AI 先用大白话问用户（🏷️ 设备是什么、🔌 怎么连的、📋 协议规矩是什么、📊 数据长什么样），确认后再生成代码。
 
-**📄 文件：** `SKILL.md`（101KB，12章）
+**📄 文件：** `SKILL.md`（105KB，12章）
 
 
 
