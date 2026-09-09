@@ -1,7 +1,7 @@
 ---
 name: plugindev-skill
 description: Snet.Iot.Daq 插件开发技能，覆盖 IDaq（数据采集）与 IMq（消息中间件）两类插件开发。严格定义插件开发契约：必须实现的抽象方法、必须遵循的返回类型、必须使用的数据标注、必须调用的框架方法。AI 自行决定采集方式（TCP/HTTP/文件/串口）或消息收发方式，但必须遵守契约。
-version: 1.0.2.1
+version: 1.0.2.2
 metadata:
   hermes:
     tags: [plugin-development, daq, iot, dotnet, contract, code-generation, mq, middleware]
@@ -892,7 +892,8 @@ if (!initResult.Status)
 }
 
 // ③ 调用方法（返回 object?，不是 OperateResult）
-object? methodResult = reflect.ExecuteMethod("parse-temp", new object[] { "25.6" });
+// 注意：方法容器键 = ClassData.SN + MethodData.SN（"parser-instance"+"parse-temp"），仅传 MethodData.SN 无法命中
+object? methodResult = reflect.ExecuteMethod("parser-instanceparse-temp", new object[] { "25.6" });
 if (methodResult != null)
 {
     // 结果可能是 OperateResult 或直接值，需判断类型
@@ -903,8 +904,9 @@ if (methodResult != null)
 }
 
 // ④ 注册事件（签名：RegisterEvent(SN, Register, P1?, P2?, ..., P6?)）
+// 事件键同样为组合键 ClassData.SN + EventData.SN（"parser-instance"+"on-data"）
 // Register=true 注册，Register=false 移除；P1~P6 对应 1~6 个参数的 Action
-reflect.RegisterEvent("on-data", true,
+reflect.RegisterEvent("parser-instanceon-data", true,
     P1: (sender) =>
     {
         LogHelper.Info($"反射事件触发: {sender}");
@@ -956,7 +958,7 @@ ReflectionData.Basics
 object? rawValue = /* 原始采集值 */;
 if (reflect.GetStatus())
 {
-    object? result = reflect.ExecuteMethod("parse-temp", new object[] { rawValue });
+    object? result = reflect.ExecuteMethod("parser-instanceparse-temp", new object[] { rawValue });
     if (result is OperateResult op && op.Status)
         rawValue = op.GetSource<object>();  // 用解析后的值替换原始值
     else if (result != null)
@@ -2100,6 +2102,7 @@ public override async Task<OperateResult> ReadAsync(Address address, Cancellatio
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.2.2 | 2026-08-25 | 修正 §8.x ReflectionOperate 示例：方法/事件容器键为组合键 **`ClassData.SN + MethodData.SN`**（事件 `ClassData.SN + EventData.SN`）——原示例 `ExecuteMethod("parse-temp")`/`RegisterEvent("on-data")` 无法命中，改为 `"parser-instanceparse-temp"`/`"parser-instanceon-data"` 并加注 |
 | 1.0.2.1 | 2026-08-25 | 对照源码升级（Shunnet @95a564b，NuGet 26.236.1→**26.250.1**）：安装命令版本号更新（Snet.Core 26.250.1）；**两条已知缺陷改写为"已修复 26.250"**——基类同步 `Off(bool)` 不透传 hardClose（MqAbstract.cs:34 现改 `OffAsync(hardClose)`）、`UpdateArgsAsync` 成功路径 Status 误为 false（CoreUnify.cs:882 现返回 true），§8.2 注记改写；§1 源码行号引用刷新（BeckhoffOperate.cs:1185→**1978**——Beckhoff 重构 1985 行；KafkaOperate/SiemensOperate 行号核对无变化——仅 csproj/1:1 空值化改动）；§11.1 补 Snet.Driver 新增三菱 MC A4C 系列说明（无 Operate 封装/ProtocolType，非插件）；IDaq 8 抽象方法/IMq 6 抽象方法/IPacker 4 重载签名核对无变化 |
 | 1.0.2.0 | 2026-08-25 | **IMq 契约补足**（对照源码 KafkaOperate.cs / RocketMQOperate.cs / MqttClientOperate.cs / MqAbstract.cs 实测）：§8.3.2 补 OffAsync"尽力清理不中断"（逐段 try/catch + disposeException；长 Dispose 出锁）；§8.3.3 补 GetStatusAsync 三态（IsClosing"关闭中"）+ `methodName: await BegOperateAsync(token)` 显式传参写法 + **Beg/End 方法配对约束**（计时器按 methodName 查找，私有辅助方法禁止 End，否则 ValueStopwatch 异常）；§8.3.4 补 virtual 签名带 CancellationToken + 参考实现状态检查不一致警示（Kafka 直读 IsOpen，以规范为准）；§8.3.5 补消费推送三分支统一模板（ResponseType: Bytes/Content/ContentWithTopic）+ 幂等语义（重复订阅返回失败）+ 消费者懒创建 + SDK 回调线程模型适配（同步回调 fire-and-forget 防 async void 死锁、消费退避）；§8.3.6 补幂等与部分取消语义（主题不存在返回失败、先 Unsubscribe 再移除、多主题保留消费者）；§8.4 数据类补 **Basics.ResponseType 必配字段**（含 Display/JsonConverter 标注与三值说明）；§8.5 完整模板同步升级（IsOpen/IsClosing/AsyncLock/TopicArray 字段 + 核心方法）；§8.7 修正第 7 条（同步回调推送改 fire-and-forget，原 GetAwaiter().GetResult() 与参考实现矛盾）并新增 10-14 条（三分支模板、尽力清理、三态与 Beg/End 配对、Kafka Subscribe 取消旧订阅、消费退避） |
 | 1.0.1.5 | 2026-08-24 | 对照源码升级（Shunnet @46ef840，NuGet 26.235.x→**26.236.1** 全包统一）：安装命令版本号更新（Snet.Core 26.236.1）；`BytesHandler.TransformAsync` 两重载签名参数换位（`CancellationToken token` 移至末位、`isStringReverseByteWord` 提前——语义不变；技能示例均为单参数/前 3 位置参数调用，不受影响）；已知缺陷注记保留（Off(bool hardClose) 不透传）——26.236 源码核对仍成立 |
