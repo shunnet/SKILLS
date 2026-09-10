@@ -1,7 +1,7 @@
 ---
 name: plugindev-skill
 description: Snet.Iot.Daq 插件开发技能，覆盖 IDaq（数据采集）与 IMq（消息中间件）两类插件开发。严格定义插件开发契约：必须实现的抽象方法、必须遵循的返回类型、必须使用的数据标注、必须调用的框架方法。AI 自行决定采集方式（TCP/HTTP/文件/串口）或消息收发方式，但必须遵守契约。
-version: 1.0.2.2
+version: 1.0.2.3
 metadata:
   hermes:
     tags: [plugin-development, daq, iot, dotnet, contract, code-generation, mq, middleware]
@@ -2083,7 +2083,7 @@ public override async Task<OperateResult> ReadAsync(Address address, Cancellatio
 | `Snet.TEP` | TCP | 私有协议握手→认证→数据流 | 内置 TcpServiceOperate |
 | `Snet.PQDIF` | TCP/串口 | DLT645/DLT698/CJT188 帧 | Driver.PipeTcpNet |
 
-> **底层驱动新增（v26.250，非插件）：** `Snet.Driver/Profinet/Melsec/` 新增**三菱 MC A4C 系列**（`MelsecA4CNet`/`MelsecA4CNetOverTcp`/`MelsecA4CServer` + `MelsecA4CMessage`/`MelsecA4CServerMessage`；`MelsecA3CNet`/`MelsecA3CServer`/`MelsecFxLinks*` 同轮重构）——当前**无 Operate 封装与 ProtocolType**（Snet.Mitsubishi 的 ProtocolType 未含 A4C 成员），属底层驱动而非插件；需要时按本章第 1-7 章契约自行封装（是否支持地址自动组包以 `PackerHandler.CanAutoPack` 实测为准，A4C 协议类型名未注册进组包族映射）。
+> **底层驱动新增（v26.250，非插件）：** `Snet.Driver/Profinet/Melsec/` 新增**三菱 MC A4C 系列**（`MelsecA4CNet`/`MelsecA4CNetOverTcp`/`MelsecA4CServer` + `MelsecA4CMessage`/`MelsecA4CServerMessage`；`MelsecA3CNet`/`MelsecA3CServer`/`MelsecFxLinks*` 同轮重构）。当前 `Snet.Mitsubishi` 已在 `MitsubishiOperate` 与 `MitsubishiData.ProtocolType` 中提供 A4C 串口/TCP 封装，`PackerHandler.CanAutoPack` 也通过 `ProtocolFamily.Mitsubishi` 支持这两个协议名；它们仍属于内置驱动，不是独立插件。
 
 ### 11.2 IMq 插件（第 8 章，继承 MqAbstract）
 
@@ -2102,8 +2102,9 @@ public override async Task<OperateResult> ReadAsync(Address address, Cancellatio
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.2.3 | 2026-09-10 | 同步当前 Shunnet 工作区：三菱 MC A4C 已加入 `MitsubishiOperate`、`MitsubishiData.ProtocolType` 与自动组包映射；修正 §11.1“仅底层驱动、无 Operate/ProtocolType”的过时说明 |
 | 1.0.2.2 | 2026-08-25 | 修正 §8.x ReflectionOperate 示例：方法/事件容器键为组合键 **`ClassData.SN + MethodData.SN`**（事件 `ClassData.SN + EventData.SN`）——原示例 `ExecuteMethod("parse-temp")`/`RegisterEvent("on-data")` 无法命中，改为 `"parser-instanceparse-temp"`/`"parser-instanceon-data"` 并加注 |
-| 1.0.2.1 | 2026-08-25 | 对照源码升级（Shunnet @95a564b，NuGet 26.236.1→**26.250.1**）：安装命令版本号更新（Snet.Core 26.250.1）；**两条已知缺陷改写为"已修复 26.250"**——基类同步 `Off(bool)` 不透传 hardClose（MqAbstract.cs:34 现改 `OffAsync(hardClose)`）、`UpdateArgsAsync` 成功路径 Status 误为 false（CoreUnify.cs:882 现返回 true），§8.2 注记改写；§1 源码行号引用刷新（BeckhoffOperate.cs:1185→**1978**——Beckhoff 重构 1985 行；KafkaOperate/SiemensOperate 行号核对无变化——仅 csproj/1:1 空值化改动）；§11.1 补 Snet.Driver 新增三菱 MC A4C 系列说明（无 Operate 封装/ProtocolType，非插件）；IDaq 8 抽象方法/IMq 6 抽象方法/IPacker 4 重载签名核对无变化 |
+| 1.0.2.1 | 2026-09-08 | 对照源码升级（Shunnet @95a564b，NuGet 26.236.1→**26.250.1**）：安装命令版本号更新（Snet.Core 26.250.1）；**两条已知缺陷改写为"已修复 26.250"**——基类同步 `Off(bool)` 不透传 hardClose（MqAbstract.cs:34 现改 `OffAsync(hardClose)`）、`UpdateArgsAsync` 成功路径 Status 误为 false（CoreUnify.cs:882 现返回 true），§8.2 注记改写；§1 源码行号引用刷新（BeckhoffOperate.cs:1185→**1978**——Beckhoff 重构 1985 行；KafkaOperate/SiemensOperate 行号核对无变化——仅 csproj/1:1 空值化改动）；§11.1 补 Snet.Driver 新增三菱 MC A4C 系列说明（无 Operate 封装/ProtocolType，非插件）；IDaq 8 抽象方法/IMq 6 抽象方法/IPacker 4 重载签名核对无变化 |
 | 1.0.2.0 | 2026-08-25 | **IMq 契约补足**（对照源码 KafkaOperate.cs / RocketMQOperate.cs / MqttClientOperate.cs / MqAbstract.cs 实测）：§8.3.2 补 OffAsync"尽力清理不中断"（逐段 try/catch + disposeException；长 Dispose 出锁）；§8.3.3 补 GetStatusAsync 三态（IsClosing"关闭中"）+ `methodName: await BegOperateAsync(token)` 显式传参写法 + **Beg/End 方法配对约束**（计时器按 methodName 查找，私有辅助方法禁止 End，否则 ValueStopwatch 异常）；§8.3.4 补 virtual 签名带 CancellationToken + 参考实现状态检查不一致警示（Kafka 直读 IsOpen，以规范为准）；§8.3.5 补消费推送三分支统一模板（ResponseType: Bytes/Content/ContentWithTopic）+ 幂等语义（重复订阅返回失败）+ 消费者懒创建 + SDK 回调线程模型适配（同步回调 fire-and-forget 防 async void 死锁、消费退避）；§8.3.6 补幂等与部分取消语义（主题不存在返回失败、先 Unsubscribe 再移除、多主题保留消费者）；§8.4 数据类补 **Basics.ResponseType 必配字段**（含 Display/JsonConverter 标注与三值说明）；§8.5 完整模板同步升级（IsOpen/IsClosing/AsyncLock/TopicArray 字段 + 核心方法）；§8.7 修正第 7 条（同步回调推送改 fire-and-forget，原 GetAwaiter().GetResult() 与参考实现矛盾）并新增 10-14 条（三分支模板、尽力清理、三态与 Beg/End 配对、Kafka Subscribe 取消旧订阅、消费退避） |
 | 1.0.1.5 | 2026-08-24 | 对照源码升级（Shunnet @46ef840，NuGet 26.235.x→**26.236.1** 全包统一）：安装命令版本号更新（Snet.Core 26.236.1）；`BytesHandler.TransformAsync` 两重载签名参数换位（`CancellationToken token` 移至末位、`isStringReverseByteWord` 提前——语义不变；技能示例均为单参数/前 3 位置参数调用，不受影响）；已知缺陷注记保留（Off(bool hardClose) 不透传）——26.236 源码核对仍成立 |
 | 1.0.1.4 | 2026-08-24 | 对照源码升级（Shunnet @ffd40cd，NuGet 26.226.1→**26.235.2/26.235.1**）：安装命令版本号更新；§1 继承即得能力表补注 `IPacker.UnPacker` 四个重载新增 `isStringReverseByteWord = false` 参数（String 按字反转字节解包，连接级配置如欧姆龙 FINS）；`ProtocolFamily` 新增 `Beckhoff`（20 个枚举值）；已知缺陷注记保留（Off(bool hardClose) 不透传）——26.235 源码核对仍成立 |

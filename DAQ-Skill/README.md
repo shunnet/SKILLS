@@ -1,6 +1,6 @@
 # DAQ-Skill — 工业物联网数据采集技能
 
-**版本:** 1.0.1.5  
+**版本:** 1.0.1.6  
 **作者:** Shun  
 **许可证:** MIT  
 **框架:** .NET 10.0
@@ -50,7 +50,7 @@
 |------|------|-----------|-------------------|
 | `Snet.Siemens` | 西门子 S7/PPI/S7Plus/FetchWrite | `SiemensOperate` | 10 种 |
 | `Snet.Modbus` | Modbus TCP/UDP/RTU/ASCII/RTUoTCP/ASCIIoTCP | `ModbusOperate` | 6 种 |
-| `Snet.Mitsubishi` | 三菱 MC/FX/A1E/A3C/CIP/Links | `MitsubishiOperate` | 14 种 |
+| `Snet.Mitsubishi` | 三菱 MC/FX/A1E/A3C/A4C/CIP/Links | `MitsubishiOperate` | 16 种 |
 | `Snet.Omron` | 欧姆龙 Fins/CIP/HostLink/CMode | `OmronOperate` | 8 种 |
 | `Snet.OrientalMotor` | 东方马达 EIP 步进驱动器 | `OrientalMotorOperate` | 1 种 |
 | `Snet.Inovance` | 汇川 TCP/Serial/CIP/Easy/ComputerLink | `InovanceOperate` | 6 种 |

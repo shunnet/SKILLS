@@ -1,6 +1,6 @@
 # PluginDev-Skill — Snet Daq Plugin Development Contract (IDaq + IMq)
 
-**Version:** 1.0.2.2  
+**Version:** 1.0.2.3  
 **Author:** Shun  
 **License:** MIT  
 **Framework:** .NET 10.0

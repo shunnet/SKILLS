@@ -1,7 +1,7 @@
 ---
 name: wpfui-skill
 description: WPF 现代化界面开发技能，基于 Snet.Windows.Core 和 Snet.Windows.Controls 库，支持自定义窗口、MVVM 架构、深色/浅色主题切换、中英文多语言、PropertyGrid 属性编辑器、全部内置控件（Button/ComboBox/TextBox/LED/分页/代码编辑器/颜色选择器/文件选择器/内置表格/树形列表等 20+ 子控件）、拖拽控件、LED 指示灯、分页栏、系统托盘、消息对话框等完整 WPF 桌面应用开发能力。支持"一句话"生成完整 WPF 界面。
-version: 1.0.1.4
+version: 1.0.1.5
 metadata:
   hermes:
     tags: [wpf, desktop, mvvm, ui, theme, localization, property-grid, drag-drop, dotnet]
@@ -66,8 +66,8 @@ Snet.Windows.Controls
   │     ├── WPF-UI (>= 4.3.0)
   │     ├── CommunityToolkit.Mvvm (>= 8.4.2)
   │     ├── Microsoft.Xaml.Behaviors.Wpf（EventCommand/Interaction.Triggers 依赖）
-  │     ├── System.Management (>= 10.0.11)
-  │     ├── System.Drawing.Common (>= 10.0.11)
+  │     ├── System.Management (>= 10.0.12)
+  │     ├── System.Drawing.Common (>= 10.0.12)
   │     └── Snet.Core (>= 26.250.1)
   └── (v26.222.1 起 AvalonEdit 依赖已移除——代码编辑器源码已内嵌，见"编辑控件"章节)
 ```
@@ -984,6 +984,41 @@ dragAnimate.Remove(sourceControl);
 ```
 
 > **补充：** `DragControlsExcessiveAnimate` 与 `DragControlsAnimate` 同构（另一套拖拽创建实现），用法一致。`DragControlsBase` 构造参数序为 `(Controls, LlayoutContainer, Move, DragSize, Rotate = false)`；`DragControlsHelper.Insert(uiElement, container, move, dragSize, rotate = false)` 与 `DragControlsHelper.Find(uiElement)`（v26.250 新增）。
+
+### DragControlsLayout — 布局持久化模型
+
+`DragControlsLayout` 是可直接交给 `System.Text.Json` 的画布布局模型；`Version` 默认 1，`Items` 默认空集合。每个 `DragControlsLayoutItem` 保存 `Type`、`X`、`Y`、`Width`、`Height`、`Angle`，并可选保存 `Text`、`IsChecked`、`Fill`、`SourceName`、`SN`、`ExtensionData` 与自定义 `Extra` 字典：
+
+```csharp
+using System.Text.Json;
+using Snet.Windows.Controls.drag;
+
+var layout = new DragControlsLayout
+{
+    Items =
+    [
+        new DragControlsLayoutItem
+        {
+            Type = "Button", X = 40, Y = 24, Width = 120, Height = 36,
+            Angle = 15, Text = "启动", SourceName = "command-button"
+        }
+    ]
+};
+
+string json = JsonSerializer.Serialize(layout);
+var restored = JsonSerializer.Deserialize<DragControlsLayout>(json);
+```
+
+### NaturalStringComparer — 自然字符串排序
+
+`Snet.Windows.Controls.property.wpf.NaturalStringComparer` 实现 `IComparer<string?>`，按数字片段比较且不受 `Int32` 上限约束，适合属性网格中的 `Item2` / `Item10` 排序：
+
+```csharp
+using Snet.Windows.Controls.property.wpf;
+
+var names = new[] { "Item10", "Item2", "Item1" };
+Array.Sort(names, new NaturalStringComparer());
+```
 
 ---
 
@@ -2679,7 +2714,8 @@ public class AddressModelCore : DaqPluginOperateModel.ReadModel, IAddressModel
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
-| 1.0.1.4 | 2026-08-24 | 对照源码升级（WpfMUI @9d2c664，88 文件；NuGet 26.236.1→**26.250.2**）：安装命令与依赖树版本号更新（Snet.Windows.Core/Controls 26.250.2、Snet.Core 26.250.1）；§5 ButtonControl `CornerRadius` 默认值 8→**5**；第七章 DragControls 性能优化新 API——`DragControlsAnimate` 新增 `(Windows, LlayoutContainer, sources, …)` 构造、`Initialize`、`RegisterSource/CreateBySourceName/ContainsSourceName`、附加属性 `SourceName/SN/ExtensionData`、`EnableContextMenu/AttachCopyMenu/PinCopy/UnpinCopy/ExtractCopy/RemoveCopy/SetRotation/GetRotation/SettingsRequested/Detach`，**`dragEvenTrigger` 元组新增第 4 项 `IsRotate`**（示例返回从 3 元组改 4 元组），`MoveAndDragSizeInsert` 增 `Rotate=false` 参数；`DragControlsBase` 增 `Rotate=false` 构造参数与 `SurroundInnerColor/SurroundOuterColor/Angle/InitCentreThumb/InitRotateThumb/SetRotation/Detach`；`DragControlsHelper.Insert` 增 `Rotate`、新增 `Find`；§6.2 `UiMessageHandler.StartAsync` 默认 `intervalMs` 100→**200** 且新增 `CancellationToken` 参数；其余 20+ 子控件公共 API 核对无变化（性能优化多为内部实现，ComboBox/TextBox 仅注释说明 Height 依赖属性）；§9 托盘 TrayData 新增 `Remove/AllocateId`（internal 静态类，用户代码不可访问，无文档影响） |
+| 1.0.1.5 | 2026-09-10 | 补齐 `DragControlsLayout` / `DragControlsLayoutItem` 布局持久化模型与 `NaturalStringComparer` 公共 API；System.Management/System.Drawing.Common 依赖更新至 10.0.12 |
+| 1.0.1.4 | 2026-09-08 | 对照源码升级（WpfMUI @9d2c664，88 文件；NuGet 26.236.1→**26.250.2**）：安装命令与依赖树版本号更新（Snet.Windows.Core/Controls 26.250.2、Snet.Core 26.250.1）；§5 ButtonControl `CornerRadius` 默认值 8→**5**；第七章 DragControls 性能优化新 API——`DragControlsAnimate` 新增 `(Windows, LlayoutContainer, sources, …)` 构造、`Initialize`、`RegisterSource/CreateBySourceName/ContainsSourceName`、附加属性 `SourceName/SN/ExtensionData`、`EnableContextMenu/AttachCopyMenu/PinCopy/UnpinCopy/ExtractCopy/RemoveCopy/SetRotation/GetRotation/SettingsRequested/Detach`，**`dragEvenTrigger` 元组新增第 4 项 `IsRotate`**（示例返回从 3 元组改 4 元组），`MoveAndDragSizeInsert` 增 `Rotate=false` 参数；`DragControlsBase` 增 `Rotate=false` 构造参数与 `SurroundInnerColor/SurroundOuterColor/Angle/InitCentreThumb/InitRotateThumb/SetRotation/Detach`；`DragControlsHelper.Insert` 增 `Rotate`、新增 `Find`；§6.2 `UiMessageHandler.StartAsync` 默认 `intervalMs` 100→**200** 且新增 `CancellationToken` 参数；其余 20+ 子控件公共 API 核对无变化（性能优化多为内部实现，ComboBox/TextBox 仅注释说明 Height 依赖属性）；§9 托盘 TrayData 新增 `Remove/AllocateId`（internal 静态类，用户代码不可访问，无文档影响） |
 | 1.0.1.3 | 2026-08-27 | 内置控件全覆盖：新增 §6.2「property/wpf 内置子控件全览（20+）」，逐一补充 ColorPicker、FilePicker、DirectoryPicker、RadioButtonList、SpinControl、FormattingTextBox、HeaderedEntrySlider、SliderEx、TextBoxEx、TextBlockEx、EditableTextBlock、CheckMark、EnumMenuItem、DockPanelSplitter、StackPanelEx、PopupBox、LinkBlock、PropertyGrid（独立版）、DataGrid（内置版，区别于 System DataGrid）、TreeListBox、ItemsBag、PropertyDialog、WizardDialog 的用法与关键属性，含独立使用前需合并 Generic.xaml 样式字典的说明、配套数据模型与 handler 工具类（EditHandler/ItemsControlHandler/UiMessageHandler/SettingsHandler）；能力清单与 front-matter 同步更新 |
 | 1.0.1.2 | 2026-08-24 | 对照源码升级（WpfMUI @bf4efed，NuGet 26.235.2→**26.236.1**）：安装命令与依赖树版本号更新（Snet.Windows.Core/Controls 26.236.1、Snet.Core 26.236.1） |
 | 1.0.1.1 | 2026-08-24 | 对照源码升级（WpfMUI @92affc7，NuGet 26.226.1→**26.235.2**）：安装命令与依赖树版本号更新（Snet.Windows.Core/Controls 26.235.2、Snet.Core 26.235.2） |

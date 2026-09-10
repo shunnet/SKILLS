@@ -1,6 +1,6 @@
 # DAQ-Skill — Industrial IoT Data Acquisition Skill
 
-**Version:** 1.0.1.5  
+**Version:** 1.0.1.6  
 **Author:** Shun  
 **License:** MIT  
 **Framework:** .NET 10.0
@@ -50,7 +50,7 @@ A full-stack industrial IoT data acquisition library based on the [Snet](https:/
 |------|------|-----------|-------------------|
 | `Snet.Siemens` | Siemens S7/PPI/S7Plus/FetchWrite | `SiemensOperate` | 10 |
 | `Snet.Modbus` | Modbus TCP/UDP/RTU/ASCII/RTUoTCP/ASCIIoTCP | `ModbusOperate` | 6 |
-| `Snet.Mitsubishi` | Mitsubishi MC/FX/A1E/A3C/CIP/Links | `MitsubishiOperate` | 14 |
+| `Snet.Mitsubishi` | Mitsubishi MC/FX/A1E/A3C/A4C/CIP/Links | `MitsubishiOperate` | 16 |
 | `Snet.Omron` | Omron Fins/CIP/HostLink/CMode | `OmronOperate` | 8 |
 | `Snet.OrientalMotor` | OrientalMotor EIP stepper drive | `OrientalMotorOperate` | 1 |
 | `Snet.Inovance` | Inovance TCP/Serial/CIP/Easy/ComputerLink | `InovanceOperate` | 6 |

@@ -1,7 +1,7 @@
 ---
 name: daq-skill
 description: 工业物联网数据采集通信库，基于 Snet 框架，支持 PLC/工控/电力/机器人 等 30+ 种工业协议的数据读取、写入、订阅、状态获取，以及 Kafka/MQTT/RabbitMQ/RocketMQ/NetMQ/Netty 消息中间件转发。所有采集库通过 ProtocolType 枚举自动选择底层驱动。支持"一句话"完成采集+转发。
-version: 1.0.1.5
+version: 1.0.1.6
 metadata:
   hermes:
     tags: [daq, iot, plc, industrial-automation, modbus, siemens, opc-ua, mqtt, kafka]
@@ -271,6 +271,7 @@ var values = (await op.UnPackerAsync(batch))
 - **LSis 三模式**（`LSisPacker` 按 Family 分支）：Cnet（位宽 B/W/D/L 缩放 + U/I/Q 复合区，Bool+Word 可组，131070 分帧）；**Cpu**（GLOFA 串口 hex 编址 10 位/字，**仅 Bool 位流批**，上限 120）；**FastEnet**（XGB 以太网显式 B/W/D/L 位宽 **仅 Word** 可组，X=位/无位宽/UIQ/点号降级，上限 500）。`LSCpu`/`LSFastEnet` 原自动透传 → 现可自动组包
 - **倍福 ADS 组包要点**（`BeckhoffPacker`，26.235.x 起字节空间建模）：`M100`/`I100`/`Q100` 字读按字节地址组包；`M100.3` Bool = **字节 100 位 3**（消费层字节区字读，批首归一化剥点为 `M100`）；`i=100000` 绝对内存、`ig=0xF080;100` 自定义索引组可组包；**`s=MAIN.PLCVar` 符号地址、无点号 Bool（`M100` 位语义与字节区批读不一致）、点号 Word 均降级原样返回**
 - **位流批布局**（v26.235 起系统性修复；**v26.250 批首修正**）：消费层对组包 ByteArray 批走驱动字读，字读位区响应 = 从批首地址起连续位流（8 位/字节 LSB-first）→ 批内偏移 = **批首位号差**（非绝对字节差；新批次起点按对齐批首计算：`rel = 位号 − 对齐批首位号`、`byteOff = rel / 8`——Fins 等按字对齐的协议新批首点位偏移从批首位号差起算，不再从 0 起）。启用协议：Melsec/Keyence/Fins/Fuji/FxLinks/GE/Yaskawa/Yokogawa/Fatek/LSis_Cpu
+- **三菱 Melsec 白名单**：仅驱动支持的 MC 设备代码参与组包；未知代码、缺少数字或带尾随垃圾的地址自动降级为单点透传。`MelsecA4CNet` / `MelsecA4CNetOverTcp` 复用 A3C 地址模型并映射到 `ProtocolFamily.Mitsubishi`。
 - **线圈/位区 Bool 降级**（v26.235 全量审查修复）：Modbus/Yaskawa 无点号 Bool（FC1/SFC1 线圈）、Fanuc/Vigor/XinJE 位区 Bool、Toyo 全部 Bool、Panasonic 非 16 对齐 Bool、Fins TIM/CNT 点号 Bool、Cimon D 点号 → 消费层字读路径错区/驱动拒绝 → **降级为单点 ReadBool**（点号寄存器 Bool 仍组包）
 - **标签访问类协议不支持组包，自动原样返回（不报错）**：`SiemensS7Plus` / `MelsecCipNet` / `OmronCipNet` / `KeyenceKvOld` / `KeyenceNanoSerial` / `PanasonicMcNet` / `AllenBradleyNet` 等
 - 组包批次点 `AddressDescribe` 以 `"packer"` 前缀标记，`AddressExtendParam` 携带 `List<BytesModel>`（批内偏移）；跨区类型（位区 Word / 字区 Bool）自动降级原样保留；**批首归一化**（`NormalizeBatchHead`：点号/format= 批首 → 驱动可解析裸地址，Modbus 剥点保留 s=/x=/w=、GE 归一 M2→M1、LSis U/I/Q 点号不剥）；超长地址按 `min(PhysicalMaxBytes, 65535)` 自动分帧（v26.250 起单批字节上限再截到 `ushort.MaxValue`，超限抛 `ArgumentOutOfRangeException`，不再静默截断）；**未组包数组 `Length` 的元素数契约**（v26.250 起：数组/ByteArray 等未组包点保留 `addr.Length` 元素数，不再覆写为 `CalcByteLength` 字节数——Modbus/Omron 消费层对 packer 批的读取长度按字单位换算 `(字节数+1)/2`）
@@ -762,6 +763,8 @@ DataFormat.DCBA  // 完全反转
 | "三菱" "A1E" "ASCII" | `MitsubishiOperate` | `MelsecA1EAsciiNet` |
 | "三菱" "A3C" | `MitsubishiOperate` | `MelsecA3CNet` |
 | "三菱" "A3C" "TCP" | `MitsubishiOperate` | `MelsecA3CNetOverTcp` |
+| "三菱" "A4C" | `MitsubishiOperate` | `MelsecA4CNet` |
+| "三菱" "A4C" "TCP" | `MitsubishiOperate` | `MelsecA4CNetOverTcp` |
 | "三菱" "CIP" | `MitsubishiOperate` | `MelsecCipNet` |
 | "欧姆龙" "Fins" "TCP" | `OmronOperate` | `OmronFinsNet` |
 | "欧姆龙" "Fins" "UDP" | `OmronOperate` | `OmronFinsUdp` |
@@ -805,7 +808,7 @@ DataFormat.DCBA  // 完全反转
 | "英威腾" "Invt" | `InvtOperate` | `ModbusTcpNet` |
 | "英威腾" "Invt" "串口" | `InvtOperate` | `ModbusRtu` |
 | "倍福" "Beckhoff" "ADS" | `BeckhoffOperate` | `BeckhoffAdsNet` |
-| "倍福" "AdsRouter" "TwinCAT路由" "官方库" | `BeckhoffOperate` | `BeckhoffAdsNetWithAdsRouter`（v26.250 新增：使用官方 `Beckhoff.TwinCAT.Ads` 库 7.0.317，支持多通路；无 TwinCAT 的服务器需同时运行 TcpRouter 路由，否则 OnAsync 报 "Check for a running TwinCAT router instance!"） |
+| "倍福" "AdsRouter" "TwinCAT路由" "官方库" | `BeckhoffOperate` | `BeckhoffAdsNetWithAdsRouter`（v26.250 新增：使用官方 `Beckhoff.TwinCAT.Ads` 库 7.0.339，支持多通路；无 TwinCAT 的服务器需同时运行 TcpRouter 路由，否则 OnAsync 报 "Check for a running TwinCAT router instance!"） |
 | "通用电气" "GE" "SRTP" | `GEOperate` | `GeSRTPNet` |
 | "安川" "Yaskawa" "Memobus" | `YaskawaOperate` | `MemobusTcpNet` |
 | "安川" "Yaskawa" "Memobus" "UDP" | `YaskawaOperate` | `MemobusUdpNet` |
@@ -851,7 +854,7 @@ DataFormat.DCBA  // 完全反转
 |------|------------------------|----------|
 | **西门子** | `Rack`, `Slot`, `PDULength`, `LocalTSAP` | `SiemensData.cs` |
 | **Modbus** | `Station`, `DataFormat`, `AddressStartWithZero`, `IsCheckMessageId`, `Crc16CheckEnable`, `IsClearCacheBeforeRead`, `StationCheckMatch`, `IsStringReverse` | `ModbusData.cs` |
-| **三菱** | `Slot`, `NetworkNumber`, `NetworkStationNumber`, `EnableWriteBitToWordRegister` | `MitsubishiData.cs` |
+| **三菱** | `Slot`, `NetworkNumber`, `NetworkStationNumber`, `EnableWriteBitToWordRegister`, `Format`（A3C: 1-4；A4C: 1-5） | `MitsubishiData.cs` |
 | **欧姆龙** | `OmronPlcType`, `SA1`, `DA1`, `DA2`, `GCT`, `DataFormat`, `IsStringReverseByteWord` | `OmronData.cs` |
 | **东方马达** | `RunIdleHeader`, `RPITime`, `ActualTimeout`（EIP 协议） | `OrientalMotorData.cs` |
 | **汇川** | `Station`, `InovanceSeries`(AM/AC/H3U/H5U), `DataFormat`, `AddressStartWithZero` | `InovanceData.cs` |
@@ -1108,7 +1111,7 @@ await operate.OffAsync();
 > NuGet: `dotnet add package Snet.DB -v <最新版本>`
 > Operate: `DBOperate` | Config: `DBData.Basics`
 > 地址: SQL 查询语句 | DBType: SqlServer / MySql / Oracle / SQLite
-> HandlerType: Daq（采集，用 Dapper）/ Default（增删改查，用 **SqlSugarCore** NuGet 5.1.4.219——`using SqlSugar;`、`SqlSugar.DbType.*`；Snet.DB.sugar 内嵌源码已移除）
+> HandlerType: Daq（采集，用 Dapper）/ Default（增删改查，用 **SqlSugarCore** NuGet 5.1.4.220——`using SqlSugar;`、`SqlSugar.DbType.*`；Snet.DB.sugar 内嵌源码已移除）
 
 > **📌 v26.222.1 DB 采集修复：** `HandleInterval` 已改为 `virtual` 并被 DBData.Basics 覆写为默认 **10000ms（10 秒采集一次）**；查询结果转换改用 `ToNJson` 修复值解析异常。下方示例中的 `HandleInterval = 5000` 显式覆盖了默认值。
 
@@ -1589,7 +1592,7 @@ await operate.OnAsync();
 | **IEC 60870-5-104** | `Snet.Driver.Instrument.IEC` | IEC 104 电力远动协议 | TCP (默认 2404) |
 | **ShineIn Light** | `Snet.Driver.Instrument.Light` | 昱行智造光源控制器（私有协议） | 串口 (57600-8-E-1) |
 | **DAM3601** | `Snet.Driver.Instrument.Temperature` | 阿尔泰科技 DAM3601 温控模块（Modbus RTU 变体） | 串口 |
-| **三菱 MC A4C** | `Snet.Driver.Profinet.Melsec` | **v26.250 三菱 MC 重构新增**：`MelsecA4CNet`/`MelsecA4CNetOverTcp`/`MelsecA4CServer`（+`MelsecA3CNet`/`MelsecA3CServer` 重建）——无 Operate 封装与 ProtocolType，需自行封装 | TCP/串口 |
+| **三菱 MC A4C** | `Snet.Driver.Profinet.Melsec` / `Snet.Mitsubishi` | **v26.250 三菱 MC 重构新增**：`MelsecA4CNet`/`MelsecA4CNetOverTcp`/`MelsecA4CServer`；`MitsubishiOperate` 已提供串口/TCP 封装，`MitsubishiData.ProtocolType` 含对应成员，并可映射到 `ProtocolFamily.Mitsubishi` 自动组包 | TCP/串口 |
 
 ---
 
@@ -1984,7 +1987,8 @@ DAQ → Netty:   "Snet.Netty.client.NettyClientOperate.{SN}"
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
-| 1.0.1.5 | 2026-08-24 | 对照源码升级（Shunnet @95a564b 大规模重构，NuGet 26.236.1→**26.250.1** 全包统一）：安装命令版本号全部更新；§1.3 组包契约修正——位流批新批次起点按对齐批首位号差计算（`rel = 位号 − 对齐批首`，Fins 等按字对齐协议）、单批字节上限再截 `ushort.MaxValue`（超限抛 `ArgumentOutOfRangeException`）、**未组包数组 `Length` 改元素数契约**（不再覆写为字节数）、Modbus/Omron 对 packer 批按字单位换算读取长度；§5.1/§5.3 倍福新增 `BeckhoffAdsNetWithAdsRouter`（官方 Beckhoff.TwinCAT.Ads 7.0.317 库、多通路、需本地 ADS 路由/TcpRouter 才可 OnAsync）；§7.3 IOu 节点浏览 API 全部异步化（`GetNodeID`→`GetNodeIDAsync` 等 7 个，同步版已移除）；§7.6 **Snet.DB.sugar 内嵌源码移除 → SqlSugarCore 5.1.4.219**（`using SqlSugar;`、`SqlSugar.DbType.*`），补 `GetBaseObjectAsync` 获取 SqlSugarClient 对象示例 |
+| 1.0.1.6 | 2026-09-10 | 同步当前 Shunnet 工作区（含未提交改动）：三菱 MC A4C 已加入 `MitsubishiOperate`、`MitsubishiData.ProtocolType` 与 `PackerHandler` 映射；Melsec 未知设备码改为安全透传；Beckhoff.TwinCAT.Ads 7.0.339、SqlSugarCore 5.1.4.220 |
+| 1.0.1.5 | 2026-09-08 | 对照源码升级（Shunnet @95a564b 大规模重构，NuGet 26.236.1→**26.250.1** 全包统一）：安装命令版本号全部更新；§1.3 组包契约修正——位流批新批次起点按对齐批首位号差计算（`rel = 位号 − 对齐批首`，Fins 等按字对齐协议）、单批字节上限再截 `ushort.MaxValue`（超限抛 `ArgumentOutOfRangeException`）、**未组包数组 `Length` 改元素数契约**（不再覆写为字节数）、Modbus/Omron 对 packer 批按字单位换算读取长度；§5.1/§5.3 倍福新增 `BeckhoffAdsNetWithAdsRouter`（官方 Beckhoff.TwinCAT.Ads 7.0.317 库、多通路、需本地 ADS 路由/TcpRouter 才可 OnAsync）；§7.3 IOu 节点浏览 API 全部异步化（`GetNodeID`→`GetNodeIDAsync` 等 7 个，同步版已移除）；§7.6 **Snet.DB.sugar 内嵌源码移除 → SqlSugarCore 5.1.4.219**（`using SqlSugar;`、`SqlSugar.DbType.*`），补 `GetBaseObjectAsync` 获取 SqlSugarClient 对象示例 |
 | 1.0.1.4 | 2026-08-24 | 对照源码升级（Shunnet @bd7e84e，26.236.x）：**编码自动注册补全**——`BytesHandler`/`PackerHandler` 新增静态构造函数注册 `CodePagesEncodingProvider`（组包/解包路径不经 DaqAbstract/CoreExtend 时 GB2312/GB18030 也立即可用）；§4.5 补编码自动注册说明（四类静态构造注册、无需手动 `Encoding.RegisterProvider`） |
 | 1.0.1.3 | 2026-08-24 | 对照源码升级（Shunnet @46ef840 + WpfMUI @bf4efed，NuGet 26.235.x→**26.236.1** 全包统一）：安装命令版本号全部更新（Snet.* 含 Windows.Core/Controls 一律 26.236.1，26.235.1/.2 分叉消除）；`BytesHandler.TransformAsync` 两重载签名参数换位（`CancellationToken token` 移至末位、`isStringReverseByteWord` 提前——语义不变，仅按位置传 token 的调用需调整；单参数/按名传参不受影响） |
 | 1.0.1.2 | 2026-08-24 | 对照源码升级（Shunnet @676c129 组包问题修复）：§1.3 协议族 20→**22**（LSis 拆三模式 LSis_Cnet/Cpu/FastEnet，LSCpu/LSFastEnet 现可自动组包）；新增位流批布局（Melsec/Keyence/Fins/Fuji/FxLinks/GE/Yaskawa/Yokogawa/Fatek/LSis_Cpu，批内偏移=位号差）；新增线圈/位区 Bool 降级（Modbus/Yaskawa 线圈、Fanuc/Vigor/XinJE 位区、Toyo 全部、Panasonic 非 16 对齐、Fins TIM/CNT、Cimon D 点号）；新增批首归一化（Modbus 剥点/format=、Beckhoff/Cimon/Toyo 剥点、GE M2→M1、LSis U/I/Q 不剥）；倍福改字节空间建模（M100.3=字节100 位3，无点号 Bool 降级）；§4.4 AddressDetails 构造器默认编码 ANSI→**null(→UTF8)**；§4.5 ANSI 映射 GBK/GB2312(936) |
