@@ -1,7 +1,7 @@
 ---
 name: daq-skill
 description: 工业物联网数据采集通信库，基于 Snet 框架，支持 PLC/工控/电力/机器人 等 30+ 种工业协议的数据读取、写入、订阅、状态获取，以及 Kafka/MQTT/RabbitMQ/RocketMQ/NetMQ/Netty 消息中间件转发。所有采集库通过 ProtocolType 枚举自动选择底层驱动。支持"一句话"完成采集+转发。
-version: 1.0.1.6
+version: 1.0.1.7
 metadata:
   hermes:
     tags: [daq, iot, plc, industrial-automation, modbus, siemens, opc-ua, mqtt, kafka]
@@ -92,8 +92,8 @@ operate.Off();
 
 ```bash
 # ✅ 正确：指定版本号
-dotnet add package Snet.Siemens -v 26.250.1
-dotnet add package Snet.Mqtt -v 26.250.1
+dotnet add package Snet.Siemens -v 26.256.1
+dotnet add package Snet.Mqtt -v 26.256.1
 
 # ❌ 错误：不带版本号（使用 * 通配符，运行时报错）
 dotnet add package Snet.Siemens
@@ -114,16 +114,16 @@ dotnet add package Snet.Mqtt
 
 ```bash
 # ✅ 正确：只引用驱动包 + MQ 包
-dotnet add package Snet.Siemens -v 26.250.1
-dotnet add package Snet.Mqtt -v 26.250.1
+dotnet add package Snet.Siemens -v 26.256.1
+dotnet add package Snet.Mqtt -v 26.256.1
 
 # ❌ 错误：多引用了传递依赖包
-dotnet add package Snet.Siemens -v 26.250.1
-dotnet add package Snet.Mqtt -v 26.250.1
-dotnet add package Snet.Core -v 26.250.1      # 不需要！
-dotnet add package Snet.Model -v 26.250.1     # 不需要！
-dotnet add package Snet.Log -v 26.250.1       # 不需要！
-dotnet add package Snet.Utility -v 26.250.1   # 不需要！
+dotnet add package Snet.Siemens -v 26.256.1
+dotnet add package Snet.Mqtt -v 26.256.1
+dotnet add package Snet.Core -v 26.256.1      # 不需要！
+dotnet add package Snet.Model -v 26.256.1     # 不需要！
+dotnet add package Snet.Log -v 26.256.1       # 不需要！
+dotnet add package Snet.Utility -v 26.256.1   # 不需要！
 ```
 
 ### using 语句 vs NuGet 引用
@@ -808,7 +808,7 @@ DataFormat.DCBA  // 完全反转
 | "英威腾" "Invt" | `InvtOperate` | `ModbusTcpNet` |
 | "英威腾" "Invt" "串口" | `InvtOperate` | `ModbusRtu` |
 | "倍福" "Beckhoff" "ADS" | `BeckhoffOperate` | `BeckhoffAdsNet` |
-| "倍福" "AdsRouter" "TwinCAT路由" "官方库" | `BeckhoffOperate` | `BeckhoffAdsNetWithAdsRouter`（v26.250 新增：使用官方 `Beckhoff.TwinCAT.Ads` 库 7.0.339，支持多通路；无 TwinCAT 的服务器需同时运行 TcpRouter 路由，否则 OnAsync 报 "Check for a running TwinCAT router instance!"） |
+| "倍福" "AdsRouter" "TwinCAT路由" "官方库" | `BeckhoffOperate` | `BeckhoffAdsNetWithAdsRouter`（v26.250 新增：使用官方 `Beckhoff.TwinCAT.Ads` 库 7.0.371，支持多通路；无 TwinCAT 的服务器需同时运行 TcpRouter 路由，否则 OnAsync 报 "Check for a running TwinCAT router instance!"） |
 | "通用电气" "GE" "SRTP" | `GEOperate` | `GeSRTPNet` |
 | "安川" "Yaskawa" "Memobus" | `YaskawaOperate` | `MemobusTcpNet` |
 | "安川" "Yaskawa" "Memobus" "UDP" | `YaskawaOperate` | `MemobusUdpNet` |
@@ -1009,7 +1009,7 @@ var config = new OpcUaClientData.Basics
 };
 ```
 
-> **证书认证要点：** 应用证书链自动 `SetAutoAcceptUntrustedCertificates(true)`（信任服务端证书）；客户端证书经 `new UserIdentity(new X509Certificate2(Cer, SecreKey, MachineKeySet|Exportable))` 提交。`OpcUaClientOperate` 额外实现 `IOu` 接口（继承 IDaq），提供节点浏览 API：`GetNodeIDAsync` / `GetAllNodeAsync` / `DetailedReadAllNodeDataAsync` / `GetAccessLevelAsync` / `GetNodeValueTypeAsync` / `GetNodeIconTypeAsync` / `TypeConvertAsync` 等（**v26.250 起 IOu 节点浏览接口全部异步化**，同步版 `GetNodeID`/`GetAllNode` 等已移除——调用时需 `await`）。
+> **证书认证要点：** 当前客户端显式设置 `SetAutoAcceptUntrustedCertificates(false)` 与 `SetAddAppCertToTrustedStore(false)`，不会自动接受或写入不受信任证书；部署时必须显式建立信任。`UserName`/`Password` 默认均为 `null`，用户名认证必须显式配置。客户端证书经 `new UserIdentity(new X509Certificate2(Cer, SecreKey, MachineKeySet|Exportable))` 提交。`OpcUaClientOperate` 额外实现 `IOu` 接口（继承 IDaq），提供节点浏览 API：`GetNodeIDAsync` / `GetAllNodeAsync` / `DetailedReadAllNodeDataAsync` / `GetAccessLevelAsync` / `GetNodeValueTypeAsync` / `GetNodeIconTypeAsync` / `TypeConvertAsync` 等（**v26.250 起 IOu 节点浏览接口全部异步化**，同步版 `GetNodeID`/`GetAllNode` 等已移除——调用时需 `await`）。
 
 **OPC UA Server（提供 OPC UA 服务端）：**
 
@@ -1111,7 +1111,7 @@ await operate.OffAsync();
 > NuGet: `dotnet add package Snet.DB -v <最新版本>`
 > Operate: `DBOperate` | Config: `DBData.Basics`
 > 地址: SQL 查询语句 | DBType: SqlServer / MySql / Oracle / SQLite
-> HandlerType: Daq（采集，用 Dapper）/ Default（增删改查，用 **SqlSugarCore** NuGet 5.1.4.220——`using SqlSugar;`、`SqlSugar.DbType.*`；Snet.DB.sugar 内嵌源码已移除）
+> HandlerType: Daq（采集，用 Dapper 2.1.89）/ Default（增删改查，用 **SqlSugarCore** NuGet 5.1.4.221——`using SqlSugar;`、`SqlSugar.DbType.*`；Snet.DB.sugar 内嵌源码已移除）
 
 > **📌 v26.222.1 DB 采集修复：** `HandleInterval` 已改为 `virtual` 并被 DBData.Basics 覆写为默认 **10000ms（10 秒采集一次）**；查询结果转换改用 `ToNJson` 修复值解析异常。下方示例中的 `HandleInterval = 5000` 显式覆盖了默认值。
 
@@ -1246,8 +1246,9 @@ using (DBOperate operate = await DBOperate.InstanceAsync(new DBData.Basics
 
 ### 7.7 TEP 非标设备采集（Snet.TEP）
 
-> NuGet: `dotnet add package Snet.TEP -v <最新版本>`
+> NuGet: `dotnet add package Snet.TEP -v 26.256.1`
 > TEP = TCP 扩展插件，用于采集**非标准协议设备**（自定义 TCP 协议）
+> 主端使用 `Split('.', 3)` 解析 `DevName.DevID.PointName`，三段必须非空，但 `PointName`/从端 `Key` 可以继续包含点号；`ReadAsync` 也会通过 `AddressHandler` 处理并返回虚拟地址。Slave 底层 TCP 写入受 `Basics.Timeout` 限制。
 > 架构: Master（服务端，实现 IDaq）← TCP 私有协议 → Slave（客户端，设备端）
 
 **TEP 协议流程：** 握手(0x30) → 身份认证(0x31) → 心跳(0x32) → 数据上传(0x34) / 数据写入(0x35)
@@ -1987,6 +1988,7 @@ DAQ → Netty:   "Snet.Netty.client.NettyClientOperate.{SN}"
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.1.7 | 2026-09-28 | 全量同步 Shunnet @8b7cdc5（`include_worktree=true`；脏文件为 Core/Driver/Log/Model/Utility 与版本工具共 7 个文件）：协议包安装版本仍为 26.256.1，工作树核心五包已改为 26.271.1；OPC UA 客户端改为显式证书信任且用户名/密码默认 null；TEP 点位 Key 支持点号、虚拟地址进入 AddressHandler、Slave 写超时使用 Basics.Timeout；Beckhoff.TwinCAT.Ads 7.0.371、SqlSugarCore 5.1.4.221 / Dapper 2.1.89。 |
 | 1.0.1.6 | 2026-09-10 | 同步当前 Shunnet 工作区（含未提交改动）：三菱 MC A4C 已加入 `MitsubishiOperate`、`MitsubishiData.ProtocolType` 与 `PackerHandler` 映射；Melsec 未知设备码改为安全透传；Beckhoff.TwinCAT.Ads 7.0.339、SqlSugarCore 5.1.4.220 |
 | 1.0.1.5 | 2026-09-08 | 对照源码升级（Shunnet @95a564b 大规模重构，NuGet 26.236.1→**26.250.1** 全包统一）：安装命令版本号全部更新；§1.3 组包契约修正——位流批新批次起点按对齐批首位号差计算（`rel = 位号 − 对齐批首`，Fins 等按字对齐协议）、单批字节上限再截 `ushort.MaxValue`（超限抛 `ArgumentOutOfRangeException`）、**未组包数组 `Length` 改元素数契约**（不再覆写为字节数）、Modbus/Omron 对 packer 批按字单位换算读取长度；§5.1/§5.3 倍福新增 `BeckhoffAdsNetWithAdsRouter`（官方 Beckhoff.TwinCAT.Ads 7.0.317 库、多通路、需本地 ADS 路由/TcpRouter 才可 OnAsync）；§7.3 IOu 节点浏览 API 全部异步化（`GetNodeID`→`GetNodeIDAsync` 等 7 个，同步版已移除）；§7.6 **Snet.DB.sugar 内嵌源码移除 → SqlSugarCore 5.1.4.219**（`using SqlSugar;`、`SqlSugar.DbType.*`），补 `GetBaseObjectAsync` 获取 SqlSugarClient 对象示例 |
 | 1.0.1.4 | 2026-08-24 | 对照源码升级（Shunnet @bd7e84e，26.236.x）：**编码自动注册补全**——`BytesHandler`/`PackerHandler` 新增静态构造函数注册 `CodePagesEncodingProvider`（组包/解包路径不经 DaqAbstract/CoreExtend 时 GB2312/GB18030 也立即可用）；§4.5 补编码自动注册说明（四类静态构造注册、无需手动 `Encoding.RegisterProvider`） |

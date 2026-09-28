@@ -1,7 +1,7 @@
 ---
 name: wpfui-skill
 description: WPF 现代化界面开发技能，基于 Snet.Windows.Core 和 Snet.Windows.Controls 库，支持自定义窗口、MVVM 架构、深色/浅色主题切换、中英文多语言、PropertyGrid 属性编辑器、全部内置控件（Button/ComboBox/TextBox/LED/分页/代码编辑器/颜色选择器/文件选择器/内置表格/树形列表等 20+ 子控件）、拖拽控件、LED 指示灯、分页栏、系统托盘、消息对话框等完整 WPF 桌面应用开发能力。支持"一句话"生成完整 WPF 界面。
-version: 1.0.1.5
+version: 1.0.1.6
 metadata:
   hermes:
     tags: [wpf, desktop, mvvm, ui, theme, localization, property-grid, drag-drop, dotnet]
@@ -51,24 +51,24 @@ AI 先用大白话问用户：
 
 ```bash
 # 核心库（必装）
-dotnet add package Snet.Windows.Core -v 26.250.2
+dotnet add package Snet.Windows.Core -v 26.256.1
 
 # 控件库（按需）
-dotnet add package Snet.Windows.Controls -v 26.250.2
+dotnet add package Snet.Windows.Controls -v 26.256.1
 ```
 
 ### NuGet 依赖关系
 
 ```
 Snet.Windows.Controls
-  ├── Snet.Windows.Core (>= 26.250.2)
+  ├── Snet.Windows.Core (>= 26.256.1)
   │     ├── MaterialDesignThemes (>= 5.3.2)
   │     ├── WPF-UI (>= 4.3.0)
   │     ├── CommunityToolkit.Mvvm (>= 8.4.2)
   │     ├── Microsoft.Xaml.Behaviors.Wpf（EventCommand/Interaction.Triggers 依赖）
   │     ├── System.Management (>= 10.0.12)
   │     ├── System.Drawing.Common (>= 10.0.12)
-  │     └── Snet.Core (>= 26.250.1)
+  │     └── Snet.Core (>= 26.256.1)
   └── (v26.222.1 起 AvalonEdit 依赖已移除——代码编辑器源码已内嵌，见"编辑控件"章节)
 ```
 
@@ -226,6 +226,8 @@ var control = InjectionWpf.UserControl<MyControl, MyViewModel>();
 // 缓存模式（Singleton）
 var cachedWindow = InjectionWpf.Window<MainWindow, MainViewModel>(cache: true);
 ```
+
+同步的 `Window` / `UserControl` / `Page` 解析路径保持真正同步，不再通过异步方法阻塞等待。当前控件可靠性约束还包括：`HeaderedEntrySlider.EntryContentAlignment` 正确写入对应属性；DataGrid 保留行并约束列索引；`WrapItemsOperator` 对空输入返回 0、部分行向上取整；`FoldingManager` 忽略空/反向区间；`BitmapSourceTypeConverter` 对 null 或不支持类型抛 `NotSupportedException`；`IconsHandler` 通过 UI Dispatcher 更新。
 
 ### 窗口注入示例
 
@@ -2714,6 +2716,7 @@ public class AddressModelCore : DaqPluginOperateModel.ReadModel, IAddressModel
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.1.6 | 2026-09-28 | 全量同步 WpfMUI @494ae6e（`include_worktree=false`）：Snet.Windows.Core/Controls 与 Snet.Core 统一 26.256.1；补充 InjectionWpf 真同步解析及 HeaderedEntrySlider、DataGrid、WrapItemsOperator、FoldingManager、BitmapSourceTypeConverter、IconsHandler 的当前可靠性行为。 |
 | 1.0.1.5 | 2026-09-10 | 补齐 `DragControlsLayout` / `DragControlsLayoutItem` 布局持久化模型与 `NaturalStringComparer` 公共 API；System.Management/System.Drawing.Common 依赖更新至 10.0.12 |
 | 1.0.1.4 | 2026-09-08 | 对照源码升级（WpfMUI @9d2c664，88 文件；NuGet 26.236.1→**26.250.2**）：安装命令与依赖树版本号更新（Snet.Windows.Core/Controls 26.250.2、Snet.Core 26.250.1）；§5 ButtonControl `CornerRadius` 默认值 8→**5**；第七章 DragControls 性能优化新 API——`DragControlsAnimate` 新增 `(Windows, LlayoutContainer, sources, …)` 构造、`Initialize`、`RegisterSource/CreateBySourceName/ContainsSourceName`、附加属性 `SourceName/SN/ExtensionData`、`EnableContextMenu/AttachCopyMenu/PinCopy/UnpinCopy/ExtractCopy/RemoveCopy/SetRotation/GetRotation/SettingsRequested/Detach`，**`dragEvenTrigger` 元组新增第 4 项 `IsRotate`**（示例返回从 3 元组改 4 元组），`MoveAndDragSizeInsert` 增 `Rotate=false` 参数；`DragControlsBase` 增 `Rotate=false` 构造参数与 `SurroundInnerColor/SurroundOuterColor/Angle/InitCentreThumb/InitRotateThumb/SetRotation/Detach`；`DragControlsHelper.Insert` 增 `Rotate`、新增 `Find`；§6.2 `UiMessageHandler.StartAsync` 默认 `intervalMs` 100→**200** 且新增 `CancellationToken` 参数；其余 20+ 子控件公共 API 核对无变化（性能优化多为内部实现，ComboBox/TextBox 仅注释说明 Height 依赖属性）；§9 托盘 TrayData 新增 `Remove/AllocateId`（internal 静态类，用户代码不可访问，无文档影响） |
 | 1.0.1.3 | 2026-08-27 | 内置控件全覆盖：新增 §6.2「property/wpf 内置子控件全览（20+）」，逐一补充 ColorPicker、FilePicker、DirectoryPicker、RadioButtonList、SpinControl、FormattingTextBox、HeaderedEntrySlider、SliderEx、TextBoxEx、TextBlockEx、EditableTextBlock、CheckMark、EnumMenuItem、DockPanelSplitter、StackPanelEx、PopupBox、LinkBlock、PropertyGrid（独立版）、DataGrid（内置版，区别于 System DataGrid）、TreeListBox、ItemsBag、PropertyDialog、WizardDialog 的用法与关键属性，含独立使用前需合并 Generic.xaml 样式字典的说明、配套数据模型与 handler 工具类（EditHandler/ItemsControlHandler/UiMessageHandler/SettingsHandler）；能力清单与 front-matter 同步更新 |

@@ -1,7 +1,7 @@
 ---
 name: plugindev-skill
 description: Snet.Iot.Daq 插件开发技能，覆盖 IDaq（数据采集）与 IMq（消息中间件）两类插件开发。严格定义插件开发契约：必须实现的抽象方法、必须遵循的返回类型、必须使用的数据标注、必须调用的框架方法。AI 自行决定采集方式（TCP/HTTP/文件/串口）或消息收发方式，但必须遵守契约。
-version: 1.0.2.3
+version: 1.0.2.4
 metadata:
   hermes:
     tags: [plugin-development, daq, iot, dotnet, contract, code-generation, mq, middleware]
@@ -36,7 +36,7 @@ metadata:
 
 ```bash
 # ✅ 正确：指定版本号
-dotnet add package Snet.Core -v 26.250.1
+dotnet add package Snet.Core -v 26.271.1
 
 # ❌ 错误：不带版本号（使用 * 通配符，运行时报错）
 dotnet add package Snet.Core
@@ -46,6 +46,8 @@ dotnet add package Snet.Core
 
 插件开发通常只需引用 `Snet.Core`（提供 `DaqAbstract`、`CoreUnify`、`IDaq` 等基类和接口），
 `Snet.Model`、`Snet.Log`、`Snet.Utility`、`Snet.Driver` 等会作为传递依赖自动引入，**不要手动添加**。
+
+处理用户输入路径并生成文件名时，优先调用 `CoreUnify.SafeFileName(string? path)`：它跨平台识别 `/` 与 `\`，`null`/空字符串返回空字符串，避免插件自行拼接平台相关路径逻辑。
 
 ---
 
@@ -2102,6 +2104,7 @@ public override async Task<OperateResult> ReadAsync(Address address, Cancellatio
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.2.4 | 2026-09-28 | 全量同步 Shunnet @8b7cdc5（`include_worktree=true`；脏文件为 Core/Driver/Log/Model/Utility 与版本工具共 7 个文件）：工作树中的 Snet.Core 更新至 26.271.1；补充跨平台 `CoreUnify.SafeFileName` 路径安全用法；核对 IDaq/IMq 插件契约无破坏性变化。 |
 | 1.0.2.3 | 2026-09-10 | 同步当前 Shunnet 工作区：三菱 MC A4C 已加入 `MitsubishiOperate`、`MitsubishiData.ProtocolType` 与自动组包映射；修正 §11.1“仅底层驱动、无 Operate/ProtocolType”的过时说明 |
 | 1.0.2.2 | 2026-08-25 | 修正 §8.x ReflectionOperate 示例：方法/事件容器键为组合键 **`ClassData.SN + MethodData.SN`**（事件 `ClassData.SN + EventData.SN`）——原示例 `ExecuteMethod("parse-temp")`/`RegisterEvent("on-data")` 无法命中，改为 `"parser-instanceparse-temp"`/`"parser-instanceon-data"` 并加注 |
 | 1.0.2.1 | 2026-09-08 | 对照源码升级（Shunnet @95a564b，NuGet 26.236.1→**26.250.1**）：安装命令版本号更新（Snet.Core 26.250.1）；**两条已知缺陷改写为"已修复 26.250"**——基类同步 `Off(bool)` 不透传 hardClose（MqAbstract.cs:34 现改 `OffAsync(hardClose)`）、`UpdateArgsAsync` 成功路径 Status 误为 false（CoreUnify.cs:882 现返回 true），§8.2 注记改写；§1 源码行号引用刷新（BeckhoffOperate.cs:1185→**1978**——Beckhoff 重构 1985 行；KafkaOperate/SiemensOperate 行号核对无变化——仅 csproj/1:1 空值化改动）；§11.1 补 Snet.Driver 新增三菱 MC A4C 系列说明（无 Operate 封装/ProtocolType，非插件）；IDaq 8 抽象方法/IMq 6 抽象方法/IPacker 4 重载签名核对无变化 |
