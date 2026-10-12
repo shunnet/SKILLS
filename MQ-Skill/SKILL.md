@@ -1,7 +1,7 @@
 ---
 name: mq-skill
 description: Snet 消息中间件应用技能，覆盖 MQTT（Client/Service/WebSocket）、Kafka、RabbitMQ、RocketMQ、NetMQ、Netty 六种 IMq 传输协议的消息生产、消费、统一 API 与数据转发。支持"一句话"完成消息收发配置。配合 PluginDev-Skill 开发自定义 IMq 插件。
-version: 1.0.1.4
+version: 1.0.1.5
 metadata:
   hermes:
     tags: [mq, middleware, mqtt, kafka, rabbitmq, rocketmq, netmq, netty, iot, dotnet, message-queue]
@@ -80,11 +80,13 @@ await mq.ConsumeAsync("my/topic");
 
 ### 版本号：必须指定
 
-所有 `dotnet add package` 命令**必须**带 `-v` 版本号（当前统一版本 **26.256.1**），**禁止使用 `*` 通配符**。安装前到 nuget.org 确认最新版本。
+安装基线 `26.283.1` 已于 2026-10-12 核对 NuGet；源码项目版本 `1.0.0.0` 与内部 `ProjectReference` 是构建配置，不用于安装命令。当前源码行为可能晚于发布包，生成代码时按实际安装包核验，不能把源码更新自动归入该包。
+
+所有 `dotnet add package` 命令**必须**带 `-v` 版本号（当前统一版本 **26.283.1**），**禁止使用 `*` 通配符**。安装前到 nuget.org 确认最新版本。
 
 ```bash
 # ✅ 正确：指定版本号
-dotnet add package Snet.Mqtt -v 26.256.1
+dotnet add package Snet.Mqtt -v 26.283.1
 
 # ❌ 错误：不带版本号（使用 * 通配符，运行时报错）
 dotnet add package Snet.Mqtt
@@ -101,7 +103,7 @@ dotnet add package Snet.Mqtt
 
 ```bash
 # ✅ 正确：只引用中间件包
-dotnet add package Snet.Mqtt -v 26.256.1
+dotnet add package Snet.Mqtt -v 26.283.1
 ```
 
 ### using 语句 vs NuGet 引用
@@ -143,7 +145,7 @@ using Snet.Model.@enum;              // ← ResponseType 等
 
 ## 1. MQTT — 最常用的轻量消息协议
 
-> NuGet: `dotnet add package Snet.Mqtt -v 26.256.1`
+> NuGet: `dotnet add package Snet.Mqtt -v 26.283.1`
 > 三种操作类：`MqttClientOperate`（连接外部 Broker，继承 MqAbstract）/ `MqttServiceOperate`（内置 Broker）/ `MqttWebSocketServiceOperate`（浏览器 WebSocket）
 
 ### 1.1 MQTT Client（连接外部 Broker）
@@ -244,7 +246,7 @@ using (var wsService = await MqttWebSocketServiceOperate.InstanceAsync(config))
 
 ## 2. Kafka — 分布式高吞吐消息队列
 
-> NuGet: `dotnet add package Snet.Kafka -v 26.256.1`（Confluent.Kafka `2.15.1`）
+> NuGet: `dotnet add package Snet.Kafka -v 26.283.1`（Confluent.Kafka `2.16.0`）
 > Operate: `KafkaOperate`（继承 MqAbstract）| Config: `KafkaData.Basics`
 > **注意：Kafka 用 `BootstrapServers`（非 IpAddress+Port）**
 
@@ -316,7 +318,7 @@ var created = await kafka.CreateTopicsAsync(new List<string> { "factory/line1", 
 
 ## 3. RabbitMQ — AMQP 协议
 
-> NuGet: `dotnet add package Snet.RabbitMQ -v 26.256.1`
+> NuGet: `dotnet add package Snet.RabbitMQ -v 26.283.1`
 > Operate: `RabbitMQOperate`（继承 MqAbstract）| Config: `RabbitMQData.Basics`
 > **注意：RabbitMQ 有 `ExChangeName`（交换机名称）+ `Publish/Consume` 用 `Type` 参数指定交换机类型（direct/topic/fanout/headers）**
 
@@ -370,7 +372,7 @@ await rabbit.OffAsync();
 
 ## 4. NetMQ — ZeroMQ 无 Broker 模式
 
-> NuGet: `dotnet add package Snet.NetMQ -v 26.256.1`
+> NuGet: `dotnet add package Snet.NetMQ -v 26.283.1`
 > Operate: `NetMQOperate`（继承 MqAbstract）| Config: `NetMQData.Basics`
 > **注意：NetMQ 用 `Address`（ZMQ 地址格式）+ `UModel`（PubModel/SubModel）**
 
@@ -430,7 +432,7 @@ await pub.OffAsync();
 
 ## 5. Netty — 高性能 TCP 框架
 
-> NuGet: `dotnet add package Snet.Netty -v 26.256.1`
+> NuGet: `dotnet add package Snet.Netty -v 26.283.1`
 > 两种操作类：`NettyClientOperate`（客户端，继承 MqAbstract）/ `NettyServiceOperate`（服务端）
 > **注意：Netty 支持 SSL 加密（SslFilePath/SslFilePassword）**
 
@@ -510,7 +512,7 @@ using (var service = await NettyServiceOperate.InstanceAsync(config))
 
 ## 6. RocketMQ — Apache RocketMQ 5.x 消息队列
 
-> NuGet: `dotnet add package Snet.RocketMQ -v 26.256.1`
+> NuGet: `dotnet add package Snet.RocketMQ -v 26.283.1`
 > Operate: `RocketMQOperate`（继承 MqAbstract）| Config: `RocketMQData.Basics`
 > 底层依赖 RocketMQ.Client 5.2.1（Apache RocketMQ 5.x .NET 客户端，**经 gRPC 协议连接 Proxy**）
 
@@ -667,6 +669,7 @@ new AddressDetails
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.1.5 | 2026-10-12 | 同步 Shunnet @4664a25（`include_worktree=false`）：安装基线 26.283.1；源码 `<Version>` 为 1.0.0.0，内部改为 ProjectReference；Confluent.Kafka 源码依赖 2.16.0。版本来源分开记录，历史条目保留。 |
 | 1.0.1.4 | 2026-09-28 | 全量同步 Shunnet @8b7cdc5（`include_worktree=true`；脏文件为 Core/Driver/Log/Model/Utility 与版本工具共 7 个文件）：六种 IMq 协议包仍为 26.256.1，工作树核心五包已改为 26.271.1；Confluent.Kafka 更新至 2.15.1；重新核对热加载 `.Mq.Config` key 不一致缺陷仍存在。 |
 | 1.0.1.3 | 2026-08-24 | 对照源码升级（Shunnet @95a564b，NuGet 26.236.1→**26.250.1**）：安装命令与统一版本号更新（六种 IMq 传输协议一律 26.250.1）；**两条已知缺陷已修复改写**——`UpdateArgsAsync` 成功路径 `Status` 误为 false（CoreUnify.cs:882 现返回 true）、基类同步 `Off(bool)` 不透传 hardClose（MqAbstract.cs:34 现透传），注记与 §8 故障排查两行改为"已修复 26.250"；热加载 key 不一致缺陷保留（MqOperate.Monitor.cs 热加载路径仍保留 `.Mq.Config` 后缀，26.250 核对仍成立）；MqOperate 行为变化（同步 Produce 直调 `ProduceAsync(...).GetAwaiter().GetResult()` 不再 Task.Run 包装、On/Off/Consume 失败消息 null 安全、ProduceInternalAsync 空 topic/内容抛参校验）核对无文档影响 |
 | 1.0.1.2 | 2026-08-24 | 对照源码升级（Shunnet @46ef840，NuGet 26.235.x→**26.236.1** 全包统一）：安装命令与统一版本号更新（六种 IMq 传输协议一律 26.236.1）；已知缺陷注记保留（UpdateArgsAsync Status=false、热加载 key 不一致、Off(true) 不透传 hardClose）——26.236 源码核对仍成立 |

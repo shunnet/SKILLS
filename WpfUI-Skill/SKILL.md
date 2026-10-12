@@ -1,7 +1,7 @@
 ---
 name: wpfui-skill
 description: WPF 现代化界面开发技能，基于 Snet.Windows.Core 和 Snet.Windows.Controls 库，支持自定义窗口、MVVM 架构、深色/浅色主题切换、中英文多语言、PropertyGrid 属性编辑器、全部内置控件（Button/ComboBox/TextBox/LED/分页/代码编辑器/颜色选择器/文件选择器/内置表格/树形列表等 20+ 子控件）、拖拽控件、LED 指示灯、分页栏、系统托盘、消息对话框等完整 WPF 桌面应用开发能力。支持"一句话"生成完整 WPF 界面。
-version: 1.0.1.6
+version: 1.0.1.7
 metadata:
   hermes:
     tags: [wpf, desktop, mvvm, ui, theme, localization, property-grid, drag-drop, dotnet]
@@ -49,26 +49,28 @@ AI 先用大白话问用户：
 
 ### NuGet 安装
 
+安装基线 `26.283.1` 已于 2026-10-12 核对 NuGet；源码项目版本 `1.0.0.0` 与内部 `ProjectReference` 是构建配置，不用于安装命令。当前源码行为可能晚于发布包，生成代码时按实际安装包核验，不能把源码更新自动归入该包。
+
 ```bash
 # 核心库（必装）
-dotnet add package Snet.Windows.Core -v 26.256.1
+dotnet add package Snet.Windows.Core -v 26.283.1
 
 # 控件库（按需）
-dotnet add package Snet.Windows.Controls -v 26.256.1
+dotnet add package Snet.Windows.Controls -v 26.283.1
 ```
 
 ### NuGet 依赖关系
 
 ```
 Snet.Windows.Controls
-  ├── Snet.Windows.Core (>= 26.256.1)
+  ├── Snet.Windows.Core (>= 26.283.1)
   │     ├── MaterialDesignThemes (>= 5.3.2)
   │     ├── WPF-UI (>= 4.3.0)
   │     ├── CommunityToolkit.Mvvm (>= 8.4.2)
   │     ├── Microsoft.Xaml.Behaviors.Wpf（EventCommand/Interaction.Triggers 依赖）
   │     ├── System.Management (>= 10.0.12)
   │     ├── System.Drawing.Common (>= 10.0.12)
-  │     └── Snet.Core (>= 26.256.1)
+  │     └── Snet.Core (>= 26.283.1)
   └── (v26.222.1 起 AvalonEdit 依赖已移除——代码编辑器源码已内嵌，见"编辑控件"章节)
 ```
 
@@ -958,19 +960,23 @@ var dragAnimate = new DragControlsAnimate(
 // dragAnimate.Initialize(new[] { sourceControl });   // 运行期设置/追加拖拉源
 
 // 注册拖拉源控件（可多次；或用 RegisterSource(sourceName, element)/CreateBySourceName/ContainsSourceName 按名字管理）
-dragAnimate.Insert(sourceControl);
+dragAnimate.RegisterSource("myName", sourceControl);
 
 // 拖拽回调 — 返回新控件实例（v26.250 起元组含 IsRotate 第 4 项；字段名 DragEvenTrigger 大写 D；委托要求一个 FrameworkElement 参数）
 dragAnimate.DragEvenTrigger = (showControl) =>
 {
-    var newControl = new Button { Content = "新控件" };
-    return (newControl, IsMove: true, IsDragSize: true, IsRotate: false);
+    var copy = new Button { Content = "新控件" };
+    return (copy, IsMove: true, IsDragSize: true, IsRotate: false);
 };
 
 // 消息回调 — 拖拽过程中传递提示消息（string, FrameworkElement）
 dragAnimate.MessageEvenTrigger = (message, element) => Console.WriteLine($"[拖拽] {message}");
 
 // v26.250 新增：复制/旋转/上下文菜单 API
+// 程序创建一个独立副本；不要引用回调内部的局部变量。
+var newControl = dragAnimate.CreateBySourceName("myName")
+    ?? throw new InvalidOperationException("拖拉源未注册");
+canvas.Children.Add(newControl);
 dragAnimate.EnableContextMenu = true;              // 启用右键菜单（默认 true）
 dragAnimate.AttachCopyMenu(newControl);            // 附加复制菜单
 dragAnimate.PinCopy(newControl);                   // 固定复制项
@@ -985,7 +991,7 @@ DragControlsAnimate.SetSourceName(newControl, "myName");   // 附加属性：Sou
 dragAnimate.Remove(sourceControl);
 ```
 
-> **补充：** `DragControlsExcessiveAnimate` 与 `DragControlsAnimate` 同构（另一套拖拽创建实现），用法一致。`DragControlsBase` 构造参数序为 `(Controls, LlayoutContainer, Move, DragSize, Rotate = false)`；`DragControlsHelper.Insert(uiElement, container, move, dragSize, rotate = false)` 与 `DragControlsHelper.Find(uiElement)`（v26.250 新增）。
+> **补充：** `DragControlsExcessiveAnimate` 是独立实现，不能假定拥有 `DragControlsAnimate` 的全部新行为。`DragControlsBase` 构造参数序为 `(Controls, LlayoutContainer, Move, DragSize, Rotate = false)`；`DragControlsHelper.Insert(uiElement, container, move, dragSize, rotate = false)` 与 `Find(uiElement)` 管理装饰器。当前 Animate 支持 Canvas.Left/Top 与 Grid.Margin；旋转后按局部轴缩放并固定对角锚点，尺寸约束 100..500，注意鼠标捕获释放。默认通过构造函数创建 UserControl 的独立内容树，不迁移原 UIElement；复制 IsOn/IsFlat/OffLightness 等标量。保留 TextBox 原生编辑菜单，手柄操作菜单单独管理。`DragControlsBase.SetRotation(double)` 是公共入口；Animate.Detach 只解绑语言监听，不等于完整注销全部拖拽源，仍需 Remove(source)。
 
 ### DragControlsLayout — 布局持久化模型
 
@@ -1130,6 +1136,8 @@ private void OnExitApp(object sender, RoutedEventArgs e)
 ```
 
 > **说明：** `NotifyIcon` 提供 `Register()`/`Unregister()` 方法（XAML 声明后通常无需手动调用）和 `LeftClick`/`RightClick`/`LeftDoubleClick` 等 6 个点击事件，以及 `TooltipText`/`Icon`/`Menu`/`FocusOnLeftClick`/`MenuOnRightClick` 依赖属性。`TrayManager` 是 internal 静态类，用户代码不可直接访问。
+
+当前托盘 TooltipText 使用 Unicode 原生字段，修改后即时刷新，无需重注册。WindowBase.Foreground 使用动态主题资源，切换主题时跟随更新；自定义值覆盖后需自行管理。
 >
 > **代码方式（无 XAML）：** 也可用 `Snet.Windows.Controls.tray.NotifyIconService` 以纯代码注册托盘图标（设置 `Icon`/`TooltipText`/`ContextMenu` 后调用 `Register()`，退出时 `Unregister()`+`Dispose()`）。
 
@@ -1444,7 +1452,7 @@ public class MyControlViewModel : BindNotify
 | 窗口最大化有白色边框 | GlassFrameThickness 溢出 | 无需处理——`WindowBase` 在 `SourceInitialized` 时基于系统边框指标与 DPI **自动计算** `MaximizeBorderThickness` 并覆盖手动赋值 |
 | 皮肤切换后图标不变色 | 图标未使用 DynamicResource | 使用 `{DynamicResource ImageColor}` 作为图标颜色 |
 | 语言切换后文本不刷新 | 绑定未使用 LocExtension | 使用 `{snet:Loc Key}` 代替硬编码文本 |
-| 拖拽控件位置漂移 | 父容器不是 Grid | 确保 LlayoutContainer 为 Grid（拖拽使用 Margin） |
+| 拖拽控件位置漂移 | 容器坐标系或旋转缩放锚点不匹配 | Canvas 使用 Left/Top，Grid 使用 Margin；检查局部轴及鼠标捕获生命周期 |
 | LED 闪烁不流畅 | 闪烁间隔过短 | 建议 `FlashingInterval >= 200` |
 | 属性编辑器中属性不显示 | 缺少 public get/set | 确保属性有 public getter 和 setter |
 
@@ -2716,6 +2724,7 @@ public class AddressModelCore : DaqPluginOperateModel.ReadModel, IAddressModel
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.1.7 | 2026-10-12 | 同步 WpfMUI @8027167、Shunnet @4664a25（`include_worktree=false`）：安装基线 26.283.1，源码 1.0.0.0/ProjectReference；拖拽克隆/菜单/Canvas 坐标/旋转缩放锚点及释放边界，修正示例变量作用域和 Grid-only FAQ；托盘 TooltipText Unicode 即时更新、窗口 Foreground 动态主题资源。 |
 | 1.0.1.6 | 2026-09-28 | 全量同步 WpfMUI @494ae6e（`include_worktree=false`）：Snet.Windows.Core/Controls 与 Snet.Core 统一 26.256.1；补充 InjectionWpf 真同步解析及 HeaderedEntrySlider、DataGrid、WrapItemsOperator、FoldingManager、BitmapSourceTypeConverter、IconsHandler 的当前可靠性行为。 |
 | 1.0.1.5 | 2026-09-10 | 补齐 `DragControlsLayout` / `DragControlsLayoutItem` 布局持久化模型与 `NaturalStringComparer` 公共 API；System.Management/System.Drawing.Common 依赖更新至 10.0.12 |
 | 1.0.1.4 | 2026-09-08 | 对照源码升级（WpfMUI @9d2c664，88 文件；NuGet 26.236.1→**26.250.2**）：安装命令与依赖树版本号更新（Snet.Windows.Core/Controls 26.250.2、Snet.Core 26.250.1）；§5 ButtonControl `CornerRadius` 默认值 8→**5**；第七章 DragControls 性能优化新 API——`DragControlsAnimate` 新增 `(Windows, LlayoutContainer, sources, …)` 构造、`Initialize`、`RegisterSource/CreateBySourceName/ContainsSourceName`、附加属性 `SourceName/SN/ExtensionData`、`EnableContextMenu/AttachCopyMenu/PinCopy/UnpinCopy/ExtractCopy/RemoveCopy/SetRotation/GetRotation/SettingsRequested/Detach`，**`dragEvenTrigger` 元组新增第 4 项 `IsRotate`**（示例返回从 3 元组改 4 元组），`MoveAndDragSizeInsert` 增 `Rotate=false` 参数；`DragControlsBase` 增 `Rotate=false` 构造参数与 `SurroundInnerColor/SurroundOuterColor/Angle/InitCentreThumb/InitRotateThumb/SetRotation/Detach`；`DragControlsHelper.Insert` 增 `Rotate`、新增 `Find`；§6.2 `UiMessageHandler.StartAsync` 默认 `intervalMs` 100→**200** 且新增 `CancellationToken` 参数；其余 20+ 子控件公共 API 核对无变化（性能优化多为内部实现，ComboBox/TextBox 仅注释说明 Height 依赖属性）；§9 托盘 TrayData 新增 `Remove/AllocateId`（internal 静态类，用户代码不可访问，无文档影响） |

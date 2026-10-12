@@ -1,6 +1,6 @@
 # WpfUI-Skill — Modern WPF UI Development Skill
 
-**Version:** 1.0.1.6
+**Version:** 1.0.1.7
 **Author:** Shun
 **License:** MIT
 

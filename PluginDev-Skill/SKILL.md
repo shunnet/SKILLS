@@ -1,7 +1,7 @@
 ---
 name: plugindev-skill
 description: Snet.Iot.Daq 插件开发技能，覆盖 IDaq（数据采集）与 IMq（消息中间件）两类插件开发。严格定义插件开发契约：必须实现的抽象方法、必须遵循的返回类型、必须使用的数据标注、必须调用的框架方法。AI 自行决定采集方式（TCP/HTTP/文件/串口）或消息收发方式，但必须遵守契约。
-version: 1.0.2.4
+version: 1.0.2.5
 metadata:
   hermes:
     tags: [plugin-development, daq, iot, dotnet, contract, code-generation, mq, middleware]
@@ -30,13 +30,17 @@ metadata:
 
 ### 版本号：必须指定
 
+安装基线 `26.283.1` 已于 2026-10-12 核对 NuGet；源码项目版本 `1.0.0.0` 与内部 `ProjectReference` 是构建配置，不用于安装命令。当前源码行为可能晚于发布包，生成代码时按实际安装包核验，不能把源码更新自动归入该包。
+
+插件装载器将 `Opc.Ua.*` 与 `Microsoft.Extensions.*` 交由宿主默认 AssemblyLoadContext 解析；共享依赖必须版本兼容，不允许从插件目录私有回退。升级 OPC SDK 后应一起更新宿主并重启，避免类型身份和方法签名不匹配。
+
 所有 `dotnet add package` 命令**必须**带 `-v` 版本号，**禁止使用 `*` 通配符**（运行时会报版本冲突错误）。
 
 **获取最新版本的方式：** 访问 `https://www.nuget.org/packages/<包名>`，页面顶部显示的版本即为最新稳定版。
 
 ```bash
 # ✅ 正确：指定版本号
-dotnet add package Snet.Core -v 26.271.1
+dotnet add package Snet.Core -v 26.283.1
 
 # ❌ 错误：不带版本号（使用 * 通配符，运行时报错）
 dotnet add package Snet.Core
@@ -763,6 +767,10 @@ share.Dispose();
 
 ### 6.3 字节处理 BytesHandler / BytesTransformHandler
 
+当前组包按区/地址/类型/Length/EncodingType/DataFormat 完整读取规格去重；解包结果键同名时先追加 `\u0001DataType`，再次冲突追加 `\u0001序号`，保留全部读取规格且 AddressValue.AddressName 不变。调用方不能假定结果键始终等于原地址名。
+
+批量字典 UnPackerAsync 只收集各项解包成功结果并跳过失败项；整体 Status=true 不代表全部成功。混合批次须保留透传点值并逐批检查单值重载，不能直接用聚合解包成功状态代替点位完整性校验。
+
 > 命名空间: `Snet.Core.handler`
 > 将原始字节数组自动转换为 `ConcurrentDictionary<string, AddressValue>`，支持 14 种数据类型和字节序转换。
 > 适用于：协议响应为字节流，需要按配置自动解析为结构化数据。
@@ -790,7 +798,7 @@ if (result.Status)
 var valuesSync = bytesHandler.Transform(byteArray, DateTime.Now, bytesModels);
 ```
 
-**BytesModel 映射配置：** `new BytesModel(string Address, string Describe, int StartBit, ushort Length, DataType DataType, EncodingType EncodingType = UTF8, DataFormat DataFormat = ABCD, int BoolIndex = -1)` — `StartBit` 为字节偏移，`BoolIndex` 用于位类型取值。
+**BytesModel 映射配置：** `new BytesModel(string address, string describe, int startBit, ushort length, DataType dataType, EncodingType encodingType = EncodingType.UTF8, DataFormat dataFormat = DataFormat.ABCD, int boolIndex = -1)` — `startBit` 为字节偏移，`boolIndex` 用于位类型取值；命名参数必须使用源码中的小写参数名。
 
 **BytesTransformHandler** 提供底层的字节↔值转换：
 - 支持 ABCD/BADC/CDAB/DCBA 四种字节序
@@ -2104,6 +2112,7 @@ public override async Task<OperateResult> ReadAsync(Address address, Cancellatio
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.2.5 | 2026-10-12 | 同步 Shunnet @4664a25（`include_worktree=false`）：安装基线 26.283.1；源码 1.0.0.0/ProjectReference；明确 Opc.Ua.* 与 Microsoft.Extensions.* 宿主共享依赖契约（禁止私有回退）；BytesHandler 同名键冲突保留及完整读取规格去重；源码新行为与已发布包分开说明。 |
 | 1.0.2.4 | 2026-09-28 | 全量同步 Shunnet @8b7cdc5（`include_worktree=true`；脏文件为 Core/Driver/Log/Model/Utility 与版本工具共 7 个文件）：工作树中的 Snet.Core 更新至 26.271.1；补充跨平台 `CoreUnify.SafeFileName` 路径安全用法；核对 IDaq/IMq 插件契约无破坏性变化。 |
 | 1.0.2.3 | 2026-09-10 | 同步当前 Shunnet 工作区：三菱 MC A4C 已加入 `MitsubishiOperate`、`MitsubishiData.ProtocolType` 与自动组包映射；修正 §11.1“仅底层驱动、无 Operate/ProtocolType”的过时说明 |
 | 1.0.2.2 | 2026-08-25 | 修正 §8.x ReflectionOperate 示例：方法/事件容器键为组合键 **`ClassData.SN + MethodData.SN`**（事件 `ClassData.SN + EventData.SN`）——原示例 `ExecuteMethod("parse-temp")`/`RegisterEvent("on-data")` 无法命中，改为 `"parser-instanceparse-temp"`/`"parser-instanceon-data"` 并加注 |

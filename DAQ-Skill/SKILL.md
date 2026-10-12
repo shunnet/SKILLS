@@ -1,7 +1,7 @@
 ---
 name: daq-skill
 description: 工业物联网数据采集通信库，基于 Snet 框架，支持 PLC/工控/电力/机器人 等 30+ 种工业协议的数据读取、写入、订阅、状态获取，以及 Kafka/MQTT/RabbitMQ/RocketMQ/NetMQ/Netty 消息中间件转发。所有采集库通过 ProtocolType 枚举自动选择底层驱动。支持"一句话"完成采集+转发。
-version: 1.0.1.7
+version: 1.0.1.8
 metadata:
   hermes:
     tags: [daq, iot, plc, industrial-automation, modbus, siemens, opc-ua, mqtt, kafka]
@@ -81,6 +81,8 @@ operate.Off();
 
 ### 版本号：必须指定
 
+安装基线 `26.283.1` 已于 2026-10-12 核对 NuGet；源码项目版本 `1.0.0.0` 与内部 `ProjectReference` 是构建配置，不用于安装命令。当前源码行为可能晚于发布包，生成代码时按实际安装包核验，不能把源码更新自动归入该包。
+
 所有 `dotnet add package` 命令**必须**带 `-v` 版本号，**禁止使用 `*` 通配符**（运行时会报版本冲突错误）。
 
 **获取最新版本的方式：** 访问 `https://www.nuget.org/packages/<包名>`，页面顶部显示的版本即为最新稳定版。
@@ -92,8 +94,8 @@ operate.Off();
 
 ```bash
 # ✅ 正确：指定版本号
-dotnet add package Snet.Siemens -v 26.256.1
-dotnet add package Snet.Mqtt -v 26.256.1
+dotnet add package Snet.Siemens -v 26.283.1
+dotnet add package Snet.Mqtt -v 26.283.1
 
 # ❌ 错误：不带版本号（使用 * 通配符，运行时报错）
 dotnet add package Snet.Siemens
@@ -114,16 +116,16 @@ dotnet add package Snet.Mqtt
 
 ```bash
 # ✅ 正确：只引用驱动包 + MQ 包
-dotnet add package Snet.Siemens -v 26.256.1
-dotnet add package Snet.Mqtt -v 26.256.1
+dotnet add package Snet.Siemens -v 26.283.1
+dotnet add package Snet.Mqtt -v 26.283.1
 
 # ❌ 错误：多引用了传递依赖包
-dotnet add package Snet.Siemens -v 26.256.1
-dotnet add package Snet.Mqtt -v 26.256.1
-dotnet add package Snet.Core -v 26.256.1      # 不需要！
-dotnet add package Snet.Model -v 26.256.1     # 不需要！
-dotnet add package Snet.Log -v 26.256.1       # 不需要！
-dotnet add package Snet.Utility -v 26.256.1   # 不需要！
+dotnet add package Snet.Siemens -v 26.283.1
+dotnet add package Snet.Mqtt -v 26.283.1
+dotnet add package Snet.Core -v 26.283.1      # 不需要！
+dotnet add package Snet.Model -v 26.283.1     # 不需要！
+dotnet add package Snet.Log -v 26.283.1       # 不需要！
+dotnet add package Snet.Utility -v 26.283.1   # 不需要！
 ```
 
 ### using 语句 vs NuGet 引用
@@ -270,13 +272,14 @@ var values = (await op.UnPackerAsync(batch))
 - 注册表共 **22 个协议族**：Siemens / Modbus / Mitsubishi / Omron / Fuji / Keyence / Yokogawa / Panasonic / Yaskawa / GE / Fatek / Fanuc / **LSis_Cnet / LSis_Cpu / LSis_FastEnet**（v26.235 起 LSis 拆三模式） / Cimon / XinJE / Vigor / Toyota / AllenBradley / MitsubishiFx / **Beckhoff（倍福 ADS，v26.235.2 起）**
 - **LSis 三模式**（`LSisPacker` 按 Family 分支）：Cnet（位宽 B/W/D/L 缩放 + U/I/Q 复合区，Bool+Word 可组，131070 分帧）；**Cpu**（GLOFA 串口 hex 编址 10 位/字，**仅 Bool 位流批**，上限 120）；**FastEnet**（XGB 以太网显式 B/W/D/L 位宽 **仅 Word** 可组，X=位/无位宽/UIQ/点号降级，上限 500）。`LSCpu`/`LSFastEnet` 原自动透传 → 现可自动组包
 - **倍福 ADS 组包要点**（`BeckhoffPacker`，26.235.x 起字节空间建模）：`M100`/`I100`/`Q100` 字读按字节地址组包；`M100.3` Bool = **字节 100 位 3**（消费层字节区字读，批首归一化剥点为 `M100`）；`i=100000` 绝对内存、`ig=0xF080;100` 自定义索引组可组包；**`s=MAIN.PLCVar` 符号地址、无点号 Bool（`M100` 位语义与字节区批读不一致）、点号 Word 均降级原样返回**
-- **位流批布局**（v26.235 起系统性修复；**v26.250 批首修正**）：消费层对组包 ByteArray 批走驱动字读，字读位区响应 = 从批首地址起连续位流（8 位/字节 LSB-first）→ 批内偏移 = **批首位号差**（非绝对字节差；新批次起点按对齐批首计算：`rel = 位号 − 对齐批首位号`、`byteOff = rel / 8`——Fins 等按字对齐的协议新批首点位偏移从批首位号差起算，不再从 0 起）。启用协议：Melsec/Keyence/Fins/Fuji/FxLinks/GE/Yaskawa/Yokogawa/Fatek/LSis_Cpu
+- **位流批布局**：批内相对位号 `rel = 位号 − 对齐批首位号`，默认 `byteOff = rel / 8`、`BoolIndex = rel % 8`；FINS 0100 字响应大端排列，字节偏移改为 `(rel / 8) ^ 1`，批长覆盖最高实际偏移。启用协议：Melsec/Keyence/Fins/Fuji/FxLinks/GE/Yokogawa/Fatek/LSis_Cpu；Yaskawa 不再使用位流组包。
 - **三菱 Melsec 白名单**：仅驱动支持的 MC 设备代码参与组包；未知代码、缺少数字或带尾随垃圾的地址自动降级为单点透传。`MelsecA4CNet` / `MelsecA4CNetOverTcp` 复用 A3C 地址模型并映射到 `ProtocolFamily.Mitsubishi`。
-- **线圈/位区 Bool 降级**（v26.235 全量审查修复）：Modbus/Yaskawa 无点号 Bool（FC1/SFC1 线圈）、Fanuc/Vigor/XinJE 位区 Bool、Toyo 全部 Bool、Panasonic 非 16 对齐 Bool、Fins TIM/CNT 点号 Bool、Cimon D 点号 → 消费层字读路径错区/驱动拒绝 → **降级为单点 ReadBool**（点号寄存器 Bool 仍组包）
-- **标签访问类协议不支持组包，自动原样返回（不报错）**：`SiemensS7Plus` / `MelsecCipNet` / `OmronCipNet` / `KeyenceKvOld` / `KeyenceNanoSerial` / `PanasonicMcNet` / `AllenBradleyNet` 等
-- 组包批次点 `AddressDescribe` 以 `"packer"` 前缀标记，`AddressExtendParam` 携带 `List<BytesModel>`（批内偏移）；跨区类型（位区 Word / 字区 Bool）自动降级原样保留；**批首归一化**（`NormalizeBatchHead`：点号/format= 批首 → 驱动可解析裸地址，Modbus 剥点保留 s=/x=/w=、GE 归一 M2→M1、LSis U/I/Q 点号不剥）；超长地址按 `min(PhysicalMaxBytes, 65535)` 自动分帧（v26.250 起单批字节上限再截到 `ushort.MaxValue`，超限抛 `ArgumentOutOfRangeException`，不再静默截断）；**未组包数组 `Length` 的元素数契约**（v26.250 起：数组/ByteArray 等未组包点保留 `addr.Length` 元素数，不再覆写为 `CalcByteLength` 字节数——Modbus/Omron 消费层对 packer 批的读取长度按字单位换算 `(字节数+1)/2`）
+- **线圈/位区 Bool 降级**：Modbus FC1/2（含非 Bool 误配）、Yaskawa 全部 Bool 及数字点号地址、Fanuc/Vigor/XinJE 位区 Bool、Toyo 全部 Bool、Panasonic 非 16 对齐 Bool、Fins TIM/CNT 点号 Bool、Cimon D 点号均保留为原点单读。Yaskawa 仅无点号 UInt16 字地址且 SFC3/4/9/10 可组；Modbus 寄存器 Bool 最小响应按 2 字节计。
+- **不支持组包的协议自动原样返回**：符号/标签访问以及不兼容地址模型，包括 `SiemensS7Plus` / `MelsecCipNet` / `OmronCipNet` / `KeyenceKvOld` / `KeyenceNanoSerial` / `PanasonicMcNet` / `AllenBradleyNet` 等；当前映射还移除 `SiemensFetchWriteNet` / `MelsecMcRNet` / `MelsecA1ENet` / `MelsecA1EAsciiNet` / `MelsecFxSerial` / `MelsecFxSerialOverTcp`，A3C/A4C 仍支持。
+- 组包批次点 `AddressDescribe` 以 `"packer"` 前缀标记，`AddressExtendParam` 携带 `List<BytesModel>`；批长按 `min(PhysicalMaxBytes, 65535)` 限制并计入真实响应宽度。无法容纳的数组/宽字符、禁用、虚拟、格式非法或溢出地址原样透传，不中止整次组包，不启用禁用点，不修复非法驱动地址。未组包点保留原 `Length`（数组元素数）；禁用/虚拟点保留原对象，真实透传点计算字节数≤65535 时仍附加单点 BytesModel（替换原扩展参数），超长点才保留原扩展参数；Modbus/Omron 消费层对 packer 批按 `(字节数+1)/2` 换算字单位。批首归一化剥除不兼容点号/format=，保留 Modbus s=/x=/w=/file=；GE M2→M1，LSis U/I/Q 点号不剥。
 - **解包 `isStringReverseByteWord`**（v26.235.2 起，4 个 `UnPacker`/`UnPackerAsync` 重载均有）：`String` 解包是否按 16 位字反转字节（每 2 字节一组交换，连接级配置——如欧姆龙 FINS 字符串按字反转字节读取）
-- 查询支持组包的协议清单：`PackerHandler.GetSupportAutoPackDeviceTypes()` / `CanAutoPack(typeName)`
+- 查询支持组包的协议清单：`PackerHandler.GetSupportAutoPackDeviceTypes()` / `CanAutoPack(typeName)`；`CanAutoPack` 要求实际注册且 `SupportsAutoPack = true`。去重按区/地址/类型/Length/EncodingType/DataFormat 的完整读取规格；`BytesHandler` 结果键冲突先追加 `\u0001DataType`，再次冲突追加 `\u0001序号`，`AddressValue.AddressName` 不变。
+- 批量字典 `UnPackerAsync` 仅收集各项解包成功的字典，失败项被跳过，整体 Status=true 不代表全部成功。混合组包批与透传点必须分别处理：保留原透传值，对组包批逐项调用单值重载并检查 Status，避免丢失点位或隐藏解包失败。
 
 ### 1.4 克隆与参数更新（IClone / IArgs）
 
@@ -290,7 +293,7 @@ var values = (await op.UnPackerAsync(batch))
 | `GetBasicsArgs()` / `GetArgs(getBasicsParam)` | 获取当前基础参数 / 全部参数 |
 | `GetAutoAllocatingArgs()` / `ExistsAutoAllocatingArgs()` | 获取/查询带 `AutoAllocating` 标注的自动分配属性 |
 
-> **⚠️ 已知缺陷：** `UpdateArgsAsync<T>` 成功路径返回 `Status=false`（底层 `EndOperateAsync(false, "参数修改成功")`，Snet.Core/extend/CoreUnify.cs:871）——判断结果请用 `GetDetails` 消息内容，不要只看 `Status`。
+> `UpdateArgsAsync<T>` 成功路径返回 `Status=true`，按 `Status` 判断即可；当前源码已修复成功路径返回 false 的问题。
 
 ---
 
@@ -808,7 +811,7 @@ DataFormat.DCBA  // 完全反转
 | "英威腾" "Invt" | `InvtOperate` | `ModbusTcpNet` |
 | "英威腾" "Invt" "串口" | `InvtOperate` | `ModbusRtu` |
 | "倍福" "Beckhoff" "ADS" | `BeckhoffOperate` | `BeckhoffAdsNet` |
-| "倍福" "AdsRouter" "TwinCAT路由" "官方库" | `BeckhoffOperate` | `BeckhoffAdsNetWithAdsRouter`（v26.250 新增：使用官方 `Beckhoff.TwinCAT.Ads` 库 7.0.371，支持多通路；无 TwinCAT 的服务器需同时运行 TcpRouter 路由，否则 OnAsync 报 "Check for a running TwinCAT router instance!"） |
+| "倍福" "AdsRouter" "TwinCAT路由" "官方库" | `BeckhoffOperate` | `BeckhoffAdsNetWithAdsRouter`（v26.250 新增：使用官方 `Beckhoff.TwinCAT.Ads` 库 7.0.389，支持多通路；无 TwinCAT 的服务器需同时运行 TcpRouter 路由，否则 OnAsync 报 "Check for a running TwinCAT router instance!"） |
 | "通用电气" "GE" "SRTP" | `GEOperate` | `GeSRTPNet` |
 | "安川" "Yaskawa" "Memobus" | `YaskawaOperate` | `MemobusTcpNet` |
 | "安川" "Yaskawa" "Memobus" "UDP" | `YaskawaOperate` | `MemobusUdpNet` |
@@ -1009,7 +1012,7 @@ var config = new OpcUaClientData.Basics
 };
 ```
 
-> **证书认证要点：** 当前客户端显式设置 `SetAutoAcceptUntrustedCertificates(false)` 与 `SetAddAppCertToTrustedStore(false)`，不会自动接受或写入不受信任证书；部署时必须显式建立信任。`UserName`/`Password` 默认均为 `null`，用户名认证必须显式配置。客户端证书经 `new UserIdentity(new X509Certificate2(Cer, SecreKey, MachineKeySet|Exportable))` 提交。`OpcUaClientOperate` 额外实现 `IOu` 接口（继承 IDaq），提供节点浏览 API：`GetNodeIDAsync` / `GetAllNodeAsync` / `DetailedReadAllNodeDataAsync` / `GetAccessLevelAsync` / `GetNodeValueTypeAsync` / `GetNodeIconTypeAsync` / `TypeConvertAsync` 等（**v26.250 起 IOu 节点浏览接口全部异步化**，同步版 `GetNodeID`/`GetAllNode` 等已移除——调用时需 `await`）。
+> **证书认证要点：** 当前客户端 `SetAutoAcceptUntrustedCertificates(true)`、`SetAddAppCertToTrustedStore(false)`；自动接受服务端证书不等于自动加入信任存储或禁用全部证书检查。`UserName`/`Password` 默认 `"snet"`/`"123456"`，部署时应替换。SDK 2.0.1 证书身份通过证书目录与 `UserIdentity.CreateAsync` 创建，不再使用旧版 X509 构造方式；应保持宿主/插件 SDK 一致。`IOu` 定义 7 个异步节点浏览方法；`OpcUaClientOperate` 仍有同名同步包装和 UA 类型化重载，不能把接口异步化误写成类同步 API 全部删除。读取项数不匹配失败；Bad/Uncertain 项保留 null 失败记录且整体 Status=false；写入 Variant 转换失败不发送空值；调用方取消传播，失败回滚用未取消令牌。注入 SessionFactory 由调用方拥有，内置工厂由连接释放。
 
 **OPC UA Server（提供 OPC UA 服务端）：**
 
@@ -1039,6 +1042,8 @@ using (OpcUaServiceOperate operate = await OpcUaServiceOperate.InstanceAsync(new
 
 **OPC DA Client（COM/DCOM，传统 OPC DA 服务器）：**
 
+当前读取项需 ResultID 成功且质量为 Good，坏项为 null 失败记录并使整体 Status=false，部分数据仍在 ResultData；AddNodeAsync 逐项检查 ResultID。OffAsync 等待后台读取停止后释放 CTS、解绑事件，SDK Disconnect 持有订阅直到其释放，断开 finally 释放 Server，不能提前清空 SDK 订阅集合。假服务测试不等于实际 COM/DCOM 已验证。
+
 ```csharp
 using Snet.Opc.da.client;
 
@@ -1053,6 +1058,8 @@ using (OpcDaClientOperate operate = await OpcDaClientOperate.InstanceAsync(new O
 ```
 
 **OPC DA HTTP（通过 HTTP 转发 OPC DA 操作）：**
+
+当前源码请求总时限 5 秒（含正文）且响应体限 8 MiB；调用方取消传播，超时/超限为失败结果。启动自动配置中途失败回滚；OffAsync 先停止/释放订阅再按实际连接状态发送一次远端断开。写入值按 InvariantCulture 转字符串。
 
 ```csharp
 using Snet.Opc.da.http;
@@ -1246,7 +1253,7 @@ using (DBOperate operate = await DBOperate.InstanceAsync(new DBData.Basics
 
 ### 7.7 TEP 非标设备采集（Snet.TEP）
 
-> NuGet: `dotnet add package Snet.TEP -v 26.256.1`
+> NuGet: `dotnet add package Snet.TEP -v 26.283.1`
 > TEP = TCP 扩展插件，用于采集**非标准协议设备**（自定义 TCP 协议）
 > 主端使用 `Split('.', 3)` 解析 `DevName.DevID.PointName`，三段必须非空，但 `PointName`/从端 `Key` 可以继续包含点号；`ReadAsync` 也会通过 `AddressHandler` 处理并返回虚拟地址。Slave 底层 TCP 写入受 `Basics.Timeout` 限制。
 > 架构: Master（服务端，实现 IDaq）← TCP 私有协议 → Slave（客户端，设备端）
@@ -1988,6 +1995,7 @@ DAQ → Netty:   "Snet.Netty.client.NettyClientOperate.{SN}"
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.1.8 | 2026-10-12 | 同步 Shunnet @4664a25（`include_worktree=false`）：NuGet 安装基线 26.283.1，源码版本 1.0.0.0/ProjectReference 不代表发布回退；组包映射 74、FINS 字节序、严格地址范围、禁用/虚拟/超长透传、同名读取规格保留；OPC SDK 2.0.1、证书默认值/同步包装/取消释放；纠正 UpdateArgsAsync 成功状态旧说明。源码新行为不自动归属于已发布包。 |
 | 1.0.1.7 | 2026-09-28 | 全量同步 Shunnet @8b7cdc5（`include_worktree=true`；脏文件为 Core/Driver/Log/Model/Utility 与版本工具共 7 个文件）：协议包安装版本仍为 26.256.1，工作树核心五包已改为 26.271.1；OPC UA 客户端改为显式证书信任且用户名/密码默认 null；TEP 点位 Key 支持点号、虚拟地址进入 AddressHandler、Slave 写超时使用 Basics.Timeout；Beckhoff.TwinCAT.Ads 7.0.371、SqlSugarCore 5.1.4.221 / Dapper 2.1.89。 |
 | 1.0.1.6 | 2026-09-10 | 同步当前 Shunnet 工作区（含未提交改动）：三菱 MC A4C 已加入 `MitsubishiOperate`、`MitsubishiData.ProtocolType` 与 `PackerHandler` 映射；Melsec 未知设备码改为安全透传；Beckhoff.TwinCAT.Ads 7.0.339、SqlSugarCore 5.1.4.220 |
 | 1.0.1.5 | 2026-09-08 | 对照源码升级（Shunnet @95a564b 大规模重构，NuGet 26.236.1→**26.250.1** 全包统一）：安装命令版本号全部更新；§1.3 组包契约修正——位流批新批次起点按对齐批首位号差计算（`rel = 位号 − 对齐批首`，Fins 等按字对齐协议）、单批字节上限再截 `ushort.MaxValue`（超限抛 `ArgumentOutOfRangeException`）、**未组包数组 `Length` 改元素数契约**（不再覆写为字节数）、Modbus/Omron 对 packer 批按字单位换算读取长度；§5.1/§5.3 倍福新增 `BeckhoffAdsNetWithAdsRouter`（官方 Beckhoff.TwinCAT.Ads 7.0.317 库、多通路、需本地 ADS 路由/TcpRouter 才可 OnAsync）；§7.3 IOu 节点浏览 API 全部异步化（`GetNodeID`→`GetNodeIDAsync` 等 7 个，同步版已移除）；§7.6 **Snet.DB.sugar 内嵌源码移除 → SqlSugarCore 5.1.4.219**（`using SqlSugar;`、`SqlSugar.DbType.*`），补 `GetBaseObjectAsync` 获取 SqlSugarClient 对象示例 |
