@@ -1,6 +1,6 @@
 # MQ-Skill — Snet Messaging Middleware Skill
 
-**Version:** 1.0.1.5
+**Version:** 1.0.1.6
 **Author:** Shun  
 **License:** MIT  
 **Framework:** .NET 10.0
@@ -23,11 +23,11 @@ A messaging middleware skill based on the [Snet](https://www.nuget.org/profiles/
 
 | Middleware | Operate class | Highlights |
 |--------|--------|------|
-| **MQTT** | `MqttClientOperate` / `MqttServiceOperate` / `MqttWebSocketServiceOperate` | Client + embedded broker + WebSocket, QoS 0/1/2 |
+| **MQTT** | `MqttClientOperate` / `MqttServiceOperate` / `MqttWebSocketServiceOperate` | Client + embedded broker + WebSocket, IMq QoS0; direct subscribe/publish APIs support QoS1/2 |
 | **Kafka** | `KafkaOperate` | High throughput, SASL auth, `BootstrapServers` connection |
 | **RabbitMQ** | `RabbitMQOperate` | AMQP protocol, 4 exchange types (direct/topic/fanout/headers) |
 | **RocketMQ** | `RocketMQOperate` | Apache RocketMQ 5.x, gRPC to Proxy, ACL/SSL |
-| **NetMQ** | `NetMQOperate` | ZeroMQ Pub/Sub, brokerless, <1ms latency |
+| **NetMQ** | `NetMQOperate` | ZeroMQ Pub/Sub, brokerless; latency depends on workload |
 | **Netty** | `NettyClientOperate` / `NettyServiceOperate` | DotNetty high-performance TCP, SSL support |
 
 ## Interaction Flow
@@ -55,7 +55,7 @@ await mq.OffAsync();                             // disconnect
 
 ## DAQ Integration
 
-`AddressMqParam` configuration + `config/mq/*.Mq.Config.json` registration → DAQ-acquired data is automatically forwarded to the middleware (see SKILL.md §6).
+`AddressMqParam` configuration + `config/mq/*.Mq.Config.json` registration → DAQ-acquired data is automatically forwarded to the middleware (see SKILL.md §7).
 
 ## Related Skills
 

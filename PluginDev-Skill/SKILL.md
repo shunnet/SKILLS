@@ -1,7 +1,7 @@
 ---
 name: plugindev-skill
 description: Snet.Iot.Daq 插件开发技能，覆盖 IDaq（数据采集）与 IMq（消息中间件）两类插件开发。严格定义插件开发契约：必须实现的抽象方法、必须遵循的返回类型、必须使用的数据标注、必须调用的框架方法。AI 自行决定采集方式（TCP/HTTP/文件/串口）或消息收发方式，但必须遵守契约。
-version: 1.0.2.5
+version: 1.0.2.6
 metadata:
   hermes:
     tags: [plugin-development, daq, iot, dotnet, contract, code-generation, mq, middleware]
@@ -49,7 +49,7 @@ dotnet add package Snet.Core
 ### 传递依赖：只引用顶层包
 
 插件开发通常只需引用 `Snet.Core`（提供 `DaqAbstract`、`CoreUnify`、`IDaq` 等基类和接口），
-`Snet.Model`、`Snet.Log`、`Snet.Utility`、`Snet.Driver` 等会作为传递依赖自动引入，**不要手动添加**。
+当前源码的传递链为 Core→Model→Log/Utility（内部 ProjectReference）；Snet.Driver 不在此链中。直接使用 Driver 类型时应按实际包/项目图显式引用，不能假定 Core 会自动引入它。
 
 处理用户输入路径并生成文件名时，优先调用 `CoreUnify.SafeFileName(string? path)`：它跨平台识别 `/` 与 `\`，`null`/空字符串返回空字符串，避免插件自行拼接平台相关路径逻辑。
 
@@ -769,7 +769,7 @@ share.Dispose();
 
 当前组包按区/地址/类型/Length/EncodingType/DataFormat 完整读取规格去重；解包结果键同名时先追加 `\u0001DataType`，再次冲突追加 `\u0001序号`，保留全部读取规格且 AddressValue.AddressName 不变。调用方不能假定结果键始终等于原地址名。
 
-批量字典 UnPackerAsync 只收集各项解包成功结果并跳过失败项；整体 Status=true 不代表全部成功。混合批次须保留透传点值并逐批检查单值重载，不能直接用聚合解包成功状态代替点位完整性校验。
+批量字典 UnPacker/UnPackerAsync 对所有子项 Status 做与运算，保留其返回字典（包括失败/部分结果）；任一失败则整体 false。BytesHandler 仅将 ByteArray+List<BytesModel> 识别为字节批，其他值保留原 AddressValue 同对象，状态依原 Quality。坏批生成各模型 Exception 点，越界模型也保留失败项。Status=false 仍可 GetSource 读取部分数据，须逐点检查 Quality；混合批与直接值可统一解包。
 
 > 命名空间: `Snet.Core.handler`
 > 将原始字节数组自动转换为 `ConcurrentDictionary<string, AddressValue>`，支持 14 种数据类型和字节序转换。
@@ -787,11 +787,12 @@ var values = unpacked.GetSource<ConcurrentDictionary<string, AddressValue>>();
 
 // 用法 2：低层重载 — 显式传入字节 + 时间 + BytesModel 映射表
 var result = await bytesHandler.TransformAsync(response, DateTime.Now, bytesModels);
-if (result.Status)
+var dict = result.GetSource<ConcurrentDictionary<string, AddressValue>>();
+if (!result.Status) Console.WriteLine("存在失败模型，仍检查保留的部分结果");
+if (dict is not null)
 {
-    var dict = result.GetSource<ConcurrentDictionary<string, AddressValue>>();
     foreach (var kv in dict)
-        Console.WriteLine($"{kv.Key} = {kv.Value.ResultValue}");
+        Console.WriteLine($"{kv.Key} = {kv.Value.ResultValue}, Quality={kv.Value.Quality}");
 }
 // BytesHandler 另有同步 Transform 两重载（签名与 Async 一致），
 // 同步上下文可直接调用：
@@ -2112,6 +2113,7 @@ public override async Task<OperateResult> ReadAsync(Address address, Cancellatio
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.2.6 | 2026-10-16 | 同步 Shunnet @70421a7（`include_worktree=false`，源码干净）：修正Core→Model→Log/Utility依赖链；字节批/普通值识别、失败模型与聚合false保留部分结果，示例检查Quality。 |
 | 1.0.2.5 | 2026-10-12 | 同步 Shunnet @4664a25（`include_worktree=false`）：安装基线 26.283.1；源码 1.0.0.0/ProjectReference；明确 Opc.Ua.* 与 Microsoft.Extensions.* 宿主共享依赖契约（禁止私有回退）；BytesHandler 同名键冲突保留及完整读取规格去重；源码新行为与已发布包分开说明。 |
 | 1.0.2.4 | 2026-09-28 | 全量同步 Shunnet @8b7cdc5（`include_worktree=true`；脏文件为 Core/Driver/Log/Model/Utility 与版本工具共 7 个文件）：工作树中的 Snet.Core 更新至 26.271.1；补充跨平台 `CoreUnify.SafeFileName` 路径安全用法；核对 IDaq/IMq 插件契约无破坏性变化。 |
 | 1.0.2.3 | 2026-09-10 | 同步当前 Shunnet 工作区：三菱 MC A4C 已加入 `MitsubishiOperate`、`MitsubishiData.ProtocolType` 与自动组包映射；修正 §11.1“仅底层驱动、无 Operate/ProtocolType”的过时说明 |

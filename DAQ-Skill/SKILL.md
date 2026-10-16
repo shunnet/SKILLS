@@ -1,7 +1,7 @@
 ---
 name: daq-skill
 description: 工业物联网数据采集通信库，基于 Snet 框架，支持 PLC/工控/电力/机器人 等 30+ 种工业协议的数据读取、写入、订阅、状态获取，以及 Kafka/MQTT/RabbitMQ/RocketMQ/NetMQ/Netty 消息中间件转发。所有采集库通过 ProtocolType 枚举自动选择底层驱动。支持"一句话"完成采集+转发。
-version: 1.0.1.8
+version: 1.0.1.9
 metadata:
   hermes:
     tags: [daq, iot, plc, industrial-automation, modbus, siemens, opc-ua, mqtt, kafka]
@@ -261,25 +261,32 @@ XxxData.Basics.ProtocolType → switch-case → 自动实例化对应底层驱�
 ```csharp
 // 组包 → 读取 → 解包（三步）
 var packed = await op.PackerAsync(address, basics.ProtocolType.ToString());  // 组包
-var batch = (await op.ReadAsync(packed.GetSource<Address>()))
-    .GetSource<ConcurrentDictionary<string, AddressValue>>();
-var values = (await op.UnPackerAsync(batch))
-    .GetSource<List<ConcurrentDictionary<string, AddressValue>>>();          // 还原为逐地址结果
+var packedAddress = packed.GetSource<Address>();
+if (!packed.Status || packedAddress is null) return;
+var read = await op.ReadAsync(packedAddress);
+var batch = read.GetSource<ConcurrentDictionary<string, AddressValue>>();
+if (batch is null) return;
+var unpacked = await op.UnPackerAsync(batch);
+var values = unpacked.GetSource<List<ConcurrentDictionary<string, AddressValue>>>();
+if (!read.Status || !unpacked.Status) Console.WriteLine("读取/解包有失败，请检查各点 Quality");
+// Status=false 时 values 仍可能包含成功与失败点，不要直接丢弃部分结果。
 ```
 
 **关键约定：**
 - `protocolTypeKey` = `Basics.ProtocolType.ToString()`（如 `"SiemensS7Net_S1200"`、`"ModbusTcpNet"`、`"BeckhoffAdsNet"`、`"LSCpu"`、`"LSFastEnet"`）
-- 注册表共 **22 个协议族**：Siemens / Modbus / Mitsubishi / Omron / Fuji / Keyence / Yokogawa / Panasonic / Yaskawa / GE / Fatek / Fanuc / **LSis_Cnet / LSis_Cpu / LSis_FastEnet**（v26.235 起 LSis 拆三模式） / Cimon / XinJE / Vigor / Toyota / AllenBradley / MitsubishiFx / **Beckhoff（倍福 ADS，v26.235.2 起）**
-- **LSis 三模式**（`LSisPacker` 按 Family 分支）：Cnet（位宽 B/W/D/L 缩放 + U/I/Q 复合区，Bool+Word 可组，131070 分帧）；**Cpu**（GLOFA 串口 hex 编址 10 位/字，**仅 Bool 位流批**，上限 120）；**FastEnet**（XGB 以太网显式 B/W/D/L 位宽 **仅 Word** 可组，X=位/无位宽/UIQ/点号降级，上限 500）。`LSCpu`/`LSFastEnet` 原自动透传 → 现可自动组包
-- **倍福 ADS 组包要点**（`BeckhoffPacker`，26.235.x 起字节空间建模）：`M100`/`I100`/`Q100` 字读按字节地址组包；`M100.3` Bool = **字节 100 位 3**（消费层字节区字读，批首归一化剥点为 `M100`）；`i=100000` 绝对内存、`ig=0xF080;100` 自定义索引组可组包；**`s=MAIN.PLCVar` 符号地址、无点号 Bool（`M100` 位语义与字节区批读不一致）、点号 Word 均降级原样返回**
-- **位流批布局**：批内相对位号 `rel = 位号 − 对齐批首位号`，默认 `byteOff = rel / 8`、`BoolIndex = rel % 8`；FINS 0100 字响应大端排列，字节偏移改为 `(rel / 8) ^ 1`，批长覆盖最高实际偏移。启用协议：Melsec/Keyence/Fins/Fuji/FxLinks/GE/Yokogawa/Fatek/LSis_Cpu；Yaskawa 不再使用位流组包。
+- 内置默认 **24 个注册族、23 个启用优化、59 条供应商名称映射**，三者不可混用。原有22族末尾新增 `Fuji_SPB`/`Fuji_CST`，保留旧枚举数值；`LSis_Cpu` 注册但 `SupportsAutoPack=false`，支持清单只返回实际注册且启用的族。
+- **LSis**：Cnet（位宽缩放与 U/I/Q 复合区）和 FastEnet（显式 B/W/D/L，仅 Word）继续优化；Cpu 全部原 Address 同对象透传，命令无法安全推进起始地址，不能再构建 Bool 位流批。Cnet 分帧为254字节。
+- **Fuji 三模式**：SPH→Fuji、SPB→Fuji_SPB、CommandSettingType→Fuji_CST，不按地址猜模式。默认/模型上限分别210/105/210；SPB无点号 X/Y/M/L/TC/CC Bool为绝对位号（M100→批首M6位4），M100.8为字100位8；CST全部Bool透传，S/BD/W9分别按字节/双字/双字坐标。
+- **倍福 ADS**：M/I/Q 字节空间、点号 Bool 可优化；`ig=` 只允许原始字节内存组0x4020/0xF020/0xF030。`i=`句柄、`s=`符号、0xF005/0xF080等其他组、无点号Bool与点号Word透传。
+- **位流批布局**：`rel = 位号 − 对齐批首位号`，默认 byteOff=rel/8、BoolIndex=rel%8；FINS内存读命令 `01 01`，字响应大端偏移为 `(rel/8)^1`，字地址≤65535。LSis_Cpu不优化，Yaskawa不使用位流；FX Links/Yokogawa位批另限128字节，即使调用方上限更大也不跨首帧。
 - **三菱 Melsec 白名单**：仅驱动支持的 MC 设备代码参与组包；未知代码、缺少数字或带尾随垃圾的地址自动降级为单点透传。`MelsecA4CNet` / `MelsecA4CNetOverTcp` 复用 A3C 地址模型并映射到 `ProtocolFamily.Mitsubishi`。
 - **线圈/位区 Bool 降级**：Modbus FC1/2（含非 Bool 误配）、Yaskawa 全部 Bool 及数字点号地址、Fanuc/Vigor/XinJE 位区 Bool、Toyo 全部 Bool、Panasonic 非 16 对齐 Bool、Fins TIM/CNT 点号 Bool、Cimon D 点号均保留为原点单读。Yaskawa 仅无点号 UInt16 字地址且 SFC3/4/9/10 可组；Modbus 寄存器 Bool 最小响应按 2 字节计。
-- **不支持组包的协议自动原样返回**：符号/标签访问以及不兼容地址模型，包括 `SiemensS7Plus` / `MelsecCipNet` / `OmronCipNet` / `KeyenceKvOld` / `KeyenceNanoSerial` / `PanasonicMcNet` / `AllenBradleyNet` 等；当前映射还移除 `SiemensFetchWriteNet` / `MelsecMcRNet` / `MelsecA1ENet` / `MelsecA1EAsciiNet` / `MelsecFxSerial` / `MelsecFxSerialOverTcp`，A3C/A4C 仍支持。
-- 组包批次点 `AddressDescribe` 以 `"packer"` 前缀标记，`AddressExtendParam` 携带 `List<BytesModel>`；批长按 `min(PhysicalMaxBytes, 65535)` 限制并计入真实响应宽度。无法容纳的数组/宽字符、禁用、虚拟、格式非法或溢出地址原样透传，不中止整次组包，不启用禁用点，不修复非法驱动地址。未组包点保留原 `Length`（数组元素数）；禁用/虚拟点保留原对象，真实透传点计算字节数≤65535 时仍附加单点 BytesModel（替换原扩展参数），超长点才保留原扩展参数；Modbus/Omron 消费层对 packer 批按 `(字节数+1)/2` 换算字单位。批首归一化剥除不兼容点号/format=，保留 Modbus s=/x=/w=/file=；GE M2→M1，LSis U/I/Q 点号不剥。
+- **不支持组包的协议自动原样返回**：符号/标签访问以及不兼容地址模型，包括 `SiemensS7Plus` / `MelsecCipNet` / `OmronCipNet` / `KeyenceKvOld` / `KeyenceNanoSerial` / `PanasonicMcNet` / `AllenBradleyNet` 等；当前映射还移除 `SiemensFetchWriteNet` / `MelsecMcRNet` / `MelsecA1ENet` / `MelsecA1EAsciiNet` / `MelsecFxSerial` / `MelsecFxSerialOverTcp`，A3C/A4C 仍支持。 当前还整体透传 SiemensPPI/PPIOverTcp/MPI、Delta五种、Inovance非ComputerLink各模式、MegMeet三种；ComputerLink改用MitsubishiFx。
+- 新建组包批带 `List<BytesModel>`，Length是模型覆盖字节；全部降级点保留原对象、Length、扩展参数，不附加单点模型。数组均透传；文本Length按Driver单位（Siemens/Beckhoff/GE/Fuji_CST/LSis_Cnet/FastEnet按字节，其余按字×2），Encoding只解码；零Length、AB文本、GE奇数Length文本透传。普通重叠规格用固定批首相对偏移，不累加前项宽度。模型上限不代表所有硬件已验证。
 - **解包 `isStringReverseByteWord`**（v26.235.2 起，4 个 `UnPacker`/`UnPackerAsync` 重载均有）：`String` 解包是否按 16 位字反转字节（每 2 字节一组交换，连接级配置——如欧姆龙 FINS 字符串按字反转字节读取）
 - 查询支持组包的协议清单：`PackerHandler.GetSupportAutoPackDeviceTypes()` / `CanAutoPack(typeName)`；`CanAutoPack` 要求实际注册且 `SupportsAutoPack = true`。去重按区/地址/类型/Length/EncodingType/DataFormat 的完整读取规格；`BytesHandler` 结果键冲突先追加 `\u0001DataType`，再次冲突追加 `\u0001序号`，`AddressValue.AddressName` 不变。
-- 批量字典 `UnPackerAsync` 仅收集各项解包成功的字典，失败项被跳过，整体 Status=true 不代表全部成功。混合组包批与透传点必须分别处理：保留原透传值，对组包批逐项调用单值重载并检查 Status，避免丢失点位或隐藏解包失败。
+- `BytesHandler` 仅对 ByteArray+List<BytesModel> 按批解码；其余值返回原 AddressValue 同对象，状态由 Quality==Normal 决定。坏质量/非byte[]原值的批按每个模型返回Exception点，不把缓存字节重标正常。模型越界（含BoolIndex）保留错误点，Byte从切片索引0解码。
+- 批量字典 `UnPacker`/`UnPackerAsync` 对各项Status做与运算，保留所有返回字典（含失败项）；任一失败整体false。混合批与透传点可统一输入，失败时仍读取ResultData并逐点检查Quality。GetSource只转换ResultData，不因Status=false自动返回default。
 
 ### 1.4 克隆与参数更新（IClone / IArgs）
 
@@ -1995,6 +2002,7 @@ DAQ → Netty:   "Snet.Netty.client.NettyClientOperate.{SN}"
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.1.9 | 2026-10-16 | 同步 Shunnet @70421a7（`include_worktree=false`，源码干净）：24注册/23优化/59映射，Fuji三模式、Cpu禁优化、句柄透传与位批边界；所有降级点保留原对象；文本Length按Driver单位；失败模型/聚合状态和部分结果契约。安装基线26.283.1与源码行为分开。 |
 | 1.0.1.8 | 2026-10-12 | 同步 Shunnet @4664a25（`include_worktree=false`）：NuGet 安装基线 26.283.1，源码版本 1.0.0.0/ProjectReference 不代表发布回退；组包映射 74、FINS 字节序、严格地址范围、禁用/虚拟/超长透传、同名读取规格保留；OPC SDK 2.0.1、证书默认值/同步包装/取消释放；纠正 UpdateArgsAsync 成功状态旧说明。源码新行为不自动归属于已发布包。 |
 | 1.0.1.7 | 2026-09-28 | 全量同步 Shunnet @8b7cdc5（`include_worktree=true`；脏文件为 Core/Driver/Log/Model/Utility 与版本工具共 7 个文件）：协议包安装版本仍为 26.256.1，工作树核心五包已改为 26.271.1；OPC UA 客户端改为显式证书信任且用户名/密码默认 null；TEP 点位 Key 支持点号、虚拟地址进入 AddressHandler、Slave 写超时使用 Basics.Timeout；Beckhoff.TwinCAT.Ads 7.0.371、SqlSugarCore 5.1.4.221 / Dapper 2.1.89。 |
 | 1.0.1.6 | 2026-09-10 | 同步当前 Shunnet 工作区（含未提交改动）：三菱 MC A4C 已加入 `MitsubishiOperate`、`MitsubishiData.ProtocolType` 与 `PackerHandler` 映射；Melsec 未知设备码改为安全透传；Beckhoff.TwinCAT.Ads 7.0.339、SqlSugarCore 5.1.4.220 |

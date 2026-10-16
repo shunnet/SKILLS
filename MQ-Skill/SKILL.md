@@ -1,7 +1,7 @@
 ---
 name: mq-skill
 description: Snet 消息中间件应用技能，覆盖 MQTT（Client/Service/WebSocket）、Kafka、RabbitMQ、RocketMQ、NetMQ、Netty 六种 IMq 传输协议的消息生产、消费、统一 API 与数据转发。支持"一句话"完成消息收发配置。配合 PluginDev-Skill 开发自定义 IMq 插件。
-version: 1.0.1.5
+version: 1.0.1.6
 metadata:
   hermes:
     tags: [mq, middleware, mqtt, kafka, rabbitmq, rocketmq, netmq, netty, iot, dotnet, message-queue]
@@ -586,7 +586,7 @@ DAQ 采集的数据可自动转发到任意中间件（**关键机制，详见 D
 
 > 自动转发只识别 **`config/mq/` 目录下 `{完整命名空间}.{类名}.{SN}.Mq.Config.json` 配置文件加载的实例**（`MqOperate.InstanceIoc` 注册表）。用户代码 `new` 创建的实例不注册，转发会报 "实例未找到"。
 
-> **⚠️ 热加载 key 不一致（已知缺陷，v26.226.1 起；26.256 源码核对仍成立）：** `MqOperate` **启动时扫描**注册的实例 key 与 ISns 格式一致（`命名空间.类名.SN`）；但**运行期间新增/修改**配置文件（watcher 热加载路径 `MqOperate.Monitor.cs` `TryLoadConfigAndCreateInstanceAsync` 的 `sn` 保留 `.Mq.Config` 后缀）注册的 key 会多保留 `.Mq.Config` 后缀，此时 ISns 定向转发仍报"实例未找到"。**规避：** 在 MqOperate 启动前放好配置文件；运行期动态加 MQ 实例后请重启应用或改用 §6.2 事件内手动 `ProduceAsync`。
+> **⚠️ 热加载 key 不一致（已知缺陷，v26.226.1 起；26.256 源码核对仍成立）：** `MqOperate` **启动时扫描**注册的实例 key 与 ISns 格式一致（`命名空间.类名.SN`）；但**运行期间新增/修改**配置文件（watcher 热加载路径 `MqOperate.Monitor.cs` `TryLoadConfigAndCreateInstanceAsync` 的 `sn` 保留 `.Mq.Config` 后缀）注册的 key 会多保留 `.Mq.Config` 后缀，此时 ISns 定向转发仍报"实例未找到"。**规避：** 在 MqOperate 启动前放好配置文件；运行期动态加 MQ 实例后请重启应用或改用 DAQ-Skill §1.1 的事件内手动 `ProduceAsync`。
 
 ```json
 // config/mq/Snet.Mqtt.client.MqttClientOperate.mqtt-target.Mq.Config.json
@@ -669,6 +669,7 @@ new AddressDetails
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.1.6 | 2026-10-16 | 核对 Shunnet @70421a7（`include_worktree=false`，源码干净）：MQ实现及Kafka依赖无新增变化；纠正自动转发§7及手动事件处理引用，README限定QoS接口能力，移除无本轮基准证据的固定延迟承诺。 |
 | 1.0.1.5 | 2026-10-12 | 同步 Shunnet @4664a25（`include_worktree=false`）：安装基线 26.283.1；源码 `<Version>` 为 1.0.0.0，内部改为 ProjectReference；Confluent.Kafka 源码依赖 2.16.0。版本来源分开记录，历史条目保留。 |
 | 1.0.1.4 | 2026-09-28 | 全量同步 Shunnet @8b7cdc5（`include_worktree=true`；脏文件为 Core/Driver/Log/Model/Utility 与版本工具共 7 个文件）：六种 IMq 协议包仍为 26.256.1，工作树核心五包已改为 26.271.1；Confluent.Kafka 更新至 2.15.1；重新核对热加载 `.Mq.Config` key 不一致缺陷仍存在。 |
 | 1.0.1.3 | 2026-08-24 | 对照源码升级（Shunnet @95a564b，NuGet 26.236.1→**26.250.1**）：安装命令与统一版本号更新（六种 IMq 传输协议一律 26.250.1）；**两条已知缺陷已修复改写**——`UpdateArgsAsync` 成功路径 `Status` 误为 false（CoreUnify.cs:882 现返回 true）、基类同步 `Off(bool)` 不透传 hardClose（MqAbstract.cs:34 现透传），注记与 §8 故障排查两行改为"已修复 26.250"；热加载 key 不一致缺陷保留（MqOperate.Monitor.cs 热加载路径仍保留 `.Mq.Config` 后缀，26.250 核对仍成立）；MqOperate 行为变化（同步 Produce 直调 `ProduceAsync(...).GetAwaiter().GetResult()` 不再 Task.Run 包装、On/Off/Consume 失败消息 null 安全、ProduceInternalAsync 空 topic/内容抛参校验）核对无文档影响 |

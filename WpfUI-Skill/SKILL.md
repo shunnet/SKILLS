@@ -1,7 +1,7 @@
 ---
 name: wpfui-skill
 description: WPF 现代化界面开发技能，基于 Snet.Windows.Core 和 Snet.Windows.Controls 库，支持自定义窗口、MVVM 架构、深色/浅色主题切换、中英文多语言、PropertyGrid 属性编辑器、全部内置控件（Button/ComboBox/TextBox/LED/分页/代码编辑器/颜色选择器/文件选择器/内置表格/树形列表等 20+ 子控件）、拖拽控件、LED 指示灯、分页栏、系统托盘、消息对话框等完整 WPF 桌面应用开发能力。支持"一句话"生成完整 WPF 界面。
-version: 1.0.1.7
+version: 1.0.1.8
 metadata:
   hermes:
     tags: [wpf, desktop, mvvm, ui, theme, localization, property-grid, drag-drop, dotnet]
@@ -59,18 +59,18 @@ dotnet add package Snet.Windows.Core -v 26.283.1
 dotnet add package Snet.Windows.Controls -v 26.283.1
 ```
 
-### NuGet 依赖关系
+### 当前源码依赖关系（Snet 内部使用 ProjectReference，不是发布包依赖证明）
 
 ```
 Snet.Windows.Controls
-  ├── Snet.Windows.Core (>= 26.283.1)
+  ├── Snet.Windows.Core (ProjectReference)
   │     ├── MaterialDesignThemes (>= 5.3.2)
   │     ├── WPF-UI (>= 4.3.0)
   │     ├── CommunityToolkit.Mvvm (>= 8.4.2)
   │     ├── Microsoft.Xaml.Behaviors.Wpf（EventCommand/Interaction.Triggers 依赖）
-  │     ├── System.Management (>= 10.0.12)
-  │     ├── System.Drawing.Common (>= 10.0.12)
-  │     └── Snet.Core (>= 26.283.1)
+  │     ├── System.Management (10.0.13)
+  │     ├── System.Drawing.Common (10.0.13)
+  │     └── Snet.Core (ProjectReference)
   └── (v26.222.1 起 AvalonEdit 依赖已移除——代码编辑器源码已内嵌，见"编辑控件"章节)
 ```
 
@@ -2724,6 +2724,7 @@ public class AddressModelCore : DaqPluginOperateModel.ReadModel, IAddressModel
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.1.8 | 2026-10-16 | 同步 WpfMUI @597b032、Shunnet @70421a7（`include_worktree=false`，源码干净）：System.Management/System.Drawing.Common 10.0.13，区分当前源码ProjectReference依赖图与26.283.1安装基线。 |
 | 1.0.1.7 | 2026-10-12 | 同步 WpfMUI @8027167、Shunnet @4664a25（`include_worktree=false`）：安装基线 26.283.1，源码 1.0.0.0/ProjectReference；拖拽克隆/菜单/Canvas 坐标/旋转缩放锚点及释放边界，修正示例变量作用域和 Grid-only FAQ；托盘 TooltipText Unicode 即时更新、窗口 Foreground 动态主题资源。 |
 | 1.0.1.6 | 2026-09-28 | 全量同步 WpfMUI @494ae6e（`include_worktree=false`）：Snet.Windows.Core/Controls 与 Snet.Core 统一 26.256.1；补充 InjectionWpf 真同步解析及 HeaderedEntrySlider、DataGrid、WrapItemsOperator、FoldingManager、BitmapSourceTypeConverter、IconsHandler 的当前可靠性行为。 |
 | 1.0.1.5 | 2026-09-10 | 补齐 `DragControlsLayout` / `DragControlsLayoutItem` 布局持久化模型与 `NaturalStringComparer` 公共 API；System.Management/System.Drawing.Common 依赖更新至 10.0.12 |

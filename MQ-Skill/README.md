@@ -1,6 +1,6 @@
 # MQ-Skill — Snet 消息中间件应用技能
 
-**版本:** 1.0.1.5
+**版本:** 1.0.1.6
 **作者:** Shun  
 **许可证:** MIT  
 **框架:** .NET 10.0
@@ -23,11 +23,11 @@
 
 | 中间件 | 操作类 | 特点 |
 |--------|--------|------|
-| **MQTT** | `MqttClientOperate` / `MqttServiceOperate` / `MqttWebSocketServiceOperate` | Client+内置 Broker+WebSocket，QoS 0/1/2 |
+| **MQTT** | `MqttClientOperate` / `MqttServiceOperate` / `MqttWebSocketServiceOperate` | Client+内置 Broker+WebSocket，IMq QoS0；直接订阅/发布API可选QoS1/2 |
 | **Kafka** | `KafkaOperate` | 高吞吐，SASL 认证，`BootstrapServers` 连接 |
 | **RabbitMQ** | `RabbitMQOperate` | AMQP 协议，4 种 Exchange（direct/topic/fanout/headers） |
 | **RocketMQ** | `RocketMQOperate` | Apache RocketMQ 5.x，gRPC 连 Proxy，ACL/SSL |
-| **NetMQ** | `NetMQOperate` | ZeroMQ Pub/Sub，无 Broker，<1ms 延迟 |
+| **NetMQ** | `NetMQOperate` | ZeroMQ Pub/Sub，无 Broker；延迟依负载而定 |
 | **Netty** | `NettyClientOperate` / `NettyServiceOperate` | DotNetty 高性能 TCP，SSL 支持 |
 
 ## 交互流程
@@ -55,7 +55,7 @@ await mq.OffAsync();                             // 断开
 
 ## 与 DAQ 联动
 
-`AddressMqParam` 配置 + `config/mq/*.Mq.Config.json` 配置文件注册实例 → DAQ 采集数据自动转发到中间件（详见 SKILL.md §6）。
+`AddressMqParam` 配置 + `config/mq/*.Mq.Config.json` 配置文件注册实例 → DAQ 采集数据自动转发到中间件（详见 SKILL.md §7）。
 
 ## 相关技能
 
