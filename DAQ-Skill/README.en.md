@@ -1,6 +1,6 @@
 # DAQ-Skill — Industrial IoT Data Acquisition Skill
 
-**Version:** 1.0.1.9
+**Version:** 1.0.1.10
 **Author:** Shun  
 **License:** MIT  
 **Framework:** .NET 10.0
@@ -62,7 +62,7 @@ A full-stack industrial IoT data acquisition library based on the [Snet](https:/
 | `Snet.Panasonic` | Panasonic MC/Mewtocol | `PanasonicOperate` | 3 |
 | `Snet.Invt` | Invt (Modbus) | `InvtOperate` | 2 |
 | `Snet.MegMeet` | MegMeet TCP/Serial | `MegMeetOperate` | 3 |
-| `Snet.Beckhoff` | Beckhoff ADS | `BeckhoffOperate` | 1 |
+| `Snet.Beckhoff` | Beckhoff ADS | `BeckhoffOperate` | 2 |
 | `Snet.GE` | GE SRTP | `GEOperate` | 1 |
 | `Snet.Yaskawa` | Yaskawa Memobus TCP/UDP | `YaskawaOperate` | 2 |
 | `Snet.Cimon` | Cimon PLC | `CimonOperate` | 1 |
@@ -134,8 +134,8 @@ dotnet new console -n DaqDemo && cd DaqDemo
 # ⚠️ Always pin the version! Check nuget.org for the latest:
 #   https://www.nuget.org/packages/Snet.Siemens
 #   https://www.nuget.org/packages/Snet.Mqtt
-dotnet add package Snet.Siemens -v 26.283.1
-dotnet add package Snet.Mqtt -v 26.283.1
+dotnet add package Snet.Siemens -v 26.301.1
+dotnet add package Snet.Mqtt -v 26.301.1
 
 # Power protocol example
 # dotnet add package Snet.PQDIF -v <latest version>
@@ -151,7 +151,7 @@ dotnet run
 > - `https://www.nuget.org/packages/Snet.Mqtt`
 >
 > **📌 On transitive dependencies:** only the top-level driver package (e.g. `Snet.Siemens`, `Snet.Modbus`) is needed;
-> `Snet.Core`, `Snet.Model`, `Snet.Log`, `Snet.Utility`, `Snet.Driver` come in automatically — **no manual adds**.
+> The corresponding top-level packages bring in `Snet.Core`, `Snet.Model`, `Snet.Log` and `Snet.Utility`. `Snet.Driver` is transitive where the PLC package references it; do not assume Sim/TEP/DB packages all depend on Driver.
 
 ## Related Links
 

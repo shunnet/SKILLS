@@ -1,6 +1,6 @@
 # DAQ-Skill — 工业物联网数据采集技能
 
-**版本:** 1.0.1.9
+**版本:** 1.0.1.10
 **作者:** Shun  
 **许可证:** MIT  
 **框架:** .NET 10.0
@@ -62,7 +62,7 @@
 | `Snet.Panasonic` | 松下 MC/Mewtocol | `PanasonicOperate` | 3 种 |
 | `Snet.Invt` | 英威腾（Modbus） | `InvtOperate` | 2 种 |
 | `Snet.MegMeet` | 麦格米特 TCP/Serial | `MegMeetOperate` | 3 种 |
-| `Snet.Beckhoff` | 倍福 ADS | `BeckhoffOperate` | 1 种 |
+| `Snet.Beckhoff` | 倍福 ADS | `BeckhoffOperate` | 2 种 |
 | `Snet.GE` | 通用电气 SRTP | `GEOperate` | 1 种 |
 | `Snet.Yaskawa` | 安川 Memobus TCP/UDP | `YaskawaOperate` | 2 种 |
 | `Snet.Cimon` | 西蒙 PLC | `CimonOperate` | 1 种 |
@@ -134,8 +134,8 @@ dotnet new console -n DaqDemo && cd DaqDemo
 # ⚠️ 必须指定版本号！到 nuget.org 查找最新版本：
 #   https://www.nuget.org/packages/Snet.Siemens
 #   https://www.nuget.org/packages/Snet.Mqtt
-dotnet add package Snet.Siemens -v 26.283.1
-dotnet add package Snet.Mqtt -v 26.283.1
+dotnet add package Snet.Siemens -v 26.301.1
+dotnet add package Snet.Mqtt -v 26.301.1
 
 # 电力协议示例
 # dotnet add package Snet.PQDIF -v <最新版本>
@@ -151,7 +151,7 @@ dotnet run
 > - `https://www.nuget.org/packages/Snet.Mqtt`
 > 
 > **📌 关于传递依赖：** 只需引用顶层驱动包（如 `Snet.Siemens`、`Snet.Modbus`），
-> `Snet.Core`、`Snet.Model`、`Snet.Log`、`Snet.Utility`、`Snet.Driver` 等会自动引入，**无需手动添加**。
+> Core/Model/Log/Utility由相应顶层包带入；Driver只随实际引用它的PLC协议包传递，Sim/TEP/DB不保证包含Driver。直接使用Driver类型时核对并显式引用。
 
 ## 相关链接
 

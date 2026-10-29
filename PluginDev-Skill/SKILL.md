@@ -1,7 +1,7 @@
 ---
 name: plugindev-skill
 description: Snet.Iot.Daq 插件开发技能，覆盖 IDaq（数据采集）与 IMq（消息中间件）两类插件开发。严格定义插件开发契约：必须实现的抽象方法、必须遵循的返回类型、必须使用的数据标注、必须调用的框架方法。AI 自行决定采集方式（TCP/HTTP/文件/串口）或消息收发方式，但必须遵守契约。
-version: 1.0.2.6
+version: 1.0.2.7
 metadata:
   hermes:
     tags: [plugin-development, daq, iot, dotnet, contract, code-generation, mq, middleware]
@@ -30,7 +30,7 @@ metadata:
 
 ### 版本号：必须指定
 
-安装基线 `26.283.1` 已于 2026-10-12 核对 NuGet；源码项目版本 `1.0.0.0` 与内部 `ProjectReference` 是构建配置，不用于安装命令。当前源码行为可能晚于发布包，生成代码时按实际安装包核验，不能把源码更新自动归入该包。
+安装基线 `26.301.1` 已于 2026-10-29 核对 NuGet；源码项目版本 `1.0.0.0` 与内部 `ProjectReference` 是构建配置，不用于安装命令。当前源码行为可能晚于发布包，生成代码时按实际安装包核验，不能把源码更新自动归入该包。
 
 插件装载器将 `Opc.Ua.*` 与 `Microsoft.Extensions.*` 交由宿主默认 AssemblyLoadContext 解析；共享依赖必须版本兼容，不允许从插件目录私有回退。升级 OPC SDK 后应一起更新宿主并重启，避免类型身份和方法签名不匹配。
 
@@ -40,7 +40,7 @@ metadata:
 
 ```bash
 # ✅ 正确：指定版本号
-dotnet add package Snet.Core -v 26.283.1
+dotnet add package Snet.Core -v 26.301.1
 
 # ❌ 错误：不带版本号（使用 * 通配符，运行时报错）
 dotnet add package Snet.Core
@@ -50,6 +50,8 @@ dotnet add package Snet.Core
 
 插件开发通常只需引用 `Snet.Core`（提供 `DaqAbstract`、`CoreUnify`、`IDaq` 等基类和接口），
 当前源码的传递链为 Core→Model→Log/Utility（内部 ProjectReference）；Snet.Driver 不在此链中。直接使用 Driver 类型时应按实际包/项目图显式引用，不能假定 Core 会自动引入它。
+
+底层Driver自定义派生类须迁移 `GetLogTextFromBinary(PipeSession session, byte[] content, bool send)` 三参数签名；DeviceServer的AnalysisLogMessage默认false、仅接收方向追加摘要，扩展点为AnalysisLogMessafeTail（按实际拼写）。这不是IDaq接口；详见文档core/driver-diagnostics，不把21个公开AdsHelper方法或符号浏览当统一插件接口。
 
 处理用户输入路径并生成文件名时，优先调用 `CoreUnify.SafeFileName(string? path)`：它跨平台识别 `/` 与 `\`，`null`/空字符串返回空字符串，避免插件自行拼接平台相关路径逻辑。
 
@@ -2113,6 +2115,7 @@ public override async Task<OperateResult> ReadAsync(Address address, Cancellatio
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.2.7 | 2026-10-29 | 同步Shunnet@89038d2（include_worktree=true；10个packer脏文件见本轮外部状态）：安装基线26.301.1；明确底层DeviceServer诊断签名迁移不属于统一IDaq，保留Core与Driver依赖边界。 |
 | 1.0.2.6 | 2026-10-16 | 同步 Shunnet @70421a7（`include_worktree=false`，源码干净）：修正Core→Model→Log/Utility依赖链；字节批/普通值识别、失败模型与聚合false保留部分结果，示例检查Quality。 |
 | 1.0.2.5 | 2026-10-12 | 同步 Shunnet @4664a25（`include_worktree=false`）：安装基线 26.283.1；源码 1.0.0.0/ProjectReference；明确 Opc.Ua.* 与 Microsoft.Extensions.* 宿主共享依赖契约（禁止私有回退）；BytesHandler 同名键冲突保留及完整读取规格去重；源码新行为与已发布包分开说明。 |
 | 1.0.2.4 | 2026-09-28 | 全量同步 Shunnet @8b7cdc5（`include_worktree=true`；脏文件为 Core/Driver/Log/Model/Utility 与版本工具共 7 个文件）：工作树中的 Snet.Core 更新至 26.271.1；补充跨平台 `CoreUnify.SafeFileName` 路径安全用法；核对 IDaq/IMq 插件契约无破坏性变化。 |

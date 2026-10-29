@@ -1,6 +1,6 @@
 # MQ-Skill — Snet Messaging Middleware Skill
 
-**Version:** 1.0.1.6
+**Version:** 1.0.1.7
 **Author:** Shun  
 **License:** MIT  
 **Framework:** .NET 10.0
