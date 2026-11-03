@@ -1,7 +1,7 @@
 ---
 name: daq-skill
 description: 工业物联网数据采集通信库，基于 Snet 框架，支持 PLC/工控/电力/机器人 等 30+ 种工业协议的数据读取、写入、订阅、状态获取，以及 Kafka/MQTT/RabbitMQ/RocketMQ/NetMQ/Netty 消息中间件转发。所有采集库通过 ProtocolType 枚举自动选择底层驱动。支持"一句话"完成采集+转发。
-version: 1.0.1.10
+version: 1.0.1.11
 metadata:
   hermes:
     tags: [daq, iot, plc, industrial-automation, modbus, siemens, opc-ua, mqtt, kafka]
@@ -275,18 +275,18 @@ if (!read.Status || !unpacked.Status) Console.WriteLine("读取/解包有失败�
 **关键约定：**
 - `protocolTypeKey` = `Basics.ProtocolType.ToString()`（如 `"SiemensS7Net_S1200"`、`"ModbusTcpNet"`、`"BeckhoffAdsNet"`、`"LSCpu"`、`"LSFastEnet"`）
 - 内置默认 **24 个注册族、23 个启用优化、59 条供应商名称映射**，三者不可混用。原有22族末尾新增 `Fuji_SPB`/`Fuji_CST`，保留旧枚举数值；`LSis_Cpu` 注册但 `SupportsAutoPack=false`，支持清单只返回实际注册且启用的族。
-- **LSis**：Cnet（位宽缩放与 U/I/Q 复合区）和 FastEnet（显式 B/W/D/L，仅 Word）继续优化；Cpu 全部原 Address 同对象透传，命令无法安全推进起始地址，不能再构建 Bool 位流批。Cnet 分帧为254字节。
+- **LSis**：Cnet（位宽缩放与 U/I/Q 复合区；Bool 仅 `M100`/`M100.3` 形式，带点号 Word 仅限不带位宽的 U/I/Q 原生写法）和 FastEnet（仅显式 `B` 位宽 Word；W/D/L 单变量独立读只返回一个元素，降级）继续优化；Cpu 全部原 Address 同对象透传，命令无法安全推进起始地址，不能再构建 Bool 位流批。Cnet 分帧为254字节。
 - **Fuji 三模式**：SPH→Fuji、SPB→Fuji_SPB、CommandSettingType→Fuji_CST，不按地址猜模式。默认/模型上限分别210/105/210；SPB无点号 X/Y/M/L/TC/CC Bool为绝对位号（M100→批首M6位4），M100.8为字100位8；CST全部Bool透传，S/BD/W9分别按字节/双字/双字坐标。
 - **倍福 ADS**：M/I/Q 字节空间、点号 Bool 可优化；`ig=` 只允许原始字节内存组0x4020/0xF020/0xF030。`i=`句柄、`s=`符号、0xF005/0xF080等其他组、无点号Bool与点号Word透传。
 - **位流批布局**：`rel = 位号 − 对齐批首位号`，默认 byteOff=rel/8、BoolIndex=rel%8；FINS内存读命令 `01 01`，字响应大端偏移为 `(rel/8)^1`，字地址≤65535。LSis_Cpu不优化，Yaskawa不使用位流；FX Links/Yokogawa位批另限128字节，即使调用方上限更大也不跨首帧。
 - **三菱 Melsec 白名单**：仅驱动支持的 MC 设备代码参与组包；未知代码、缺少数字或带尾随垃圾的地址自动降级为单点透传。`MelsecA4CNet` / `MelsecA4CNetOverTcp` 复用 A3C 地址模型并映射到 `ProtocolFamily.Mitsubishi`。
-- **线圈/位区 Bool 降级**：Modbus FC1/2（含非 Bool 误配）、Yaskawa 全部 Bool 及数字点号地址、Fanuc/Vigor/XinJE 位区 Bool、Toyo 全部 Bool、Panasonic 非 16 对齐 Bool、Fins TIM/CNT 点号 Bool、Cimon全部Bool及D点号均保留为原点单读。Yaskawa 仅无点号 UInt16 字地址且 SFC3/4/9/10 可组；Modbus 寄存器 Bool 最小响应按 2 字节计。 Modbus显式FC3/4的Bool也须带点号，非Bool点号及不适用类型的format=透传。
+- **线圈/位区 Bool 降级**：Modbus FC1/2（含非 Bool 误配）、Yaskawa 全部 Bool 及数字点号地址、Fanuc/Vigor/XinJE 位区 Bool、Toyo 全部 Bool、Panasonic 非 16 对齐 Bool、Fins TIM/CNT 点号 Bool、Cimon全部Bool及D点号均保留为原点单读。Yaskawa 仅无点号 UInt16 字地址且 SFC3/4/9/10 可组，`mfc=N;`/`x=N;` 须位于数字前、各至多一次并以 `;` 结尾，取值为无前导零十进制（驱动把前导 0 视为八进制）或 `0x` 十六进制，否则透传；Modbus 寄存器 Bool 最小响应按 2 字节计。 Modbus显式FC3/4的Bool也须带点号，非Bool点号及不适用类型的format=透传。
 - **不支持组包的协议自动原样返回**：符号/标签访问以及不兼容地址模型，包括 `SiemensS7Plus` / `MelsecCipNet` / `OmronCipNet` / `KeyenceKvOld` / `KeyenceNanoSerial` / `PanasonicMcNet` / `AllenBradleyNet` 等；当前映射还移除 `SiemensFetchWriteNet` / `MelsecMcRNet` / `MelsecA1ENet` / `MelsecA1EAsciiNet` / `MelsecFxSerial` / `MelsecFxSerialOverTcp`，A3C/A4C 仍支持。 当前还整体透传 SiemensPPI/PPIOverTcp/MPI、Delta五种、Inovance非ComputerLink各模式、MegMeet三种；ComputerLink改用MitsubishiFx。
 - 新建组包批带 `List<BytesModel>`，Length是模型覆盖字节；全部降级点保留原对象、Length、扩展参数，不附加单点模型。数组均透传；文本Length按Driver单位（Siemens/Beckhoff/GE/Fuji_CST/LSis_Cnet/FastEnet按字节，其余按字×2），Encoding只解码；零Length、AB文本、GE奇数Length文本透传。普通重叠规格用固定批首相对偏移，不累加前项宽度。模型上限不代表所有硬件已验证。
 - **解包 `isStringReverseByteWord`**（v26.235.2 起，4 个 `UnPacker`/`UnPackerAsync` 重载均有）：`String` 解包是否按 16 位字反转字节（每 2 字节一组交换，连接级配置——如欧姆龙 FINS 字符串按字反转字节读取）
-- **当前工作树边界：** Modbus只有点号Bool可批读，format=只支持32/64位数值；全局ABCD/CDAB与BADC/DCBA采用不同寄存器内位序，组包format须与真实连接相同。Siemens普通字节≤0x1FFFFF、T/C≤0xFFFFFF且禁点号，T/C/AI/AQ的Byte/奇数文本透传；MC/Keyence/Cimon/GE/Toyo/Vigor须符合实际线缆字段，不能只按Int32不溢出判断。
+- **当前源码边界（晚于 NuGet 26.301.1）：** Modbus只有点号Bool可批读，format=只支持32/64位数值；全局ABCD/CDAB与BADC/DCBA采用不同寄存器内位序，组包format须与真实连接相同。Siemens普通字节≤0x1FFFFF，T/C/AI/AQ点位全部单点透传（驱动多元素响应解析不可靠）；Fanuc/Panasonic/Yokogawa批首转大写（`aI100`/`lD44`/`Tn100`等混合大小写双字母代码会使整批失败）；MC/Keyence/Cimon/GE/Toyo/Vigor须符合实际线缆字段，不能只按Int32不溢出判断。
 - **Vigor C32**：C200起每元素4字节，文本Length×4，普通字区×2；直传Driver元素数仍可能多读，不代表硬件验证。
-- 查询支持组包的协议清单：`PackerHandler.GetSupportAutoPackDeviceTypes()` / `CanAutoPack(typeName)`；`CanAutoPack` 要求实际注册且 `SupportsAutoPack = true`。去重按区/地址/类型/Length/EncodingType/DataFormat 的完整读取规格；`BytesHandler` 结果键冲突先追加 `\u0001DataType`，再次冲突追加 `\u0001序号`，`AddressValue.AddressName` 不变。
+- 查询支持组包的协议清单：`PackerHandler.GetSupportAutoPackDeviceTypes()` / `CanAutoPack(typeName)`；`CanAutoPack` 要求实际注册且 `SupportsAutoPack = true`。去重按区/地址/类型/Length/EncodingType/DataFormat 的完整读取规格，地址名区分大小写（`d168` 与 `D168` 各得结果）；`BytesHandler` 结果键冲突先追加 `\u0001DataType`，再次冲突追加 `\u0001序号`，`AddressValue.AddressName` 不变。
 - `BytesHandler` 仅对 ByteArray+List<BytesModel> 按批解码；其余值返回原 AddressValue 同对象，状态由 Quality==Normal 决定。坏质量/非byte[]原值的批按每个模型返回Exception点，不把缓存字节重标正常。模型越界（含BoolIndex）保留错误点，Byte从切片索引0解码。
 - 批量字典 `UnPacker`/`UnPackerAsync` 对各项Status做与运算，保留所有返回字典（含失败项）；任一失败整体false。混合批与透传点可统一输入，失败时仍读取ResultData并逐点检查Quality。GetSource只转换ResultData，不因Status=false自动返回default。
 
@@ -1048,6 +1048,17 @@ using (OpcUaServiceOperate operate = await OpcUaServiceOperate.InstanceAsync(new
 ```
 
 > **⚠️ 注意：** `OpcUaServiceOperate` 不是 IDaq（仅 IOn/IOff/IRead/IWrite/IStatus，无订阅能力）。服务端校验用户证书时 `AutoAcceptUntrustedCertificates=false`（严格校验），未受信任的用户证书会在会话验证阶段被拒绝。
+
+**OPC UA Server 托管 IDaq 设备（当前源码，晚于 NuGet 26.301.1）：**
+
+```csharp
+// plc 为已配置好的 IDaq（如 new SiemensOperate(basics)）；注册成功后由服务端打开、订阅并最终释放
+OperateResult reg = await operate.RegisterDaqAsync(plc, address, usePacker: true); // OnAsync 前只登记；运行中注册立即建节点并采集
+var info = reg.GetSource<OpcUaDaqRegistration>();  // DeviceSN / ProtocolName / FolderName("{SN}·{协议}") / PointCount / IsPacked / Message
+await operate.OnAsync();  // 点位 NodeId = {AddressSpaceName}·{SN}·{协议}·{AddressName}
+```
+
+> **桥接要点：** 同服务 SN 唯一，同一 IDaq 对象只能被一个服务接管；仅启用点位，AddressName 非空且区分大小写唯一、Length>0、类型受支持（None/Date/Time 拒绝），不得传入已组包批；失败不接管对象。组包仅在 ProtocolType 存在且 DataFormat 可按名称识别（无 DataFormat 时仅 Siemens*）时执行，只影响采集。UA 写入只接受 Value 属性和精确类型/长度，等待设备 WriteAsync 回执（失败不伪成功、不重发），写后回读刷新；maxAge 过期的读取先读设备。质量：Normal→Good、None→BadWaitingForInitialData、DataTypeError→BadTypeMismatch、ParseError→BadDecodingError、ParseUnknown→Uncertain；离线 BadNotConnected 并每 5 秒重检。OffAsync 关闭设备但保留注册，Dispose 释放全部设备，无注销 API。服务端 NodeId 分隔符由 `.` 改为 `·`（`Data.NodeSeparator`），旧 NodeId 需重新浏览；服务端 ReadAsync/WriteAsync 的键是完整 NodeId 字符串。
 
 **OPC DA Client（COM/DCOM，传统 OPC DA 服务器）：**
 
@@ -2004,6 +2015,7 @@ DAQ → Netty:   "Snet.Netty.client.NettyClientOperate.{SN}"
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.1.11 | 2026-11-02 | 同步Shunnet@0913137→0dc839b（include_worktree=true；7个packer工作树改动在审查期间被原样提交为0dc839b，其余35个脏文件见D:/codex/.docs-sync/2026-11-02-170605/repository-final.json）：OPC UA服务端RegisterDaqAsync托管IDaq（注册规则、`·` NodeId、读写/质量/生命周期）；Siemens T/C/AI/AQ全部透传，LSis Cnet Bool/FastEnet仅B位宽，Yaskawa修饰符严格语法，Fanuc/Panasonic/Yokogawa批首大写，点名区分大小写去重。安装基线仍26.301.1，未提交行为不归属发布包。 |
 | 1.0.1.10 | 2026-10-29 | 同步Shunnet@89038d2（include_worktree=true；10个packer脏文件清单见D:/codex/.docs-sync/2026-10-29-154823/repository-baseline.json）：安装基线26.301.1；Modbus全局位序/降级条件、线缆字段边界与Vigor C32；限定Driver传递依赖，倍福README计数2。未提交行为不自动归属于发布包。 |
 | 1.0.1.9 | 2026-10-16 | 同步 Shunnet @70421a7（`include_worktree=false`，源码干净）：24注册/23优化/59映射，Fuji三模式、Cpu禁优化、句柄透传与位批边界；所有降级点保留原对象；文本Length按Driver单位；失败模型/聚合状态和部分结果契约。安装基线26.283.1与源码行为分开。 |
 | 1.0.1.8 | 2026-10-12 | 同步 Shunnet @4664a25（`include_worktree=false`）：NuGet 安装基线 26.283.1，源码版本 1.0.0.0/ProjectReference 不代表发布回退；组包映射 74、FINS 字节序、严格地址范围、禁用/虚拟/超长透传、同名读取规格保留；OPC SDK 2.0.1、证书默认值/同步包装/取消释放；纠正 UpdateArgsAsync 成功状态旧说明。源码新行为不自动归属于已发布包。 |

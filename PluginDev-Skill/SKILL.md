@@ -1,7 +1,7 @@
 ---
 name: plugindev-skill
 description: Snet.Iot.Daq 插件开发技能，覆盖 IDaq（数据采集）与 IMq（消息中间件）两类插件开发。严格定义插件开发契约：必须实现的抽象方法、必须遵循的返回类型、必须使用的数据标注、必须调用的框架方法。AI 自行决定采集方式（TCP/HTTP/文件/串口）或消息收发方式，但必须遵守契约。
-version: 1.0.2.7
+version: 1.0.2.8
 metadata:
   hermes:
     tags: [plugin-development, daq, iot, dotnet, contract, code-generation, mq, middleware]
@@ -769,7 +769,7 @@ share.Dispose();
 
 ### 6.3 字节处理 BytesHandler / BytesTransformHandler
 
-当前组包按区/地址/类型/Length/EncodingType/DataFormat 完整读取规格去重；解包结果键同名时先追加 `\u0001DataType`，再次冲突追加 `\u0001序号`，保留全部读取规格且 AddressValue.AddressName 不变。调用方不能假定结果键始终等于原地址名。
+当前组包按区/地址/类型/Length/EncodingType/DataFormat 完整读取规格去重，地址名区分大小写（`d168` 与 `D168` 各得结果）；解包结果键同名时先追加 `\u0001DataType`，再次冲突追加 `\u0001序号`，保留全部读取规格且 AddressValue.AddressName 不变。调用方不能假定结果键始终等于原地址名。
 
 批量字典 UnPacker/UnPackerAsync 对所有子项 Status 做与运算，保留其返回字典（包括失败/部分结果）；任一失败则整体 false。BytesHandler 仅将 ByteArray+List<BytesModel> 识别为字节批，其他值保留原 AddressValue 同对象，状态依原 Quality。坏批生成各模型 Exception 点，越界模型也保留失败项。Status=false 仍可 GetSource 读取部分数据，须逐点检查 Quality；混合批与直接值可统一解包。
 
@@ -2115,6 +2115,7 @@ public override async Task<OperateResult> ReadAsync(Address address, Cancellatio
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.2.8 | 2026-11-02 | 同步Shunnet@0dc839b（审查时为工作树改动，审查期间原样提交；状态见D:/codex/.docs-sync/2026-11-02-170605/repository-final.json）：组包去重的地址名改为区分大小写，同址不同大小写的点各得结果。安装基线仍26.301.1。 |
 | 1.0.2.7 | 2026-10-29 | 同步Shunnet@89038d2（include_worktree=true；10个packer脏文件见本轮外部状态）：安装基线26.301.1；明确底层DeviceServer诊断签名迁移不属于统一IDaq，保留Core与Driver依赖边界。 |
 | 1.0.2.6 | 2026-10-16 | 同步 Shunnet @70421a7（`include_worktree=false`，源码干净）：修正Core→Model→Log/Utility依赖链；字节批/普通值识别、失败模型与聚合false保留部分结果，示例检查Quality。 |
 | 1.0.2.5 | 2026-10-12 | 同步 Shunnet @4664a25（`include_worktree=false`）：安装基线 26.283.1；源码 1.0.0.0/ProjectReference；明确 Opc.Ua.* 与 Microsoft.Extensions.* 宿主共享依赖契约（禁止私有回退）；BytesHandler 同名键冲突保留及完整读取规格去重；源码新行为与已发布包分开说明。 |

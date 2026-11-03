@@ -1,6 +1,6 @@
 # DAQ-Skill — Industrial IoT Data Acquisition Skill
 
-**Version:** 1.0.1.10
+**Version:** 1.0.1.11
 **Author:** Shun  
 **License:** MIT  
 **Framework:** .NET 10.0
