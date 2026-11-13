@@ -1,6 +1,6 @@
 # WpfUI-Skill — Modern WPF UI Development Skill
 
-**Version:** 1.0.1.9
+**Version:** 1.0.1.10
 **Author:** Shun
 **License:** MIT
 
@@ -9,6 +9,8 @@
 ## 🎯 Positioning
 
 🖥️ **UI development** — build modern desktop applications on the Snet WPF framework
+
+This skill requires `Snet.Windows.Controls` first, then `Wpf.Ui.Controls` only for missing capabilities. Native interactive-control fallback is prohibited. Layout panels and resource/template primitives follow the explicit SKILL.md boundary. Consult [Debug](https://github.com/shunnet/Debug) and [the Daq WPF frontend](https://github.com/shunnet/Daq/tree/main/Snet.Iot.Daq).
 
 ## ✨ Capabilities
 
@@ -21,7 +23,7 @@
 - 🔧 PropertyGrid property editor (40+ annotations, ColorPicker/FilePicker/DataGrid)
 - 🖱️ Drag controls (8-direction resize + drag to move + animated creation)
 - 💬 Message dialogs (OK / OKCancel / Yes / YesNo — ⚠️ same name as System.Windows.MessageBox, use an alias; see SKILL.md §8)
-- 🔔 System tray (NotifyIcon XAML element + Register/click events; TrayManager is internal and not accessible)
+- 🔔 System tray (NotifyIcon XAML element + Register/click events; TrayManager is internal and not accessible; runtime updates and Closed cleanup)
 
 ## 💬 Example Scenarios
 
@@ -31,6 +33,8 @@
 🗣️ "Build a draggable device layout editor with movable and resizable controls"
 🗣️ "Build a multi-tab settings window that edits configuration with PropertyGrid"
 ```
+
+- 💬 `DialogHandler.ShowAsync` custom dialogs with per-window hosts and the shared message-box queue; see SKILL.md §8 for close/retemplate/cancellation semantics
 
 ## 📄 Files
 

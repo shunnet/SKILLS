@@ -1,6 +1,6 @@
 # DAQ-Skill — 工业物联网数据采集技能
 
-**版本:** 1.0.1.11
+**版本:** 1.0.1.12
 **作者:** Shun  
 **许可证:** MIT  
 **框架:** .NET 10.0
@@ -79,12 +79,12 @@
 | `Snet.Yamatake` | 山武（AZBIL） | `YamatakeOperate` | 2 种 |
 | `Snet.Yokogawa` | 横河 PLC | `YokogawaOperate` | 1 种 |
 | `Snet.YuDian` | 宇电 AIBus 温控器 | `YuDianOperate` | 1 种 |
-| `Snet.PQDIF` | 电力通讯规约（DLT645/DLT698/CJT188/DTSU6606） | `PQDIFOperate` | 10 种 |
+| `Snet.PQDIF` | 电表规约 + IEC61850 / IEC101 / IEC103 / IEC104 | `PQDIFOperate` | 14 种 |
 | `Snet.DB` | 数据库采集（SqlServer/MySQL/Oracle/SQLite） | `DBOperate` | 4 种 DB |
 | `Snet.TEP` | TCP 扩展插件（非标设备采集） | `TepMasterOperate` / `TepSlaveOperate` | 自定义 |
 | `Snet.Freedom` | 自由协议（自定义报文） | `FreedomOperate` | 3 种 |
 | `Snet.Sim` | 模拟库（无硬件测试） | `SimOperate` | 5 种虚拟地址 |
-| *(Snet.Driver)* | Knx / OpenProtocol / Sick / Geniitek / IDCard / Toledo / IEC104 / ShineIn Light / DAM3601 | 驱动层（无独立 NuGet 包） | 9 种 |
+| *(Snet.Driver)* | Knx / OpenProtocol / Sick / Geniitek / IDCard / Toledo / IEC104 / ShineIn Light / DAM3601 | 底层入口；这些厂商模式无独立封装包，Snet.Driver本身有NuGet包 | 9 种 |
 
 ## 消息中间件
 
@@ -134,8 +134,8 @@ dotnet new console -n DaqDemo && cd DaqDemo
 # ⚠️ 必须指定版本号！到 nuget.org 查找最新版本：
 #   https://www.nuget.org/packages/Snet.Siemens
 #   https://www.nuget.org/packages/Snet.Mqtt
-dotnet add package Snet.Siemens -v 26.301.1
-dotnet add package Snet.Mqtt -v 26.301.1
+dotnet add package Snet.Siemens -v 26.316.1
+dotnet add package Snet.Mqtt -v 26.316.1
 
 # 电力协议示例
 # dotnet add package Snet.PQDIF -v <最新版本>

@@ -1,7 +1,7 @@
 ---
 name: mq-skill
 description: Snet 消息中间件应用技能，覆盖 MQTT（Client/Service/WebSocket）、Kafka、RabbitMQ、RocketMQ、NetMQ、Netty 六种 IMq 传输协议的消息生产、消费、统一 API 与数据转发。支持"一句话"完成消息收发配置。配合 PluginDev-Skill 开发自定义 IMq 插件。
-version: 1.0.1.7
+version: 1.0.1.8
 metadata:
   hermes:
     tags: [mq, middleware, mqtt, kafka, rabbitmq, rocketmq, netmq, netty, iot, dotnet, message-queue]
@@ -80,13 +80,15 @@ await mq.ConsumeAsync("my/topic");
 
 ### 版本号：必须指定
 
-安装基线 `26.301.1` 已于 2026-10-29 核对 NuGet；源码项目版本 `1.0.0.0` 与内部 `ProjectReference` 是构建配置，不用于安装命令。当前源码行为可能晚于发布包，生成代码时按实际安装包核验，不能把源码更新自动归入该包。
+源码 Core/Model/Log/Utility 当前目标为 `net10.0;net11.0`；Core 的 System.IO.Ports 与 Microsoft.Extensions.* 使用 `11.0.0`，宿主/插件必须版本兼容。版本安装基线只是 NuGet 查询结果，不代表本轮每条源码行为均已用发布包测试。
 
-所有 `dotnet add package` 命令**必须**带 `-v` 版本号（当前统一版本 **26.301.1**），**禁止使用 `*` 通配符**。安装前到 nuget.org 确认最新版本。
+安装基线 `26.316.1` 已于 2026-11-13 核对 NuGet；源码项目版本 `1.0.0.0` 与内部 `ProjectReference` 是构建配置，不用于安装命令。当前源码行为可能晚于发布包，生成代码时按实际安装包核验，不能把源码更新自动归入该包。
+
+所有 `dotnet add package` 命令**必须**带 `-v` 版本号（当前统一版本 **26.316.1**），**禁止使用 `*` 通配符**。安装前到 nuget.org 确认最新版本。
 
 ```bash
 # ✅ 正确：指定版本号
-dotnet add package Snet.Mqtt -v 26.301.1
+dotnet add package Snet.Mqtt -v 26.316.1
 
 # ❌ 错误：不带版本号（使用 * 通配符，运行时报错）
 dotnet add package Snet.Mqtt
@@ -103,7 +105,7 @@ dotnet add package Snet.Mqtt
 
 ```bash
 # ✅ 正确：只引用中间件包
-dotnet add package Snet.Mqtt -v 26.301.1
+dotnet add package Snet.Mqtt -v 26.316.1
 ```
 
 ### using 语句 vs NuGet 引用
@@ -145,7 +147,7 @@ using Snet.Model.@enum;              // ← ResponseType 等
 
 ## 1. MQTT — 最常用的轻量消息协议
 
-> NuGet: `dotnet add package Snet.Mqtt -v 26.301.1`
+> NuGet: `dotnet add package Snet.Mqtt -v 26.316.1`
 > 三种操作类：`MqttClientOperate`（连接外部 Broker，继承 MqAbstract）/ `MqttServiceOperate`（内置 Broker）/ `MqttWebSocketServiceOperate`（浏览器 WebSocket）
 
 ### 1.1 MQTT Client（连接外部 Broker）
@@ -244,9 +246,13 @@ using (var wsService = await MqttWebSocketServiceOperate.InstanceAsync(config))
 
 > **需要 QoS1/2 的订阅？** IMq 的 `ConsumeAsync` 固定 QoS0，需更高级别时用 `MqttClientOperate` 直连 API：`await mq.AddSubscribeAsync(topic, qosLevel)` / `await mq.RemoveSubscribeAsync(topic)`（QoSLevel 默认 0）。
 
+## MqOperate 编排边界
+
+此处区别于各中间件自己的IMq实现。`Snet.Core.mq.MqOperate` 按topic固定分片，TaskNumber默认5并钳制1–256，每分片容量max(256,65535/workers)。同topic按入队顺序处理，不保证跨topic全局顺序。满分片TryWrite失败会返回入队失败，ProduceAsync成功只表示入队。worker最多等初始化30秒；失败启动首个退避2秒、上限60秒；Remove查活动/失败容器并清理重试状态，Dispose丢弃残留队列。Watcher.Error只报告可能丢失事件，不承诺自动全量重扫。
+
 ## 2. Kafka — 分布式高吞吐消息队列
 
-> NuGet: `dotnet add package Snet.Kafka -v 26.301.1`（Confluent.Kafka `2.16.0`）
+> NuGet: `dotnet add package Snet.Kafka -v 26.316.1`（Confluent.Kafka `2.16.0`）
 > Operate: `KafkaOperate`（继承 MqAbstract）| Config: `KafkaData.Basics`
 > **注意：Kafka 用 `BootstrapServers`（非 IpAddress+Port）**
 
@@ -318,7 +324,7 @@ var created = await kafka.CreateTopicsAsync(new List<string> { "factory/line1", 
 
 ## 3. RabbitMQ — AMQP 协议
 
-> NuGet: `dotnet add package Snet.RabbitMQ -v 26.301.1`
+> NuGet: `dotnet add package Snet.RabbitMQ -v 26.316.1`
 > Operate: `RabbitMQOperate`（继承 MqAbstract）| Config: `RabbitMQData.Basics`
 > **注意：RabbitMQ 有 `ExChangeName`（交换机名称）+ `Publish/Consume` 用 `Type` 参数指定交换机类型（direct/topic/fanout/headers）**
 
@@ -372,7 +378,7 @@ await rabbit.OffAsync();
 
 ## 4. NetMQ — ZeroMQ 无 Broker 模式
 
-> NuGet: `dotnet add package Snet.NetMQ -v 26.301.1`
+> NuGet: `dotnet add package Snet.NetMQ -v 26.316.1`
 > Operate: `NetMQOperate`（继承 MqAbstract）| Config: `NetMQData.Basics`
 > **注意：NetMQ 用 `Address`（ZMQ 地址格式）+ `UModel`（PubModel/SubModel）**
 
@@ -432,7 +438,7 @@ await pub.OffAsync();
 
 ## 5. Netty — 高性能 TCP 框架
 
-> NuGet: `dotnet add package Snet.Netty -v 26.301.1`
+> NuGet: `dotnet add package Snet.Netty -v 26.316.1`
 > 两种操作类：`NettyClientOperate`（客户端，继承 MqAbstract）/ `NettyServiceOperate`（服务端）
 > **注意：Netty 支持 SSL 加密（SslFilePath/SslFilePassword）**
 
@@ -512,7 +518,7 @@ using (var service = await NettyServiceOperate.InstanceAsync(config))
 
 ## 6. RocketMQ — Apache RocketMQ 5.x 消息队列
 
-> NuGet: `dotnet add package Snet.RocketMQ -v 26.301.1`
+> NuGet: `dotnet add package Snet.RocketMQ -v 26.316.1`
 > Operate: `RocketMQOperate`（继承 MqAbstract）| Config: `RocketMQData.Basics`
 > 底层依赖 RocketMQ.Client 5.2.1（Apache RocketMQ 5.x .NET 客户端，**经 gRPC 协议连接 Proxy**）
 
@@ -669,6 +675,7 @@ new AddressDetails
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.1.8 | 2026-11-13 | source_commit=cc44e76b4b97831fb35612b0161f88a7fbba763c；include_worktree=false（Shunnet开工干净）；安装基线26.316.1，net10.0/net11.0；MqOperate按topic分片、1–256 worker、满分片入队失败、指数重试和活动/失败容器清理；接口与传输边界按当前源码。证据见D:/codex/.docs-sync/2026-11-13-104256/core-audit.md。 |
 | 1.0.1.7 | 2026-10-29 | 核对Shunnet@89038d2（include_worktree=true；10个packer脏文件见本轮外部状态，与MQ实现无关）：安装基线26.301.1；NetMQ源码依赖4.0.4.5，MQ接口未变。 |
 | 1.0.1.6 | 2026-10-16 | 核对 Shunnet @70421a7（`include_worktree=false`，源码干净）：MQ实现及Kafka依赖无新增变化；纠正自动转发§7及手动事件处理引用，README限定QoS接口能力，移除无本轮基准证据的固定延迟承诺。 |
 | 1.0.1.5 | 2026-10-12 | 同步 Shunnet @4664a25（`include_worktree=false`）：安装基线 26.283.1；源码 `<Version>` 为 1.0.0.0，内部改为 ProjectReference；Confluent.Kafka 源码依赖 2.16.0。版本来源分开记录，历史条目保留。 |

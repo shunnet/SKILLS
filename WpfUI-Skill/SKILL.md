@@ -1,7 +1,7 @@
 ---
 name: wpfui-skill
 description: WPF 现代化界面开发技能，基于 Snet.Windows.Core 和 Snet.Windows.Controls 库，支持自定义窗口、MVVM 架构、深色/浅色主题切换、中英文多语言、PropertyGrid 属性编辑器、全部内置控件（Button/ComboBox/TextBox/LED/分页/代码编辑器/颜色选择器/文件选择器/内置表格/树形列表等 20+ 子控件）、拖拽控件、LED 指示灯、分页栏、系统托盘、消息对话框等完整 WPF 桌面应用开发能力。支持"一句话"生成完整 WPF 界面。
-version: 1.0.1.9
+version: 1.0.1.10
 metadata:
   hermes:
     tags: [wpf, desktop, mvvm, ui, theme, localization, property-grid, drag-drop, dotnet]
@@ -16,6 +16,46 @@ metadata:
 ## 🎯 用途
 
 帮助用户基于 Snet WPF 框架快速构建现代化桌面应用，涵盖窗口管理、MVVM 绑定、主题切换、多语言、内置控件、拖拽等完整能力。
+
+## 控件选择规则（使用本技能时必须遵守）
+
+1. 先在 `Snet.Windows.Controls` 查找满足当前交互能力的内置控件；内置不存在该能力时，使用 `Wpf.Ui.Controls`。禁止为了方便、沿用旧示例或补样式而回退到 `System.Windows.Controls` 原生交互控件。Snet/Wpf.Ui 控件内部继承或使用原生控件是库的实现细节，不改变调用方的优先级。
+2. 布局与文档基础元素可以保留：`Grid`、`RowDefinition`、`ColumnDefinition`、`StackPanel`、`DockPanel`、`WrapPanel`、`Canvas`、`Border`、`Viewbox`、`Application`、`ResourceDictionary`、`Style`、`ControlTemplate`、`DataTemplate`、`Binding`、`Run`，以及自定义视图的 `UserControl`/`Page` 根元素。这些不作为按钮、输入、选择、导航、数据显示等交互控件的回退。受限子项布局使用内置 `snet:StackPanelEx`，分隔调整使用 `snet:DockPanelSplitter`。
+3. 先核对属性再替换类型。`ButtonControl` 是包装 `UserControl`，`Content` 为 `string`，只有 `Command`，不能假设有按钮的 `Click`/`CommandParameter`；复合内容或需要 `CommandParameter` 的按钮能力内置未提供时使用 `wpfui:Button`。`TextBoxControl` 提供 `Text`/`Hint`/`ClearButtonEnabled`，没有多行、只读和 `TextChanged` 公开事件；需要这些能力时优先用内置 `snet:TextBoxEx`，代码编辑/高亮用 `snet:TextEditorControl`。
+4. 不知道如何实现时，先检查开源 [Debug](https://github.com/shunnet/Debug) 和 [Daq 的 WPF 端](https://github.com/shunnet/Daq/tree/main/Snet.Iot.Daq)。本轮核对本地 `F:/Snet/Debug@429cb40be03e0fa5c69121ea0469b29a5a7fb066`、`F:/Snet/Daq@0a7d5c9a8117cb91c3d5940507103edf6e1d43a6` 的 XAML、ViewModel、主题与绑定，再按本规则改写。参考项目仍有原生控件，参考其行为与结构不表示可以直接复制违反规则的标签。
+5. 两层库均无对应能力时，先用已有 Snet/Wpf.Ui 组件组合实现；确实需要新增控件或改变交互时说明缺口。不得虚构 `wpfui:GroupBox`、`wpfui:ContextMenu`、`wpfui:CheckBox` 等不存在的类型，也不得偷偷回退原生控件。
+
+完整根元素按需声明以下命名空间；片段沿用所在根元素的声明：
+
+```xml
+xmlns:snet="https://snet.cn"
+xmlns:wpfui="http://schemas.lepo.co/wpfui/2022/xaml"
+xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
+xmlns:h="clr-namespace:Snet.Windows.Controls.handler;assembly=Snet.Windows.Controls"
+```
+
+| 需求 | 必须优先选用 | 真实属性 / 边界 |
+|:---|:---|:---|
+| 文本/图标按钮 | `snet:ButtonControl` | `Content`、`Icon`、`Command`、`CornerRadius`；复杂内容能力缺失时才用 `wpfui:Button` |
+| 单行输入 | `snet:TextBoxControl` | `Text`、`Hint`、`ClearButtonEnabled` |
+| 多行/只读文本、文本事件 | `snet:TextBoxEx` | 继承 TextBox，支持 `Text`、`AcceptsReturn`、`IsReadOnly`、`TextChanged`、`ScrollToEnd()` |
+| 代码/日志编辑与高亮 | `snet:TextEditorControl` | `h:EditBindingHandler.EditText` 绑定，`ShowLineNumbers`、`IsReadOnly`、`WordWrap` |
+| 普通文本 | `snet:TextBlockEx` | `Text`、`TextWrapping`；独立使用合并 TextBlockEx/Generic.xaml |
+| 下拉选择 | `snet:ComboBoxControl` | `ItemsSource`、`SelectedItem`、`DisplayMemberPath`、`Hint` |
+| 枚举单选 / 布尔状态标记 | `snet:RadioButtonList` / `snet:CheckMark` | `EnumType`/`Value` / `IsChecked`；CheckMark 是标记，开关交互用 `wpfui:ToggleSwitch.IsChecked` |
+| 数值 / 滑块 | `snet:SpinControl` / `snet:HeaderedEntrySlider` / `snet:SliderEx` | `Value`、`Minimum`、`Maximum`、`SmallChange`、`LargeChange` |
+| 表格 | `snet:DataGrid` | `ItemsSource` 为 `IList`；手动列为 `ColumnDefinitions` + `snet:ColumnDefinition(PropertyName, Header)`，不能套用原生 `.Columns` 或 `DataGridTextColumn` |
+| 树形 / 属性编辑 | `snet:TreeListBox` / `snet:PropertyControl` / `snet:PropertyGrid` | `HierarchySource`、`ChildrenPath` / `BasicsData` / `SelectedObject` |
+| 颜色 / 文件 / 目录 | `snet:ColorPicker` / `snet:FilePicker` / `snet:DirectoryPicker` | `SelectedColor` / `FilePath` / `Directory` |
+| 弹层 / 链接 | `snet:PopupBox` / `snet:LinkBlock` | `PopupTemplate` / `Text`、`NavigateUri` |
+| LED / 分页 / 托盘 | `snet:LedGaugeControl` / `snet:PageBarControl` / `snet:NotifyIcon` | 按本技能对应章节的真实属性 |
+| 导航 / 搜索建议 | `wpfui:NavigationView` / `wpfui:AutoSuggestBox` | `MenuItemsSource`、`FooterMenuItemsSource` / `PlaceholderText`；Snet 没有同类顶层控件 |
+| 分组卡片 | `wpfui:Card` / `wpfui:CardExpander` | 使用卡片中的 StackPanel + `snet:TextBlockEx` 标题；不生成原生 GroupBox |
+| 密码 / 进度 | `wpfui:PasswordBox` / `wpfui:ProgressRing` | Snet 没有同类独立交互控件 |
+| 通知 / 页签 | `wpfui:InfoBar` / `wpfui:TabView` | 不以原生同类控件回退 |
+| 消息 / 自定义对话框 | Snet `MessageBox.Show` / `DialogHandler.ShowAsync` | 使用 WindowBase 现有宿主及队列，不能任意新建同名 DialogHost |
+
+`snet:DataGrid`、`snet:PropertyGrid`、ColorPicker 等独立使用的样式合并见 §6.2。`wpfui:` 控件资源已由 Snet 深浅主题合并。`NotifyIcon.Menu` 的真实类型仍是原生 `ContextMenu`，不是 Wpf.Ui 控件；本技能生成的新界面不创建它，使用托盘左键恢复主窗口，再用主窗口中的 Snet 按钮提供操作。
 
 ## ✨ 能力
 
@@ -49,15 +89,17 @@ AI 先用大白话问用户：
 
 ### NuGet 安装
 
-安装基线 `26.301.1` 已于 2026-10-29 核对 NuGet；源码项目版本 `1.0.0.0` 与内部 `ProjectReference` 是构建配置，不用于安装命令。当前源码行为可能晚于发布包，生成代码时按实际安装包核验，不能把源码更新自动归入该包。
+安装基线 `26.316.1` 已于 2026-11-13 核对 NuGet；源码项目版本 `1.0.0.0` 与内部 `ProjectReference` 是构建配置，不用于安装命令。当前源码行为可能晚于发布包，生成代码时按实际安装包核验，不能把源码更新自动归入该包。
 
 ```bash
 # 核心库（必装）
-dotnet add package Snet.Windows.Core -v 26.301.1
+dotnet add package Snet.Windows.Core -v 26.316.1
 
 # 控件库（按需）
-dotnet add package Snet.Windows.Controls -v 26.301.1
+dotnet add package Snet.Windows.Controls -v 26.316.1
 ```
+
+当前工作树目标框架为 `net10.0-windows;net11.0-windows`，示例程序及测试为 net11；这是未提交源码配置，不用于断言旧安装基线包支持 net11。
 
 ### 当前源码依赖关系（Snet 内部使用 ProjectReference，不是发布包依赖证明）
 
@@ -68,8 +110,8 @@ Snet.Windows.Controls
   │     ├── WPF-UI (>= 4.3.0)
   │     ├── CommunityToolkit.Mvvm (>= 8.4.2)
   │     ├── Microsoft.Xaml.Behaviors.Wpf（EventCommand/Interaction.Triggers 依赖）
-  │     ├── System.Management (10.0.14)
-  │     ├── System.Drawing.Common (10.0.14)
+  │     ├── System.Management (11.0.0)
+  │     ├── System.Drawing.Common (11.0.0)
   │     └── Snet.Core (ProjectReference)
   └── (v26.222.1 起 AvalonEdit 依赖已移除——代码编辑器源码已内嵌，见"编辑控件"章节)
 ```
@@ -105,6 +147,8 @@ Snet.Windows.Controls
             <ResourceDictionary.MergedDictionaries>
                 <!-- 深色主题 -->
                 <ResourceDictionary Source="pack://application:,,,/Snet.Windows.Core;component/themes/DarkTheme.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/Snet.Windows.Controls;component/property/wpf/Controls/TextBlockEx/Generic.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/Snet.Windows.Controls;component/property/wpf/DataGrid/Generic.xaml" />
                 <!-- 或浅色主题 -->
                 <!-- <ResourceDictionary Source="pack://application:,,,/Snet.Windows.Core;component/themes/LightTheme.xaml" /> -->
             </ResourceDictionary.MergedDictionaries>
@@ -120,6 +164,8 @@ Snet.Windows.Controls
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:snet="https://snet.cn"
+    xmlns:wpfui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
     Title="我的应用"
     Icon="/Icon.ico"
     LanguageEnabled="True"
@@ -128,7 +174,7 @@ Snet.Windows.Controls
     Height="600"
     Width="900">
     <Grid>
-        <TextBlock Text="Hello, Snet WPF!" FontSize="24"
+        <snet:TextBlockEx Text="Hello, Snet WPF!" FontSize="24"
                    HorizontalAlignment="Center" VerticalAlignment="Center" />
     </Grid>
 </snet:WindowBase>
@@ -148,6 +194,24 @@ public partial class MainWindow : Snet.Windows.Core.WindowBase
     }
 }
 ```
+
+### 当前源码的窗口、属性编辑与输入行为
+
+- `WindowBase` 在 DPI 变化时更新 X/Y 比例及最大化补偿；可选模板按钮缺失不会导致加载失败。纯代码创建的窗口可以 Show（样式不再重复设置 AllowsTransparency）。关闭窗口即使 Closed 订阅者抛异常仍释放对话框队列和原生背景画刷。注册表标记写入失败仅记录日志，同进程不反复尝试。
+- `InjectionWpf` 缓存的 Window 在真正 Closed 后自动移除；再次 `cache: true` 得到新实例，UserControl/Page 缓存不受影响。三个异步解析入口继续传播 `OperationCanceledException`。
+- `SkinHandler.SetSkin` 应在 UI 线程调用；先替换主题、更新 MaterialDesign/Wpf.Ui，再尝试持久化，最后通知。成功保存时回调读取到新皮肤；保存失败记录日志但仍通知。`ReplaceResources` 保持旧合并字典位置，保留宿主之后的覆盖优先级。`EventSkinResult` 复制构造保留 Time；无参构造的 Time 为当前时间。
+- Windows `LanguageHandler` 自己负责语言配置、缓存和 WPF Culture，不是单纯薄转发；事件仍在 `Snet.Core.handler.LanguageHandler.OnLanguageEventAsync`。同步 SetLanguage 与异步 SetLanguageAsync 分别实现；异步先检查取消并尝试写文件，再更新缓存/Culture并通知。可恢复写入失败只记一次日志，新语言仍在进程内生效；取消不被吞掉。直接使用 Core 语言处理器不会更新 Windows language.json。
+- `IconsHandler.GetIcon` 的含 DynamicResource 的 DrawingImage 不能冻结并属于创建线程。UI 线程共享缓存；后台线程每次创建独立实例，不污染 UI 缓存。缺 key 抛 KeyNotFoundException。外部字典失败时保留内置图标，移除坏缓存并传播原异常；后台同步 Loading 不等待 UI 工作，失败记录日志；需要等待完成时用 LoadingAsync。
+- `PropertyGrid` 重套模板会强制重建并恢复选中页。可选/单选标签与描述提示随语言更新；普通标签保留被编辑对象的 DataContext；两种描述布局遵循 ToolTipTemplate，空描述无提示。英文描述走 GetLocalizedDescription；仅重写 GetLocalizedString 的本地化器仍有兼容回退。描述符缓存逐个比较实例，DataRowView/实例级 TypeDescriptionProvider 不串用属性。
+- INotifyDataErrorInfo 逐属性展示错误、逐 Tab 汇总，第二个属性错误或部分错误修复会刷新已有行。ErrorsChanged 可来自后台线程，同一模型显示在多个 UI Dispatcher 时分别调度，失效弱登记会清理。内置 DataGrid 在尚未连接 PresentationSource 的合成鼠标事件中不再调用 PointToScreen。
+
+内置DataGrid的Generic.xaml仍含固定浅色：HeaderBackgroundBrush为#dfe3e8，当前单元格背景为White。仅合并DarkTheme不能保证表格全部内部状态适配深色；完整深色需求应显式提供适配的样式/模板，仍使用内置DataGrid，不回退原生控件。默认编辑菜单也是库内模板的一部分，中文只读展示可按真实RowsContextMenu/ColumnsContextMenu/SheetContextMenu属性关闭它们。
+- `FormattedTimeSpanParser.TryParse(string value, out TimeSpan result)` 对空白、整串不匹配、数字/TimeSpan 溢出返回 false（result 为默认值）；Parse 失败抛 FormatException，不再静默返回零。匹配允许首尾空白，仍采用 TimeSpan 构造的分量归一化语义。
+- `PasswordHelper` 附加到非 PasswordBox 时忽略；写回异常仍复位内部状态。其绑定值是明文 string。`DirectoryPicker` 的默认浏览对话框传入所属窗口；BrowseForFolderDialog 使用 Unicode 路径，任何结果都释放 PIDL，复用实例无 owner 时只清除由该实例设置的旧句柄。
+- `EditBindingHandler.EditTextProperty` 元数据默认 null，GetEditText 返回空串；空字符串初始源也会订阅文本变化并回写。字面量搜索的 ReplaceWith 保留 `$&`/`$$` 等替换语义和忽略大小写时实际匹配文字；FoldingMargin 删除过期行标记前不访问已删除行 Offset。
+- `TextBoxControl.Height` / `ComboBoxControl.Height` 是有意隐藏 FrameworkElement.Height 的独立依赖属性（默认 30）；它控制内部控件，真正布局高度需 SetValue(FrameworkElement.HeightProperty, value)。ButtonControl.Content 同样有意隐藏为 string。
+- `NotifyIcon` 的 FocusOnLeftClick、MenuOnRightClick、MenuFontSize（默认 14）运行时变更立即同步；Menu=null 清除旧菜单。NotifyIconService.Icon 更新即刷新；SetParentWindow 仅在真正 Closed 时释放，取消 Closing 后隐藏到托盘仍保留图标。
+- LED 的 `Range<T>` / `Range<T,U>` 本轮主要补充契约注释，Empty 显式初始化为 default，没有新增 LED 依赖属性。端点构造排序；零宽区间视为空，区间包含/交集按实现处理；标量 Contains 仍检查闭区间；`Range<T,U>(start,width)` 不排序负宽度结果。请勿把注释补全当作全新的算法。
 
 ### 窗口抖动效果
 
@@ -203,13 +267,13 @@ public class MainViewModel : BindNotify
 
 ```xml
 <!-- 窗口根元素需声明 xmlns:b="http://schemas.microsoft.com/xaml/behaviors" -->
-<snet:TextBoxControl ...>
+<snet:TextBoxEx Text="{Binding SearchText}">
     <b:Interaction.Triggers>
         <b:EventTrigger EventName="TextChanged">
-            <mvvm:EventCommand Command="{Binding TextChangedCommand}" />
+            <snet:EventCommand Command="{Binding TextChangedCommand}" />
         </b:EventTrigger>
     </b:Interaction.Triggers>
-</snet:TextBoxControl>
+</snet:TextBoxEx>
 ```
 
 ### InjectionWpf 依赖注入
@@ -312,7 +376,7 @@ using Snet.Model.@enum;
 // 获取当前语言
 LanguageType current = LanguageHandler.GetLanguage();
 
-// 设置语言（⚠️ 语言切换已统一异步化——SetLanguage 是 SetLanguageAsync 的薄封装，新代码优先用异步版）
+// 设置语言（Windows 层负责配置持久化、缓存和 WPF Culture；新代码可使用异步版）
 await LanguageHandler.SetLanguageAsync(LanguageType.zh);  // 中文
 await LanguageHandler.SetLanguageAsync(LanguageType.en);  // 英文
 
@@ -325,29 +389,29 @@ var model = new LanguageModel("MyApp", "Language", "MyApp.dll");
 string? text = LanguageHandler.GetLanguageValue("Hello", model);
 ```
 
-> **⚠️ 双命名空间歧义（常见坑）：** `Snet.Windows.Core.handler.LanguageHandler` 只是**薄包装**（无事件，仅转发 GetLanguageValue/SetLanguage 等）；语言切换**事件**（`OnLanguageEventAsync`）与 `GetLanguageValueAsync` 的真实实现在 **`Snet.Core.handler.LanguageHandler`**（Snet.Core 包）。同时 `using` 两个命名空间时需全限定或别名，否则编译器报歧义。
+> **双命名空间：** Windows `LanguageHandler` 提供配置文件、缓存、WPF Culture 和翻译转发；语言事件 `OnLanguageEventAsync` 仍在 `Snet.Core.handler.LanguageHandler`。两个命名空间同时引入时使用全限定名或别名。
 
 ### LocExtension XAML 标记扩展
 
 ```xml
 <!-- 基础用法：通过 Key 查找翻译 -->
-<TextBlock Text="{snet:Loc Hello}" />
+<snet:TextBlockEx Text="{snet:Loc Hello}" />
 
 <!-- 带类型转换（如 SolidColorBrush） -->
-<TextBlock Foreground="{snet:Loc Accent, Converter={StaticResource ColorBrushConverter}}" />
+<snet:TextBlockEx Foreground="{snet:Loc Accent, Converter={StaticResource ColorBrushConverter}}" />
 
 <!-- 强制指定语言 -->
-<TextBlock Text="{snet:Loc Hello, ForceCulture=zh}" />
+<snet:TextBlockEx Text="{snet:Loc Hello, ForceCulture=zh}" />
 ```
 
 ### BLoc 绑定扩展
 
 ```xml
 <!-- BLoc 继承自 Binding，可作为绑定源使用 -->
-<TextBlock Text="{snet:BLoc Hello}" />
+<snet:TextBlockEx Text="{snet:BLoc Hello}" />
 
 <!-- 强制指定语言 -->
-<TextBlock Text="{snet:BLoc Hello, ForceCulture=zh}" />
+<snet:TextBlockEx Text="{snet:BLoc Hello, ForceCulture=zh}" />
 ```
 
 ### 资源文件配置
@@ -357,6 +421,8 @@ string? text = LanguageHandler.GetLanguageValue("Hello", model);
 ```xml
 <snet:WindowBase
     xmlns:snet="https://snet.cn"
+    xmlns:wpfui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
     snet:ResxLocalizationProvider.DefaultAssembly="MyApp"
     snet:ResxLocalizationProvider.DefaultDictionary="Language"
     ...>
@@ -474,9 +540,9 @@ Language.en.resx      (英文翻译)
 // ViewModel 中处理分页变更
 partial class MainViewModel : BindNotify
 {
-    public int PageIndex => GetProperty(() => PageIndex);
-    public int PageSize => GetProperty(() => PageSize);
-    public int Total => GetProperty(() => Total);
+    public int PageIndex { get => GetProperty(() => PageIndex); set => SetProperty(() => PageIndex, value); }
+    public int PageSize { get => GetProperty(() => PageSize); set => SetProperty(() => PageSize, value); }
+    public int Total { get => GetProperty(() => Total); set => SetProperty(() => Total, value); }
 
     // 页码变化命令
     public ICommand PageChangedCommand => new RelayCommand<int>(async (page) =>
@@ -491,8 +557,8 @@ partial class MainViewModel : BindNotify
 > **v26.222.1 起 AvalonEdit 依赖已移除，代码编辑器以源码形式内嵌**（命名空间 `Snet.Windows.Controls.edit`，旧 `AvalonEdit.*` 命名空间不再可用）：
 
 ```xml
-<!-- XAML: 用 clr-namespace 或 snet: 前缀 -->
-<ctrl:TextEditorControl Height="300" FontFamily="Consolas" />
+<!-- XAML: xmlns:snet="https://snet.cn" -->
+<snet:TextEditorControl Height="300" FontFamily="Consolas" />
 ```
 
 ```csharp
@@ -788,8 +854,8 @@ public class DeviceSettings
     <snet:PopupBox.PopupTemplate>
         <DataTemplate>
             <StackPanel>
-                <TextBlock Text="自定义弹层内容" />
-                <Button Content="确定" />
+                <snet:TextBlockEx Text="自定义弹层内容" />
+                <snet:ButtonControl Content="确定" />
             </StackPanel>
         </DataTemplate>
     </snet:PopupBox.PopupTemplate>
@@ -965,7 +1031,7 @@ dragAnimate.RegisterSource("myName", sourceControl);
 // 拖拽回调 — 返回新控件实例（v26.250 起元组含 IsRotate 第 4 项；字段名 DragEvenTrigger 大写 D；委托要求一个 FrameworkElement 参数）
 dragAnimate.DragEvenTrigger = (showControl) =>
 {
-    var copy = new Button { Content = "新控件" };
+    var copy = new Snet.Windows.Controls.button.ButtonControl { Content = "新控件" };
     return (copy, IsMove: true, IsDragSize: true, IsRotate: false);
 };
 
@@ -1032,6 +1098,56 @@ Array.Sort(names, new NaturalStringComparer());
 
 ## 💬 第八章：消息对话框
 
+## Snet.Windows.Core.handler — DialogHandler
+
+`DialogHandler` 是自定义对话框的公共入口；消息框及拖拽控件的设置对话框也经由此入口。必须先显示 `WindowBase`；同一窗口里的请求共用按调用顺序处理的异步队列，不同窗口可同时显示。
+
+| API | 默认值 / 契约 |
+|:---|:---|
+| `Task<object?> ShowAsync(object content, DependencyObject? element = null, CancellationToken cancellationToken = default)` | `content` 必须非 null；UIElement 必须在应用 UI 线程创建 |
+| `Task<object?> ShowAsync(Func<object> contentFactory, DependencyObject? element = null, CancellationToken cancellationToken = default)` | 工厂在轮到显示时才在应用 UI 线程执行；工厂异常仅使本调用失败并释放队列 |
+| `WindowBase.DialogHostIdentifier` | 只读依赖属性；当前窗口主宿主标识符，不能缓存 |
+| `WindowBase.DialogHostClickCloseIdentifier` | 只读依赖属性；主标识符加 `_ClickClose`，用于可点击空白关闭的第二宿主 |
+| `static string WindowBase.GetDialogHostIdentifier(DependencyObject? element = null)` | UI 线程调用；解析元素所属 WindowBase，否则活动窗口，再回退最早已加载可见窗口；无已加载 WindowBase 时返回 `DialogHost` |
+
+`element` 属于 WindowBase 时选该窗口；否则选活动窗口，再回退已加载的主窗口。每个窗口具有唯一宿主名，传统名称 `DialogHost`/`DialogHost_ClickClose` 分配给最早创建且已加载可见的窗口（均隐藏时选最早已加载窗口），关闭/隐藏时移交；传统宿主仍打开对话框时暂不移交。`DialogHandler` 使用主宿主，不提供点击空白关闭宿主的队列入口。
+
+两种 `ShowAsync` 均可从后台调用，始终以 `DispatcherPriority.Loaded` 调度；传入的 `element` 必须属于应用 UI 线程。工厂重载可安全地延迟创建 UI 内容。禁止把 `async () => ...` 作为内容工厂：它会绑定到 object 重载并以 `ArgumentException` 拒绝；先 await 异步数据，再传同步 `Func<object>`。null 参数同步抛 `ArgumentNullException`；没有 `Application.Current`、指定窗口到达 UI 线程时已关闭或尚未加载，以及无可用宿主时抛 `InvalidOperationException`。
+
+返回值为关闭命令/`DialogHost.Close` 的参数；未传参数，或通过初始检查后窗口在显示/排队期间关闭，返回 null。窗口重套模板时当前显示调用返回 null，排队请求可继续使用新宿主。到达 UI 线程前已关闭的窗口直接失败，不借用其它窗口宿主。取消令牌只取消排队等待；对话框已经显示后取消不会关闭它。队列没有上限，业务层应避免无限入队；不要在一个对话框的事件中等待排在它后面的对话框。
+
+没有已加载 WindowBase 时，仅回退应用已经提供的 `DialogHost` 标识符宿主，不创建宿主，也不排队、不跟踪宿主生命周期。直接使用 `DialogHost.Show` 绕开队列，和队列混用仍可能抛 `DialogHost is already open`；同时存在同名宿主仍会报 `Multiple viable DialogHosts`。
+
+下面的方法可放入 WPF 项目；调用前 owner 已 `Show()`，主题沿用 WindowBase。关闭使用按钮命令，避免假设 ButtonControl 有 Click 或 CommandParameter：
+
+```csharp
+using CommunityToolkit.Mvvm.Input;
+using MaterialDesignThemes.Wpf;
+using Snet.Windows.Controls.button;
+using Snet.Windows.Core;
+using Snet.Windows.Core.handler;
+using System.Threading;
+using System.Threading.Tasks;
+
+public static class DialogExample
+{
+    public static async Task<bool> ConfirmAsync(WindowBase owner, CancellationToken cancellationToken = default)
+    {
+        object? result = await DialogHandler.ShowAsync(
+            () => new ButtonControl
+            {
+                Content = "Continue",
+                Command = new RelayCommand(() => DialogHost.Close(WindowBase.GetDialogHostIdentifier(owner), true))
+            },
+            owner, cancellationToken);
+        return result is true;
+    }
+}
+```
+
+消息框新增完整 owner 重载：`Task<bool> Show(string content, string title, MessageBoxButton btn, MessageBoxImage img, System.Windows.Window? owner)`。原有五个重载保留，默认 OK/Information。owner 为 WindowBase 时显示在它的主宿主；null/普通 Window 回退当前活动 WindowBase。消息框与自定义对话框共用队列，不能取消；关闭/换模板返回 false；初始不可用宿主仍抛 InvalidOperationException。每次创建独立内容控件，不会在并行窗口之间复用视觉树。不要新建同名 Host 作为失败回退。
+
+
 ### 四种按钮模式
 
 ```csharp
@@ -1091,14 +1207,9 @@ bool yesNo = await MessageBox.Show("是否保存？", "提示",
     FocusOnLeftClick="True"
     Icon="/icon.ico"
     LeftClick="TrayIcon_LeftClick"
-    MenuOnRightClick="True"
+    MenuOnRightClick="False"
     TooltipText="我的应用">
-    <snet:NotifyIcon.Menu>
-        <ContextMenu>
-            <MenuItem Header="显示主窗口" Click="OnShowMainWindow" />
-            <MenuItem Header="退出" Click="OnExitApp" />
-        </ContextMenu>
-    </snet:NotifyIcon.Menu>
+
 </snet:NotifyIcon>
 ```
 
@@ -1126,7 +1237,7 @@ protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     base.OnClosing(e);
 }
 
-// 托盘菜单退出
+// 由主窗口中的退出按钮命令调用（不生成原生托盘菜单）
 private void OnExitApp(object sender, RoutedEventArgs e)
 {
     _isExiting = true;
@@ -1153,6 +1264,7 @@ private void OnExitApp(object sender, RoutedEventArgs e)
 using CommunityToolkit.Mvvm.Input;
 using Snet.Windows.Core.mvvm;
 using System.Collections.ObjectModel;
+using Snet.Windows.Controls.property.core.DataAnnotations;
 using System.Windows.Media;
 
 namespace MyApp;
@@ -1162,9 +1274,9 @@ public partial class MonitorViewModel : BindNotify
     // 属性通过表达式访问
     public string DeviceName => GetProperty(() => DeviceName);
     public bool IsConnected => GetProperty(() => IsConnected);
-    public int PageIndex => GetProperty(() => PageIndex);
-    public int PageSize => GetProperty(() => PageSize);
-    public int Total => GetProperty(() => Total);
+    public int PageIndex { get => GetProperty(() => PageIndex); set => SetProperty(() => PageIndex, value); }
+    public int PageSize { get => GetProperty(() => PageSize); set => SetProperty(() => PageSize, value); }
+    public int Total { get => GetProperty(() => Total); set => SetProperty(() => Total, value); }
     public Color LedColor => GetProperty(() => LedColor);
 
     public ObservableCollection<DeviceModel> Devices { get; } = new();
@@ -1253,6 +1365,8 @@ public class DeviceSettings
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:snet="https://snet.cn"
+    xmlns:wpfui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
     xmlns:local="clr-namespace:MyApp"
     Title="{snet:Loc AppTitle}"
     snet:ResxLocalizationProvider.DefaultAssembly="MyApp"
@@ -1283,7 +1397,7 @@ public class DeviceSettings
                 Color="{Binding LedColor}" IsOn="{Binding IsConnected}"
                 VerticalAlignment="Center" Margin="5" />
 
-            <TextBlock Text="{Binding DeviceName}" FontSize="16"
+            <snet:TextBlockEx Text="{Binding DeviceName}" FontSize="16"
                        VerticalAlignment="Center" Margin="10,0" />
 
             <snet:ButtonControl
@@ -1296,21 +1410,20 @@ public class DeviceSettings
                 Command="{Binding DisconnectCommand}"
                 Icon="{DynamicResource Disconnect}" Margin="5" />
 
-            <snet:TextBoxControl Width="200"
-                Hint="搜索..." ClearButtonEnabled="True"
-                Icon="{DynamicResource Scan}" Margin="20,0,0,0">
+            <snet:TextBoxEx Width="200" Margin="20,0,0,0"
+                Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}">
                 <b:Interaction.Triggers>
                     <b:EventTrigger EventName="TextChanged">
                         <b:InvokeCommandAction
                             Command="{Binding SearchCommand}"
-                            CommandParameter="{Binding Text, RelativeSource={RelativeSource AncestorType=snet:TextBoxControl}}" />
+                            CommandParameter="{Binding Text, RelativeSource={RelativeSource AncestorType=snet:TextBoxEx}}" />
                     </b:EventTrigger>
                 </b:Interaction.Triggers>
-            </snet:TextBoxControl>
+            </snet:TextBoxEx>
         </StackPanel>
 
         <!-- 数据表格 -->
-        <DataGrid Grid.Row="1" Grid.Column="0"
+        <snet:DataGrid Grid.Row="1" Grid.Column="0"
                   ItemsSource="{Binding Devices}"
                   AutoGenerateColumns="True" Margin="0,0,10,0" />
 
@@ -1467,6 +1580,9 @@ public class MyControlViewModel : BindNotify
 ```xml
 <snet:WindowBase
     x:Class="MyApp.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:snet="https://snet.cn"
     xmlns:wpfui="http://schemas.lepo.co/wpfui/2022/xaml"
     Title="{snet:Loc SystemTitle}"
     Height="900" Width="1600"
@@ -1593,7 +1709,7 @@ public static NavigationViewItem CreationControl(
 **可选搜索框：**
 
 ```xml
-<wpfui:NavigationView AutoSuggestBox>
+<wpfui:NavigationView.AutoSuggestBox>
     <wpfui:AutoSuggestBox x:Name="AutoSuggestBox" PlaceholderText="Search">
         <wpfui:AutoSuggestBox.Icon>
             <wpfui:IconSourceElement>
@@ -1654,6 +1770,8 @@ Daq 大规模使用 **DataTemplate + ViewModel 继承链** 模式：共享 UI �
 ```xml
 <UserControl x:Class="Daq.view.SiemensView"
     xmlns:snet="https://snet.cn"
+    xmlns:wpfui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
     xmlns:ui="http://materialdesigninxaml.net/winfx/xaml/themes"
     xmlns:vm="clr-namespace:Daq.viewModel"
     snet:ResxLocalizationProvider.DefaultAssembly="Daq"
@@ -1665,9 +1783,9 @@ Daq 大规模使用 **DataTemplate + ViewModel 继承链** 模式：共享 UI �
     <UserControl.DataContext>
         <vm:SiemensViewModel />
     </UserControl.DataContext>
-    <ui:Card UniformCornerRadius="{DynamicResource WindowCornerRadius_Double}">
-        <ContentControl Content="{Binding}" ContentTemplate="{DynamicResource DAQ}" />
-    </ui:Card>
+    <wpfui:Card>
+        <wpfui:Card Content="{Binding}" ContentTemplate="{DynamicResource DAQ}" />
+    </wpfui:Card>
 </UserControl>
 ```
 
@@ -1918,14 +2036,14 @@ public class LogPipeline
 配合 `EventCommand` 让 TextBox 始终显示最新日志：
 
 ```xml
-<TextBox Text="{Binding InfoEvent}" AcceptsReturn="True" IsReadOnly="True"
+<snet:TextBoxEx Text="{Binding InfoEvent}" AcceptsReturn="True" MoveFocusOnEnter="False" UpdateBindingOnEnter="False" IsReadOnly="True"
          TextWrapping="Wrap" VerticalScrollBarVisibility="Hidden">
     <b:Interaction.Triggers>
         <b:EventTrigger EventName="TextChanged">
             <snet:EventCommand Command="{Binding InfoEventTextChanged}" />
         </b:EventTrigger>
     </b:Interaction.Triggers>
-</TextBox>
+</snet:TextBoxEx>
 ```
 
 ```csharp
@@ -1934,7 +2052,7 @@ public class LogPipeline
 public IAsyncRelayCommand InfoEventTextChanged =>
     new AsyncRelayCommand<TextChangedEventArgs>(e =>
     {
-        var tb = e.Source.GetSource<TextBox>();
+        var tb = e.Source.GetSource<Snet.Windows.Controls.property.wpf.TextBoxEx>();
         if (tb == null) return Task.CompletedTask;
         tb.SelectionStart = tb.Text.Length;
         tb.ScrollToEnd();
@@ -2079,10 +2197,10 @@ if (SvgHandler.SvgCodeConverter(name, annotation, svgContent, out string xamlCod
 <snet:ButtonControl Content="复制" Command="{Binding Copy}" />
 
 <!-- 输入区 -->
-<TextBox Text="{Binding InputData}" AcceptsReturn="True" />
+<snet:TextBoxEx Text="{Binding InputData}" AcceptsReturn="True" MoveFocusOnEnter="False" UpdateBindingOnEnter="False" />
 
 <!-- 输出区 -->
-<TextBox Text="{Binding OutData}" AcceptsReturn="True" IsReadOnly="True" />
+<snet:TextBoxEx Text="{Binding OutData}" AcceptsReturn="True" MoveFocusOnEnter="False" UpdateBindingOnEnter="False" IsReadOnly="True" />
 ```
 
 ---
@@ -2461,14 +2579,17 @@ monitor.Dispose();       // 释放（或 using var）
 
 ```xml
 <!-- 硬件状态面板（监控数据为字符串信息，用 Led 指示采集状态） -->
-<GroupBox Header="系统状态">
+<wpfui:Card>
+    <StackPanel>
+        <snet:TextBlockEx Text="系统状态" />
     <StackPanel>
         <snet:LedGaugeControl Color="Green" IsOn="{Binding MonitorRunning}" />
-        <TextBlock Text="{Binding CpuInfo}" />
-        <TextBlock Text="{Binding MemoryInfo}" />
-        <TextBlock Text="{Binding SystemRunTime}" />
+        <snet:TextBlockEx Text="{Binding CpuInfo}" />
+        <snet:TextBlockEx Text="{Binding MemoryInfo}" />
+        <snet:TextBlockEx Text="{Binding SystemRunTime}" />
     </StackPanel>
-</GroupBox>
+    </StackPanel>
+</wpfui:Card>
 ```
 
 ---
@@ -2607,9 +2728,9 @@ private static List<EditModel> GetEditModels() =>
 
 ```xml
 <!-- 设备选择 + 日志输出 TextBox -->
-<ComboBox ItemsSource="{Binding Devices}" SelectedItem="{Binding SelectedDevice}" />
-<TextBox Text="{Binding ConsoleOutput}"
-         AcceptsReturn="True" IsReadOnly="True"
+<snet:ComboBoxControl ItemsSource="{Binding Devices}" SelectedItem="{Binding SelectedDevice}" />
+<snet:TextBoxEx Text="{Binding ConsoleOutput}"
+         AcceptsReturn="True" MoveFocusOnEnter="False" UpdateBindingOnEnter="False" IsReadOnly="True"
          TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
 ```
 
@@ -2619,13 +2740,13 @@ private static List<EditModel> GetEditModels() =>
 
 ```xml
 <!-- ✅ 正确：用 Interaction.Triggers 包装（需 xmlns:b="http://schemas.microsoft.com/xaml/behaviors" + 安装 Microsoft.Xaml.Behaviors.Wpf 包） -->
-<TextBox Text="{Binding ConsoleOutput}" AcceptsReturn="True">
+<snet:TextBoxEx Text="{Binding ConsoleOutput}" AcceptsReturn="True" MoveFocusOnEnter="False" UpdateBindingOnEnter="False">
     <b:Interaction.Triggers>
         <b:EventTrigger EventName="TextChanged">
             <snet:EventCommand Command="{Binding TextChangedCommand}" />
         </b:EventTrigger>
     </b:Interaction.Triggers>
-</TextBox>
+</snet:TextBoxEx>
 <!-- ❌ 错误：TextChanged="{snet:EventCommand ...}" 属性写法 → XAML 解析失败 -->
 ```
 
@@ -2634,7 +2755,7 @@ private static List<EditModel> GetEditModels() =>
 ```
 // F:/Snet/WpfMUI/Snet.Windows.Controls/handler/EditBindingHandler.cs
 // TextEditor（内嵌 AvalonEdit）的文本双向绑定附加属性：
-//   snet:EditBindingHandler.EditText="{Binding Code}"（BindsTwoWayByDefault）
+//   h:EditBindingHandler.EditText="{Binding Code}"（BindsTwoWayByDefault）
 // 注意：该类与正则着色/FlowDocument 高亮无关；日志着色请用 TextEditor 的 Highlighting 机制。
 ```
 
@@ -2692,18 +2813,21 @@ public class AddressModelCore : DaqPluginOperateModel.ReadModel, IAddressModel
 
 ```xml
 <!-- AddressSettings 示意 — 绑定 AddressModelCore 真实字段 -->
-<GroupBox Header="地址配置">
-    <DataGrid ItemsSource="{Binding Addresses}" AutoGenerateColumns="False">
-        <DataGrid.Columns>
-            <DataGridTextColumn Header="地址" Binding="{Binding Address}" />
-            <DataGridTextColumn Header="类型" Binding="{Binding Type}" />
-            <DataGridTextColumn Header="长度" Binding="{Binding Length}" />
-            <DataGridTextColumn Header="编码" Binding="{Binding EncodingType}" />
-            <DataGridCheckBoxColumn Header="选中" Binding="{Binding IsSelected}" />
-        </DataGrid.Columns>
-    </DataGrid>
-    <snet:ButtonControl Content="添加地址" Command="{Binding AddAddressCommand}" />
-</GroupBox>
+<wpfui:Card>
+    <StackPanel>
+        <snet:TextBlockEx Text="地址配置" />
+        <snet:DataGrid ItemsSource="{Binding Addresses}" AutoGenerateColumns="False">
+            <snet:DataGrid.ColumnDefinitions>
+                <snet:ColumnDefinition Header="地址" PropertyName="Address" />
+                <snet:ColumnDefinition Header="类型" PropertyName="Type" />
+                <snet:ColumnDefinition Header="长度" PropertyName="Length" />
+                <snet:ColumnDefinition Header="编码" PropertyName="EncodingType" />
+                <snet:ColumnDefinition Header="选中" PropertyName="IsSelected" />
+            </snet:DataGrid.ColumnDefinitions>
+        </snet:DataGrid>
+        <snet:ButtonControl Content="添加地址" Command="{Binding AddAddressCommand}" />
+    </StackPanel>
+</wpfui:Card>
 ```
 
 ---
@@ -2724,6 +2848,7 @@ public class AddressModelCore : DaqPluginOperateModel.ReadModel, IAddressModel
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.1.10 | 2026-11-13 | 同步 WpfMUI@b34f0bc（include_worktree=true，6项工作树文件见本轮外部状态）；新增窗口独立 DialogHost/对话框共用队列、持久化与线程边界、PropertyGrid/编辑器/托盘行为；强制 Snet.Windows.Controls 优先，缺能力才用 Wpf.Ui，禁止原生交互控件回退；参考 Debug@429cb40 / Daq@0a7d5c9。 |
 | 1.0.1.9 | 2026-10-29 | 同步WpfMUI@2131aa9（include_worktree=false）及Shunnet@89038d2（include_worktree=true，10个packer文件见本轮外部状态）：安装基线26.301.1，MaterialDesignThemes5.4.0、Management/Drawing10.0.14。 |
 | 1.0.1.8 | 2026-10-16 | 同步 WpfMUI @597b032、Shunnet @70421a7（`include_worktree=false`，源码干净）：System.Management/System.Drawing.Common 10.0.13，区分当前源码ProjectReference依赖图与26.283.1安装基线。 |
 | 1.0.1.7 | 2026-10-12 | 同步 WpfMUI @8027167、Shunnet @4664a25（`include_worktree=false`）：安装基线 26.283.1，源码 1.0.0.0/ProjectReference；拖拽克隆/菜单/Canvas 坐标/旋转缩放锚点及释放边界，修正示例变量作用域和 Grid-only FAQ；托盘 TooltipText Unicode 即时更新、窗口 Foreground 动态主题资源。 |

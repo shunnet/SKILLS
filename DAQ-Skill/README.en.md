@@ -1,6 +1,6 @@
 # DAQ-Skill — Industrial IoT Data Acquisition Skill
 
-**Version:** 1.0.1.11
+**Version:** 1.0.1.12
 **Author:** Shun  
 **License:** MIT  
 **Framework:** .NET 10.0
@@ -79,12 +79,12 @@ A full-stack industrial IoT data acquisition library based on the [Snet](https:/
 | `Snet.Yamatake` | Yamatake (AZBIL) | `YamatakeOperate` | 2 |
 | `Snet.Yokogawa` | Yokogawa PLC | `YokogawaOperate` | 1 |
 | `Snet.YuDian` | YuDian AIBus temperature controller | `YuDianOperate` | 1 |
-| `Snet.PQDIF` | Power communication protocols (DLT645/DLT698/CJT188/DTSU6606) | `PQDIFOperate` | 10 |
+| `Snet.PQDIF` | Meter protocols + IEC61850 / IEC101 / IEC103 / IEC104 | `PQDIFOperate` | 14 |
 | `Snet.DB` | Database acquisition (SqlServer/MySQL/Oracle/SQLite) | `DBOperate` | 4 DB types |
 | `Snet.TEP` | TCP extension plugin (non-standard devices) | `TepMasterOperate` / `TepSlaveOperate` | custom |
 | `Snet.Freedom` | Free protocol (custom frames) | `FreedomOperate` | 3 |
 | `Snet.Sim` | Simulation library (hardware-free testing) | `SimOperate` | 5 virtual address types |
-| *(Snet.Driver)* | Knx / OpenProtocol / Sick / Geniitek / IDCard / Toledo / IEC104 / ShineIn Light / DAM3601 | Driver layer (no standalone NuGet package) | 9 |
+| *(Snet.Driver)* | Knx / OpenProtocol / Sick / Geniitek / IDCard / Toledo / IEC104 / ShineIn Light / DAM3601 | Low-level entries; these modes have no separate wrapper packages, while Snet.Driver itself is on NuGet | 9 |
 
 ## Message Middleware
 
@@ -134,8 +134,8 @@ dotnet new console -n DaqDemo && cd DaqDemo
 # ⚠️ Always pin the version! Check nuget.org for the latest:
 #   https://www.nuget.org/packages/Snet.Siemens
 #   https://www.nuget.org/packages/Snet.Mqtt
-dotnet add package Snet.Siemens -v 26.301.1
-dotnet add package Snet.Mqtt -v 26.301.1
+dotnet add package Snet.Siemens -v 26.316.1
+dotnet add package Snet.Mqtt -v 26.316.1
 
 # Power protocol example
 # dotnet add package Snet.PQDIF -v <latest version>

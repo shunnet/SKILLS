@@ -1,7 +1,7 @@
 ---
 name: plugindev-skill
 description: Snet.Iot.Daq 插件开发技能，覆盖 IDaq（数据采集）与 IMq（消息中间件）两类插件开发。严格定义插件开发契约：必须实现的抽象方法、必须遵循的返回类型、必须使用的数据标注、必须调用的框架方法。AI 自行决定采集方式（TCP/HTTP/文件/串口）或消息收发方式，但必须遵守契约。
-version: 1.0.2.8
+version: 1.0.2.9
 metadata:
   hermes:
     tags: [plugin-development, daq, iot, dotnet, contract, code-generation, mq, middleware]
@@ -11,7 +11,13 @@ metadata:
 
 # PluginDev-Skill — Snet Daq 插件开发契约（IDaq + IMq）
 
-> **运行环境：** .NET 10.0 SDK，插件引用 `Snet.Core` NuGet 包
+> **运行环境：** .NET 10.0 / .NET 11.0 SDK（按目标框架选择），插件引用 `Snet.Core` NuGet 包
+
+## Core 生命周期与插件生成补充
+
+BegOperateAsync直接完成，不主动检查取消；EndOperateAsync内部用CancellationToken.None保证计时/失败日志收尾。插件在实际工作/等待阶段检查token；不要声称所有实现必抛取消异常。抽象DAQ/MQ/通信Dispose通过finally保证基类清理，即使Off抛错。实例池达到上限仍可复用同配置实例，移除登记须同时匹配键和实例身份。
+
+自定义订阅FunctionAsync同一实例不重叠调用，每轮返回新的ConcurrentDictionary<string,AddressValue>或其List及新值对象；TaskNumber是处理分片数，不是并行读数。事件包装器CAS发布快照，同次Invoke顺序等待；多个Invoke仍可能并行。简单插件构造参数InvariantCulture转换失败抛带参数名ArgumentException，不得依赖静默默认值。
 
 ## 核心原则
 
@@ -30,7 +36,9 @@ metadata:
 
 ### 版本号：必须指定
 
-安装基线 `26.301.1` 已于 2026-10-29 核对 NuGet；源码项目版本 `1.0.0.0` 与内部 `ProjectReference` 是构建配置，不用于安装命令。当前源码行为可能晚于发布包，生成代码时按实际安装包核验，不能把源码更新自动归入该包。
+源码 Core/Model/Log/Utility 当前目标为 `net10.0;net11.0`；Core 的 System.IO.Ports 与 Microsoft.Extensions.* 使用 `11.0.0`，宿主/插件必须版本兼容。版本安装基线只是 NuGet 查询结果，不代表本轮每条源码行为均已用发布包测试。
+
+安装基线 `26.316.1` 已于 2026-11-13 核对 NuGet；源码项目版本 `1.0.0.0` 与内部 `ProjectReference` 是构建配置，不用于安装命令。当前源码行为可能晚于发布包，生成代码时按实际安装包核验，不能把源码更新自动归入该包。
 
 插件装载器将 `Opc.Ua.*` 与 `Microsoft.Extensions.*` 交由宿主默认 AssemblyLoadContext 解析；共享依赖必须版本兼容，不允许从插件目录私有回退。升级 OPC SDK 后应一起更新宿主并重启，避免类型身份和方法签名不匹配。
 
@@ -40,7 +48,7 @@ metadata:
 
 ```bash
 # ✅ 正确：指定版本号
-dotnet add package Snet.Core -v 26.301.1
+dotnet add package Snet.Core -v 26.316.1
 
 # ❌ 错误：不带版本号（使用 * 通配符，运行时报错）
 dotnet add package Snet.Core
@@ -2115,6 +2123,7 @@ public override async Task<OperateResult> ReadAsync(Address address, Cancellatio
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.2.9 | 2026-11-13 | source_commit=cc44e76b4b97831fb35612b0161f88a7fbba763c；include_worktree=false（Shunnet开工干净）；安装基线26.316.1，net10.0/net11.0；Core收尾取消/实例身份清理、异步事件快照、订阅返回新对象与单轮读取、插件简单参数转换错误显式失败。证据见D:/codex/.docs-sync/2026-11-13-104256/core-audit.md。 |
 | 1.0.2.8 | 2026-11-02 | 同步Shunnet@0dc839b（审查时为工作树改动，审查期间原样提交；状态见D:/codex/.docs-sync/2026-11-02-170605/repository-final.json）：组包去重的地址名改为区分大小写，同址不同大小写的点各得结果。安装基线仍26.301.1。 |
 | 1.0.2.7 | 2026-10-29 | 同步Shunnet@89038d2（include_worktree=true；10个packer脏文件见本轮外部状态）：安装基线26.301.1；明确底层DeviceServer诊断签名迁移不属于统一IDaq，保留Core与Driver依赖边界。 |
 | 1.0.2.6 | 2026-10-16 | 同步 Shunnet @70421a7（`include_worktree=false`，源码干净）：修正Core→Model→Log/Utility依赖链；字节批/普通值识别、失败模型与聚合false保留部分结果，示例检查Quality。 |

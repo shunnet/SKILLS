@@ -1,17 +1,17 @@
 ---
 name: daq-skill
-description: 工业物联网数据采集通信库，基于 Snet 框架，支持 PLC/工控/电力/机器人 等 30+ 种工业协议的数据读取、写入、订阅、状态获取，以及 Kafka/MQTT/RabbitMQ/RocketMQ/NetMQ/Netty 消息中间件转发。所有采集库通过 ProtocolType 枚举自动选择底层驱动。支持"一句话"完成采集+转发。
-version: 1.0.1.11
+description: 工业物联网数据采集通信库，基于 Snet 框架，支持 PLC/工控/电力（IEC61850/MMS、IEC101/103/104）/机器人 等 30+ 种工业协议的数据读取、写入、订阅、状态获取，以及 Kafka/MQTT/RabbitMQ/RocketMQ/NetMQ/Netty 消息中间件转发。协议族通过各自的 ProtocolType 等配置选择底层驱动。支持"一句话"完成采集+转发。
+version: 1.0.1.12
 metadata:
   hermes:
-    tags: [daq, iot, plc, industrial-automation, modbus, siemens, opc-ua, mqtt, kafka]
+    tags: [daq, iot, plc, industrial-automation, modbus, siemens, opc-ua, iec61850, iec60870, mqtt, kafka]
     related_skills: [plugindev-skill]
     homepage: https://shunnet.top
 ---
 
 # DAQ-Skill — 工业物联网数据采集技能
 
-> **运行环境：** .NET 10.0 SDK，所有 NuGet 包通过 `dotnet add package` 安装
+> **运行环境：** .NET 10.0 / .NET 11.0 SDK（按目标框架选择），所有 NuGet 包通过 `dotnet add package` 安装
 
 ## 一句话生成采集代码
 
@@ -81,7 +81,9 @@ operate.Off();
 
 ### 版本号：必须指定
 
-安装基线 `26.301.1` 已于 2026-10-29 核对 NuGet；源码项目版本 `1.0.0.0` 与内部 `ProjectReference` 是构建配置，不用于安装命令。当前源码行为可能晚于发布包，生成代码时按实际安装包核验，不能把源码更新自动归入该包。
+源码 Core/Model/Log/Utility 当前目标为 `net10.0;net11.0`；Core 的 System.IO.Ports 与 Microsoft.Extensions.* 使用 `11.0.0`，宿主/插件必须版本兼容。版本安装基线只是 NuGet 查询结果，不代表本轮每条源码行为均已用发布包测试。
+
+安装基线 `26.316.1` 已于 2026-11-13 核对 NuGet；源码项目版本 `1.0.0.0` 与内部 `ProjectReference` 是构建配置，不用于安装命令。当前源码行为可能晚于发布包，生成代码时按实际安装包核验，不能把源码更新自动归入该包。
 
 所有 `dotnet add package` 命令**必须**带 `-v` 版本号，**禁止使用 `*` 通配符**（运行时会报版本冲突错误）。
 
@@ -94,8 +96,8 @@ operate.Off();
 
 ```bash
 # ✅ 正确：指定版本号
-dotnet add package Snet.Siemens -v 26.301.1
-dotnet add package Snet.Mqtt -v 26.301.1
+dotnet add package Snet.Siemens -v 26.316.1
+dotnet add package Snet.Mqtt -v 26.316.1
 
 # ❌ 错误：不带版本号（使用 * 通配符，运行时报错）
 dotnet add package Snet.Siemens
@@ -116,16 +118,16 @@ dotnet add package Snet.Mqtt
 
 ```bash
 # ✅ 正确：只引用驱动包 + MQ 包
-dotnet add package Snet.Siemens -v 26.301.1
-dotnet add package Snet.Mqtt -v 26.301.1
+dotnet add package Snet.Siemens -v 26.316.1
+dotnet add package Snet.Mqtt -v 26.316.1
 
 # ❌ 错误：多引用了传递依赖包
-dotnet add package Snet.Siemens -v 26.301.1
-dotnet add package Snet.Mqtt -v 26.301.1
-dotnet add package Snet.Core -v 26.301.1      # 不需要！
-dotnet add package Snet.Model -v 26.301.1     # 不需要！
-dotnet add package Snet.Log -v 26.301.1       # 不需要！
-dotnet add package Snet.Utility -v 26.301.1   # 不需要！
+dotnet add package Snet.Siemens -v 26.316.1
+dotnet add package Snet.Mqtt -v 26.316.1
+dotnet add package Snet.Core -v 26.316.1      # 不需要！
+dotnet add package Snet.Model -v 26.316.1     # 不需要！
+dotnet add package Snet.Log -v 26.316.1       # 不需要！
+dotnet add package Snet.Utility -v 26.316.1   # 不需要！
 ```
 
 ### using 语句 vs NuGet 引用
@@ -282,13 +284,19 @@ if (!read.Status || !unpacked.Status) Console.WriteLine("读取/解包有失败�
 - **三菱 Melsec 白名单**：仅驱动支持的 MC 设备代码参与组包；未知代码、缺少数字或带尾随垃圾的地址自动降级为单点透传。`MelsecA4CNet` / `MelsecA4CNetOverTcp` 复用 A3C 地址模型并映射到 `ProtocolFamily.Mitsubishi`。
 - **线圈/位区 Bool 降级**：Modbus FC1/2（含非 Bool 误配）、Yaskawa 全部 Bool 及数字点号地址、Fanuc/Vigor/XinJE 位区 Bool、Toyo 全部 Bool、Panasonic 非 16 对齐 Bool、Fins TIM/CNT 点号 Bool、Cimon全部Bool及D点号均保留为原点单读。Yaskawa 仅无点号 UInt16 字地址且 SFC3/4/9/10 可组，`mfc=N;`/`x=N;` 须位于数字前、各至多一次并以 `;` 结尾，取值为无前导零十进制（驱动把前导 0 视为八进制）或 `0x` 十六进制，否则透传；Modbus 寄存器 Bool 最小响应按 2 字节计。 Modbus显式FC3/4的Bool也须带点号，非Bool点号及不适用类型的format=透传。
 - **不支持组包的协议自动原样返回**：符号/标签访问以及不兼容地址模型，包括 `SiemensS7Plus` / `MelsecCipNet` / `OmronCipNet` / `KeyenceKvOld` / `KeyenceNanoSerial` / `PanasonicMcNet` / `AllenBradleyNet` 等；当前映射还移除 `SiemensFetchWriteNet` / `MelsecMcRNet` / `MelsecA1ENet` / `MelsecA1EAsciiNet` / `MelsecFxSerial` / `MelsecFxSerialOverTcp`，A3C/A4C 仍支持。 当前还整体透传 SiemensPPI/PPIOverTcp/MPI、Delta五种、Inovance非ComputerLink各模式、MegMeet三种；ComputerLink改用MitsubishiFx。
-- 新建组包批带 `List<BytesModel>`，Length是模型覆盖字节；全部降级点保留原对象、Length、扩展参数，不附加单点模型。数组均透传；文本Length按Driver单位（Siemens/Beckhoff/GE/Fuji_CST/LSis_Cnet/FastEnet按字节，其余按字×2），Encoding只解码；零Length、AB文本、GE奇数Length文本透传。普通重叠规格用固定批首相对偏移，不累加前项宽度。模型上限不代表所有硬件已验证。
+- 新建组包批带 `List<BytesModel>`，Length是模型覆盖字节；全部降级点保留原对象、Length、扩展参数，不附加单点模型。数组均透传；文本Length按Driver单位（Siemens/Beckhoff/GE/Fuji_CST/LSis_Cnet/FastEnet按字节，Vigor C200+计数区文本×4，其余按字×2），Encoding只解码；零Length、AB文本、GE奇数Length文本透传。普通重叠规格用固定批首相对偏移，不累加前项宽度。模型上限不代表所有硬件已验证。
 - **解包 `isStringReverseByteWord`**（v26.235.2 起，4 个 `UnPacker`/`UnPackerAsync` 重载均有）：`String` 解包是否按 16 位字反转字节（每 2 字节一组交换，连接级配置——如欧姆龙 FINS 字符串按字反转字节读取）
-- **当前源码边界（晚于 NuGet 26.301.1）：** Modbus只有点号Bool可批读，format=只支持32/64位数值；全局ABCD/CDAB与BADC/DCBA采用不同寄存器内位序，组包format须与真实连接相同。Siemens普通字节≤0x1FFFFF，T/C/AI/AQ点位全部单点透传（驱动多元素响应解析不可靠）；Fanuc/Panasonic/Yokogawa批首转大写（`aI100`/`lD44`/`Tn100`等混合大小写双字母代码会使整批失败）；MC/Keyence/Cimon/GE/Toyo/Vigor须符合实际线缆字段，不能只按Int32不溢出判断。
+- **当前源码边界（安装包另按实际接口核验）：** Modbus只有点号Bool可批读，format=只支持32/64位数值；全局ABCD/CDAB与BADC/DCBA采用不同寄存器内位序，组包format须与真实连接相同。Siemens普通字节≤0x1FFFFF，T/C/AI/AQ点位全部单点透传（驱动多元素响应解析不可靠）；Fanuc/Panasonic/Yokogawa批首转大写（`aI100`/`lD44`/`Tn100`等混合大小写双字母代码会使整批失败）；MC/Keyence/Cimon/GE/Toyo/Vigor须符合实际线缆字段，不能只按Int32不溢出判断。
 - **Vigor C32**：C200起每元素4字节，文本Length×4，普通字区×2；直传Driver元素数仍可能多读，不代表硬件验证。
 - 查询支持组包的协议清单：`PackerHandler.GetSupportAutoPackDeviceTypes()` / `CanAutoPack(typeName)`；`CanAutoPack` 要求实际注册且 `SupportsAutoPack = true`。去重按区/地址/类型/Length/EncodingType/DataFormat 的完整读取规格，地址名区分大小写（`d168` 与 `D168` 各得结果）；`BytesHandler` 结果键冲突先追加 `\u0001DataType`，再次冲突追加 `\u0001序号`，`AddressValue.AddressName` 不变。
 - `BytesHandler` 仅对 ByteArray+List<BytesModel> 按批解码；其余值返回原 AddressValue 同对象，状态由 Quality==Normal 决定。坏质量/非byte[]原值的批按每个模型返回Exception点，不把缓存字节重标正常。模型越界（含BoolIndex）保留错误点，Byte从切片索引0解码。
 - 批量字典 `UnPacker`/`UnPackerAsync` 对各项Status做与运算，保留所有返回字典（含失败项）；任一失败整体false。混合批与透传点可统一输入，失败时仍读取ResultData并逐点检查Quality。GetSource只转换ResultData，不因Status=false自动返回default。
+
+### 订阅、写入与模型边界
+
+`SubscribeOperate` 只有一个读取循环；TaskNumber 是按区分大小写点位名分片的处理任务数，默认5、钳制1–256。同点队列顺序处理，组包同点只保留最新；每轮读取返回新集合和新AddressValue，不可原地修改上次结果。HandleInterval 从读结束后计时且至少1ms；Off最多等约5秒，不响应取消的读取可能仍运行。订阅批次重复名全部忽略并移除旧同名点，其他有效点仍加入；不修改调用者批次。
+
+对象字典WriteAsync字符串用ASCII，WriteModel默认ANSI(936)；数字文本转型用InvariantCulture。AddressValueSimplify的L/Q/DT显式Protobuf默认值和内外Ts必写，保留0/Exception/None/零时间戳；Time.Ticks与UtcNow.Ticks需通信双方约定。OPC桥接新生命周期见本文OPC章节。
 
 ### 1.4 克隆与参数更新（IClone / IArgs）
 
@@ -1021,7 +1029,7 @@ var config = new OpcUaClientData.Basics
 };
 ```
 
-> **证书认证要点：** 当前客户端 `SetAutoAcceptUntrustedCertificates(true)`、`SetAddAppCertToTrustedStore(false)`；自动接受服务端证书不等于自动加入信任存储或禁用全部证书检查。`UserName`/`Password` 默认 `"snet"`/`"123456"`，部署时应替换。SDK 2.0.1 证书身份通过证书目录与 `UserIdentity.CreateAsync` 创建，不再使用旧版 X509 构造方式；应保持宿主/插件 SDK 一致。`IOu` 定义 7 个异步节点浏览方法；`OpcUaClientOperate` 仍有同名同步包装和 UA 类型化重载，不能把接口异步化误写成类同步 API 全部删除。读取项数不匹配失败；Bad/Uncertain 项保留 null 失败记录且整体 Status=false；写入 Variant 转换失败不发送空值；调用方取消传播，失败回滚用未取消令牌。注入 SessionFactory 由调用方拥有，内置工厂由连接释放。
+> **证书认证要点：** 当前客户端与服务端的Basics.AutoAcceptUntrustedCertificates默认true，可显式设false并配置对端应用证书信任；启用时启动记录警告。`SetAddAppCertToTrustedStore(false)`仍禁用自动加入应用证书；自动接受服务端证书不等于自动加入信任存储或禁用全部证书检查。`UserName`/`Password` 默认 `"snet"`/`"123456"`，部署时应替换。SDK 2.0.2 证书身份通过证书目录与 `UserIdentity.CreateAsync` 创建，不再使用旧版 X509 构造方式；应保持宿主/插件 SDK 一致。`IOu` 定义 7 个异步节点浏览方法；`OpcUaClientOperate` 仍有同名同步包装和 UA 类型化重载，不能把接口异步化误写成类同步 API 全部删除。读取项数不匹配失败；Bad/Uncertain 项保留 null 失败记录且整体 Status=false；写入 Variant 转换失败不发送空值；取消行为依入口而异，部分操作传播OperationCanceledException，订阅增删SDK阶段也可能转为失败OperateResult，须检查Status；失败回滚用未取消令牌。注入 SessionFactory 由调用方拥有，内置工厂由连接释放。
 
 **OPC UA Server（提供 OPC UA 服务端）：**
 
@@ -1049,7 +1057,7 @@ using (OpcUaServiceOperate operate = await OpcUaServiceOperate.InstanceAsync(new
 
 > **⚠️ 注意：** `OpcUaServiceOperate` 不是 IDaq（仅 IOn/IOff/IRead/IWrite/IStatus，无订阅能力）。服务端校验用户证书时 `AutoAcceptUntrustedCertificates=false`（严格校验），未受信任的用户证书会在会话验证阶段被拒绝。
 
-**OPC UA Server 托管 IDaq 设备（当前源码，晚于 NuGet 26.301.1）：**
+**OPC UA Server 托管 IDaq 设备（当前源码）：**
 
 ```csharp
 // plc 为已配置好的 IDaq（如 new SiemensOperate(basics)）；注册成功后由服务端打开、订阅并最终释放
@@ -1058,7 +1066,7 @@ var info = reg.GetSource<OpcUaDaqRegistration>();  // DeviceSN / ProtocolName / 
 await operate.OnAsync();  // 点位 NodeId = {AddressSpaceName}·{SN}·{协议}·{AddressName}
 ```
 
-> **桥接要点：** 同服务 SN 唯一，同一 IDaq 对象只能被一个服务接管；仅启用点位，AddressName 非空且区分大小写唯一、Length>0、类型受支持（None/Date/Time 拒绝），不得传入已组包批；失败不接管对象。组包仅在 ProtocolType 存在且 DataFormat 可按名称识别（无 DataFormat 时仅 Siemens*）时执行，只影响采集。UA 写入只接受 Value 属性和精确类型/长度，等待设备 WriteAsync 回执（失败不伪成功、不重发），写后回读刷新；maxAge 过期的读取先读设备。质量：Normal→Good、None→BadWaitingForInitialData、DataTypeError→BadTypeMismatch、ParseError→BadDecodingError、ParseUnknown→Uncertain；离线 BadNotConnected 并每 5 秒重检。OffAsync 关闭设备但保留注册，Dispose 释放全部设备，无注销 API。服务端 NodeId 分隔符由 `.` 改为 `·`（`Data.NodeSeparator`），旧 NodeId 需重新浏览；服务端 ReadAsync/WriteAsync 的键是完整 NodeId 字符串。
+> **桥接要点：** 同服务 SN 唯一，同一 IDaq 对象只能被一个服务接管；仅启用点位，AddressName 非空且区分大小写唯一、Length>0、类型受支持（None/Date/Time 拒绝），不得传入已组包批；失败不接管对象。组包仅在 ProtocolType 存在且 DataFormat 可按名称识别（无 DataFormat 时仅 Siemens*）时执行，只影响采集。UA 写入只接受 Value 属性和精确类型/长度，等待设备 WriteAsync 回执（失败不伪成功、不重发），写后回读刷新；maxAge 过期的读取先读设备。质量：Normal→Good、None→BadWaitingForInitialData、DataTypeError→BadTypeMismatch、ParseError→BadDecodingError、ParseUnknown→Uncertain；离线 BadNotConnected 并每 5 秒重检。CloseDaqOnStop默认true：OffAsync取消设备订阅并关闭、但保留注册，Dispose最终释放设备。设false时Off只停桥接并保留注册，Dispose不取消设备订阅、不关闭或释放设备。UnRegisterDaq(IDaq) / UnRegisterDaqAsync(IDaq, token)使用同一个对象注销，移除在线目录/点位与跨服务归属，不取消订阅、不关/释放设备；之后可用新点位重新注册。详细边界见[OPC UA服务端](https://docs.snet.cn/zh/opc/opc-ua-server)。服务端 NodeId 分隔符由 `.` 改为 `·`（`Data.NodeSeparator`），旧 NodeId 需重新浏览；服务端 ReadAsync/WriteAsync 的键是完整 NodeId 字符串。
 
 **OPC DA Client（COM/DCOM，传统 OPC DA 服务器）：**
 
@@ -1273,7 +1281,7 @@ using (DBOperate operate = await DBOperate.InstanceAsync(new DBData.Basics
 
 ### 7.7 TEP 非标设备采集（Snet.TEP）
 
-> NuGet: `dotnet add package Snet.TEP -v 26.301.1`
+> NuGet: `dotnet add package Snet.TEP -v 26.316.1`
 > TEP = TCP 扩展插件，用于采集**非标准协议设备**（自定义 TCP 协议）
 > 主端使用 `Split('.', 3)` 解析 `DevName.DevID.PointName`，三段必须非空，但 `PointName`/从端 `Key` 可以继续包含点号；`ReadAsync` 也会通过 `AddressHandler` 处理并返回虚拟地址。Slave 底层 TCP 写入受 `Basics.Timeout` 限制。
 > 架构: Master（服务端，实现 IDaq）← TCP 私有协议 → Slave（客户端，设备端）
@@ -1440,7 +1448,7 @@ await clientOperate.OffAsync();
 
 > NuGet: `dotnet add package Snet.PQDIF -v <最新版本>`
 > Operate: `PQDIFOperate` | Config: `PQDIFData.Basics`
-> 统一电力协议库，通过 ProtocolType 覆盖 DLT645/DLT698/CJT188/DTSU6606 等 10 种电表协议
+> 统一电力协议库，ProtocolType共14项：10种电表模式，加IEC61850、IEC101、IEC103、IEC104。电表数据标识、类型限制不能套用于IEC模式。
 
 **协议子类型速查：**
 
@@ -1456,10 +1464,16 @@ await clientOperate.OffAsync();
 | "CJT188" "户表" "188协议 串口" | `CJT188` | 串口 |
 | "CJT188" "户表" "188协议 TCP" | `CJT188OverTcp` | 串口转网口透传 |
 | "DTSU6606" "德力西" "Modbus电表" | `DTSU6606Serial` | 串口(Modbus-RTU) |
+| "IEC61850" "MMS" | `IEC61850` | MMS/TCP，显式设实际Port（常用102） |
+| "IEC101" "101主站" | `IEC101` | 非平衡串口主站 |
+| "IEC103" "保护主站" | `IEC103` | 103串口主站 |
+| "IEC104" "104主站" | `IEC104` | TCP主站，显式设实际Port（常用2404） |
 
 **关键属性（除公共属性外）：** `StationStr`(站号，字符串), `EnableCodeFE`, `UseSecurityResquest`, `CA`(客户机地址), `Password`, `OpCode`, `CheckDataId`, `InstrumentType`, `AddressStartWithZero`, `IsStringReverse`, `Crc16CheckEnable`
 
-> **⚠️ 地址类型限制：** PQDIF / Freedom（自由协议）的读取**不支持 `DataType.Byte`**（返回"不支持 'Byte' 类型读取"），最小支持类型为 `Bool` / `Int16` / `Float` 等。
+> **地址与类型边界：** 下述PQDIF电表模式及Freedom的读取不支持DataType.Byte；这一限制不套用于IEC61850/IEC60870。IEC61850用真实MMS引用与类型读取，IEC101/104用CA/IOA，IEC103用CA/FUN/INF，读取已接收缓存；控制须区分发送、链路确认、应用确认和终结。
+
+IEC默认仍共享Port=6688，必须配置目标端口；IEC60870的UseSimulator默认false，只有显式true才使用内置模拟。GetIec60870PointsAsync要求链路就绪，断链后不承诺返回点位。SCL、模型发现、报告工程、GOOSE/SV/PTP、COMTRADE/录波、被动监视与原始归档回放是独立扩展服务，不是IDaq新增成员；参阅[IEC61850](https://docs.snet.cn/zh/protocols/iec61850)、[IEC60870](https://docs.snet.cn/zh/protocols/iec60870)及其关联页面。
 
 **示例：读取 DLT645-2007 电表数据并转发 MQTT**
 
@@ -1483,7 +1497,7 @@ await mq.OnAsync();
 using var meter = await PQDIFOperate.InstanceAsync(new Basics
 {
     IpAddress = "192.168.0.100",
-    Port = 2404,                       // DLT645 常用端口
+    Port = 2404,                       // 示例网关监听端口；按实际网关配置
     ProtocolType = ProtocolType.DLT645OverTcp,
     StationStr = "123456789012",       // 12位表号
     Password = "00000000",
@@ -1605,7 +1619,7 @@ await operate.OnAsync();
 
 ### 7.12 Snet.Driver 内置协议（无需单独 NuGet 包）
 
-> 以下协议已在 `Snet.Driver` 中实现底层驱动，但暂无独立的 NuGet 包和 Operate 封装类。
+> 下列为Snet.Driver中的底层类型，不应据名称推断独立厂商包；IEC104另有Snet.PQDIF.PQDIFOperate统一接入，其余按真实入口选用。
 > 如需使用，可通过 `Snet.Freedom`（自由协议）间接调用，或参考 [PluginDev-Skill](../PluginDev-Skill) 自行封装 Operate。
 > 这些协议由 `Snet.Driver` 包作为传递依赖自动引入。
 
@@ -2007,7 +2021,7 @@ DAQ → Netty:   "Snet.Netty.client.NettyClientOperate.{SN}"
 >
 > **已覆盖 NuGet 包：** 西门子/Modbus/三菱/欧姆龙/东方马达/汇川/OPC UA Client+Server/OPC DA/罗克韦尔/台达/基恩士/科伺(Kossi)/松下/倍福/GE/安川/英威腾/麦格米特/宇电(YuDian)/西蒙(Cimon)/发那科(Fanuc)/永宏(Fatek)/富士(Fuji)/LS产电(LSis)/理化(RKC)/丰田(Toyota)/图尔克(Turck)/丰炜(Vigor)/维控(WeCon)/信捷(XinJE)/山武(Yamatake)/横河(Yokogawa)/数据库/TEP/自由协议/模拟库/PQDIF(电力电表：DLT645/DLT698/CJT188/DTSU6606)。
 >
-> **Snet.Driver 内置（无独立 NuGet 包）：** Knx(楼宇自动化)/OpenProtocol(拧紧枪)/Sick(条码扫描)/Geniitek(振动传感器)/IDCard(身份证读卡器)/Toledo(称重)/IEC104(电力远动)/ShineIn Light(光源)/DAM3601(温控)。**不在列表中？** PluginDev-Skill 定义插件开发契约，AI 根据协议描述自动生成插件代码。
+> **Snet.Driver 底层模式（未单列厂商封装包）：** Knx(楼宇自动化)/OpenProtocol(拧紧枪)/Sick(条码扫描)/Geniitek(振动传感器)/IDCard(身份证读卡器)/Toledo(称重)/IEC104(底层电力远动；统一接入另见Snet.PQDIF)/ShineIn Light(光源)/DAM3601(温控)。**不在列表中？** PluginDev-Skill 定义插件开发契约，AI 根据协议描述自动生成插件代码。
 
 ---
 
@@ -2015,6 +2029,7 @@ DAQ → Netty:   "Snet.Netty.client.NettyClientOperate.{SN}"
 
 | 版本 | 日期 | 变更 |
 |:---|:---|:---|
+| 1.0.1.12 | 2026-11-13 | source_commit=cc44e76b4b97831fb35612b0161f88a7fbba763c；include_worktree=false（Shunnet开工干净）；安装基线26.316.1，net10.0/net11.0；订阅单轮读取/按名分片/有限停止、写入编码与InvariantCulture、公共模型Protobuf默认值；补齐OPC SDK2.0.2/证书默认值、CloseDaqOnStop与UnRegisterDaq归属；PQDIF14协议及IEC采集/工程/被动监视边界。证据见D:/codex/.docs-sync/2026-11-13-104256/下core-audit.md、iec-audit.md、opc-tep-cross-review.md。 |
 | 1.0.1.11 | 2026-11-02 | 同步Shunnet@0913137→0dc839b（include_worktree=true；7个packer工作树改动在审查期间被原样提交为0dc839b，其余35个脏文件见D:/codex/.docs-sync/2026-11-02-170605/repository-final.json）：OPC UA服务端RegisterDaqAsync托管IDaq（注册规则、`·` NodeId、读写/质量/生命周期）；Siemens T/C/AI/AQ全部透传，LSis Cnet Bool/FastEnet仅B位宽，Yaskawa修饰符严格语法，Fanuc/Panasonic/Yokogawa批首大写，点名区分大小写去重。安装基线仍26.301.1，未提交行为不归属发布包。 |
 | 1.0.1.10 | 2026-10-29 | 同步Shunnet@89038d2（include_worktree=true；10个packer脏文件清单见D:/codex/.docs-sync/2026-10-29-154823/repository-baseline.json）：安装基线26.301.1；Modbus全局位序/降级条件、线缆字段边界与Vigor C32；限定Driver传递依赖，倍福README计数2。未提交行为不自动归属于发布包。 |
 | 1.0.1.9 | 2026-10-16 | 同步 Shunnet @70421a7（`include_worktree=false`，源码干净）：24注册/23优化/59映射，Fuji三模式、Cpu禁优化、句柄透传与位批边界；所有降级点保留原对象；文本Length按Driver单位；失败模型/聚合状态和部分结果契约。安装基线26.283.1与源码行为分开。 |

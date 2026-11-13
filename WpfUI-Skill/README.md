@@ -1,6 +1,6 @@
 # WpfUI-Skill — WPF 现代化界面开发技能
 
-**版本:** 1.0.1.9
+**版本:** 1.0.1.10
 **作者:** Shun
 **许可证:** MIT
 
@@ -9,6 +9,8 @@
 ## 🎯 定位
 
 🖥️ **界面开发** — 基于 Snet WPF 框架构建现代化桌面应用
+
+使用本技能时必须优先使用 `Snet.Windows.Controls` 内置控件；缺少所需能力时才用 `Wpf.Ui.Controls`，禁止回退原生交互控件。布局面板和资源/模板基础元素按 SKILL.md 的明确边界使用。实现参考 [Debug](https://github.com/shunnet/Debug) 与 [Daq WPF 端](https://github.com/shunnet/Daq/tree/main/Snet.Iot.Daq)。
 
 ## ✨ 能力
 
@@ -21,7 +23,7 @@
 - 🔧 PropertyGrid 属性编辑器（40+ 注解，ColorPicker/FilePicker/DataGrid）
 - 🖱️ 拖拽控件（8 向缩放 + 拖拽移动 + 动画创建）
 - 💬 消息对话框（OK / OKCancel / Yes / YesNo，⚠️ 与 System.Windows.MessageBox 同名需用别名，见 SKILL.md §8）
-- 🔔 系统托盘（NotifyIcon XAML 元素 + Register/点击事件，TrayManager 为 internal 不可访问）
+- 🔔 系统托盘（NotifyIcon XAML 元素 + Register/点击事件，TrayManager 为 internal 不可访问；运行时属性更新、Closed 释放）
 
 ## 💬 场景示例
 
@@ -31,6 +33,8 @@
 🗣️ "做一个可拖拽的设备布局编辑器，控件可以拖动和缩放"
 🗣️ "做一个多页签的设置窗口，用 PropertyGrid 编辑配置"
 ```
+
+- 💬 `DialogHandler.ShowAsync` 自定义对话框；窗口独立宿主，消息框共用队列，关闭/换模板与取消语义见 SKILL.md §8
 
 ## 📄 文件
 
